@@ -52,6 +52,10 @@ public class SplashActivity extends AppCompatActivity {
         boolean done = sp.getBoolean("agent2_v1", false);
         if (!done) {
             com.example.myapplication.utils.Agent2Seeder.runOnce();
+            
+            // Store credentials for agent2 in local database
+            sessionManager.storeCredentials("agent2@test.com", "agent2123", "agent2-uid-placeholder");
+            
             sp.edit().putBoolean("agent2_v1", true).apply();
         }
     }

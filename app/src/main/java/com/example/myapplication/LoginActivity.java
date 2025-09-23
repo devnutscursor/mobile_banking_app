@@ -199,6 +199,13 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
         
+        // CRITICAL: Validate password against stored credentials
+        if (!validateOfflinePassword(email, password)) {
+            showError("Invalid password");
+            btnLogin.setEnabled(true);
+            return;
+        }
+        
         // Start offline session for this specific user
         if (sessionManager.startOfflineSessionForUser(userEntity)) {
             showSuccess(getString(R.string.login_successful));
@@ -206,6 +213,33 @@ public class LoginActivity extends AppCompatActivity {
         } else {
             showError(getString(R.string.login_failed));
             btnLogin.setEnabled(true);
+        }
+    }
+    
+    /**
+     * Validate password for offline login
+     * This checks against stored credentials in local database
+     */
+    private boolean validateOfflinePassword(String email, String password) {
+        // Get stored credential from database
+        com.example.myapplication.database.entities.CredentialEntity credential = 
+            sessionManager.getCredentialByEmail(email);
+        
+        if (credential == null) {
+            Log.d("LoginActivity", "No stored credentials found for: " + email);
+            return false;
+        }
+        
+        // For now, we'll use simple string comparison
+        // In production, you should use proper password hashing (BCrypt, etc.)
+        String storedPassword = credential.getPasswordHash();
+        
+        if (password.equals(storedPassword)) {
+            Log.d("LoginActivity", "Password validated for offline login: " + email);
+            return true;
+        } else {
+            Log.d("LoginActivity", "Invalid password for offline login: " + email);
+            return false;
         }
     }
 
@@ -223,6 +257,8 @@ public class LoginActivity extends AppCompatActivity {
                         authManager.getCurrentUser(new AuthManager.AuthCallback() {
                             @Override
                             public void onSuccess(User user) {
+                                // Store credentials for offline login
+                                sessionManager.storeCredentials(email, password, user.getUid());
                                 validateUserLicense(user);
                             }
 

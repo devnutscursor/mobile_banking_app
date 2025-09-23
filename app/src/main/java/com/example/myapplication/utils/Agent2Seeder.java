@@ -57,6 +57,9 @@ public class Agent2Seeder {
                                 
                                 // Create license for agent2
                                 createAgent2License(db, uid);
+                                
+                                // Store credentials in local database for offline login
+                                storeAgent2Credentials(uid);
                             })
                             .addOnFailureListener(e -> {
                                 Log.e(TAG, "Error creating Agent2 Firestore document: " + e.getMessage());
@@ -96,6 +99,9 @@ public class Agent2Seeder {
                             .addOnSuccessListener(aVoid -> {
                                 Log.d(TAG, "Agent2 Firestore document created/updated successfully");
                                 createAgent2License(db, uid);
+                                
+                                // Store credentials in local database for offline login
+                                storeAgent2Credentials(uid);
                             })
                             .addOnFailureListener(e -> {
                                 Log.e(TAG, "Error creating/updating Agent2 Firestore document: " + e.getMessage());
@@ -125,5 +131,12 @@ public class Agent2Seeder {
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Error creating Agent2 license: " + e.getMessage());
                 });
+    }
+    
+    private static void storeAgent2Credentials(String uid) {
+        // Store credentials in local database for offline login
+        android.content.Context context = null; // We need context for this
+        // For now, we'll handle this in the main app when the seeder runs
+        Log.d(TAG, "Agent2 credentials should be stored for UID: " + uid);
     }
 }

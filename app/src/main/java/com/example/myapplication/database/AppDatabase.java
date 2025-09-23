@@ -8,13 +8,15 @@ import android.content.Context;
 import com.example.myapplication.database.dao.UserDao;
 import com.example.myapplication.database.dao.LicenseDao;
 import com.example.myapplication.database.dao.SessionDao;
+import com.example.myapplication.database.dao.CredentialDao;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.database.entities.LicenseEntity;
 import com.example.myapplication.database.entities.SessionEntity;
+import com.example.myapplication.database.entities.CredentialEntity;
 
 @Database(
-    entities = {UserEntity.class, LicenseEntity.class, SessionEntity.class},
-    version = 1,
+    entities = {UserEntity.class, LicenseEntity.class, SessionEntity.class, CredentialEntity.class},
+    version = 2,
     exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -25,6 +27,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract UserDao userDao();
     public abstract LicenseDao licenseDao();
     public abstract SessionDao sessionDao();
+    public abstract CredentialDao credentialDao();
     
     public static AppDatabase getDatabase(Context context) {
         if (INSTANCE == null) {

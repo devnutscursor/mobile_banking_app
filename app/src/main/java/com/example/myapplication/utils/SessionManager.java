@@ -369,4 +369,29 @@ public class SessionManager {
     public LicenseEntity getLicenseByUser(String userId) {
         return database.licenseDao().getLicenseByUserId(userId);
     }
+    
+    /**
+     * Store user credentials for offline login
+     */
+    public void storeCredentials(String email, String password, String userId) {
+        com.example.myapplication.database.entities.CredentialEntity credential = 
+            new com.example.myapplication.database.entities.CredentialEntity(email, password, userId);
+        database.credentialDao().insertCredential(credential);
+        Log.d(TAG, "Stored credentials for: " + email);
+    }
+    
+    /**
+     * Get stored credentials by email
+     */
+    public com.example.myapplication.database.entities.CredentialEntity getCredentialByEmail(String email) {
+        return database.credentialDao().getCredentialByEmail(email);
+    }
+    
+    /**
+     * Delete stored credentials
+     */
+    public void deleteCredentials(String email) {
+        database.credentialDao().deleteCredential(email);
+        Log.d(TAG, "Deleted credentials for: " + email);
+    }
 }
