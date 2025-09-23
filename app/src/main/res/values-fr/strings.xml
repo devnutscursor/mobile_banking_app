@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">Application Mobile Banking</string>
+    
+    <!-- Login Activity -->
+    <string name="login_title">Connexion</string>
+    <string name="welcome_back">Bon retour</string>
+    <string name="sign_in_subtitle">Connectez-vous à votre compte</string>
+    <string name="email_hint">Adresse e-mail</string>
+    <string name="password_hint">Mot de passe</string>
+    <string name="login_button">Se connecter</string>
+    <string name="login_successful">Connexion réussie!</string>
+    <string name="login_failed">Échec de la connexion</string>
+    <string name="fill_all_fields">Veuillez remplir tous les champs</string>
+    <string name="signing_in">Connexion en cours...</string>
+    <string name="validating_license">Validation de la licence...</string>
+    <string name="license_validated">Licence validée avec succès!</string>
+    <string name="license_invalid">Licence invalide</string>
+    <string name="checking_offline_access">Vérification de l\'accès hors ligne...</string>
+    <string name="credentials_not_found_offline">Identifiants non trouvés hors ligne, tentative de connexion en ligne...</string>
+    
+    <!-- License Activation -->
+    <string name="license_activation">Activation de la licence</string>
+    <string name="enter_license_key">Entrez votre clé de licence pour activer</string>
+    <string name="activate_button">Activer</string>
+    <string name="license_activated">Licence activée avec succès!</string>
+    <string name="activation_failed">Échec de l\'activation</string>
+    
+    <!-- Dashboard -->
+    <string name="welcome">Bienvenue</string>
+    <string name="welcome_agent">Bienvenue, Agent</string>
+    <string name="role_agent">Rôle: AGENT</string>
+    <string name="my_stats">Mes Statistiques</string>
+    <string name="agent_operations">Opérations d\'Agent</string>
+    <string name="manage_customers">Gérer les Clients</string>
+    <string name="buy_virtual_credit">Acheter du Crédit Virtuel</string>
+    <string name="process_transactions">Traiter les Transactions</string>
+    <string name="my_reports">Mes Rapports</string>
+    <string name="manage_operators">Gérer les opérateurs</string>
+    <string name="dealer_dashboard">Tableau de bord du revendeur</string>
+    <string name="agent_dashboard">Tableau de bord de l\'agent</string>
+    <string name="manage_agents">Gérer les agents</string>
+    <string name="cash_register">Caisse enregistreuse</string>
+    <string name="virtual_accounts">Comptes virtuels</string>
+    <string name="transactions">Transactions</string>
+    <string name="reports">Rapports</string>
+    <string name="dashboard_stats">Statistiques du tableau de bord</string>
+    <string name="dealer_operations">Opérations du revendeur</string>
+    <string name="active_agents_label">Agents actifs : %1$d</string>
+    <string name="todays_transactions_label">Transactions d\'aujourd\'hui : %1$d</string>
+    <string name="virtual_balance_label">Solde virtuel : $%1$s</string>
+    <string name="registered_customers_label">Clients enregistrés : %1$d</string>
+    <!-- Dashboard card titles (agent) -->
+    <string name="card_my_customers">Mes clients</string>
+    <string name="card_todays_transactions">Transactions d\'aujourd\'hui</string>
+    <string name="card_virtual_balance">Solde virtuel</string>
+    <string name="card_commission_earned">Commission gagnée</string>
+
+    <!-- Dashboard card titles (dealer) -->
+    <string name="card_my_agents">Mes agents</string>
+    <string name="card_total_transactions">Transactions totales</string>
+    <string name="card_total_revenue">Revenu total</string>
+    <string name="card_all_customers">Tous les clients</string>
+    <string name="no_dealer_assigned">Aucun revendeur attribué</string>
+    <string name="logout">Déconnexion</string>
+    <string name="coming_soon">Bientôt disponible</string>
+    
+    <!-- Main Activity -->
+    <string name="mobile_banking_app">Application Mobile Banking - Test</string>
+    <string name="status_not_logged_in">Statut: Non connecté</string>
+    <string name="status_logged_in">Statut: Connecté en tant que</string>
+    <string name="online_login_required">Connexion en ligne (Internet requis)</string>
+    <string name="resume_session">Reprendre la session</string>
+    <string name="first_time_login_required">Connexion initiale requise</string>
+    <string name="session_locked_tap_resume">Session verrouillée - appuyez sur Reprendre pour continuer</string>
+    <string name="logs_will_appear_here">Les journaux apparaîtront ici...</string>
+    
+    <!-- Language Selection -->
+    <string name="select_language">Sélectionner la langue</string>
+    <string name="language_english">Anglais</string>
+    <string name="language_french">Français</string>
+    
+    <!-- Common -->
+    <string name="role">Rôle</string>
+    <string name="name">Nom</string>
+    <string name="email">Email</string>
+    <string name="dealer">Revendeur</string>
+    <string name="agent">Agent</string>
+    <string name="admin">Administrateur</string>
+    <string name="active">Actif</string>
+    <string name="inactive">Inactif</string>
+    <string name="needs_sync">Nécessite une synchronisation</string>
+    <string name="up_to_date">À jour</string>
+    <string name="authenticated_as">Authentifié en tant que</string>
+    
+    <!-- Language download messages -->
+    <string name="downloading_language_model">Téléchargement du modèle de langue... (30 Mo)</string>
+    <string name="download_language_failed">Échec du téléchargement du modèle de langue. Vérifiez votre connexion Internet.</string>
+</resources>

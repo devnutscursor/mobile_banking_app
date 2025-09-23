@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/splash_background">
+
+    <!-- Banking Icon -->
+    <ImageView
+        android:id="@+id/banking_icon"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_centerInParent="true"
+        android:src="@drawable/ic_banking"
+        android:contentDescription="Banking App Icon" />
+
+    <!-- App Name -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@id/banking_icon"
+        android:layout_marginTop="24dp"
+        android:text="Mobile Banking Agent"
+        android:textColor="@color/text_white"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <!-- Loading Text -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="48dp"
+        android:text="Loading..."
+        android:textColor="@color/text_white"
+        android:textSize="16sp"
+        android:alpha="0.8" />
+
+</RelativeLayout>
+

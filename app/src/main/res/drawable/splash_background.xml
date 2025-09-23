@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Background gradient -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="@color/primary_blue"
+                android:endColor="@color/primary_blue_dark"
+                android:angle="135" />
+        </shape>
+    </item>
+    
+    <!-- Banking icon -->
+    <item
+        android:drawable="@drawable/ic_banking"
+        android:gravity="center"
+        android:width="120dp"
+        android:height="120dp" />
+    
+    <!-- App name -->
+    <item android:gravity="center|bottom">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+        </shape>
+    </item>
+</layer-list>
+
+
+
+

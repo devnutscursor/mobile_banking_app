@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Modern Banking Theme Colors - Purple & Orange Gradient Scheme -->
+    
+    <!-- Primary Purple Shades -->
+    <color name="primary_purple">#7C3AED</color>
+    <color name="primary_purple_dark">#5B21B6</color>
+    <color name="primary_purple_light">#A78BFA</color>
+    <color name="primary_purple_extra_light">#DDD6FE</color>
+    
+    <!-- Primary Orange Shades -->
+    <color name="primary_orange">#F97316</color>
+    <color name="primary_orange_dark">#EA580C</color>
+    <color name="primary_orange_light">#FB923C</color>
+    <color name="primary_orange_extra_light">#FED7AA</color>
+    
+    <!-- Gradient Colors -->
+    <color name="gradient_start">#7C3AED</color>
+    <color name="gradient_middle">#A855F7</color>
+    <color name="gradient_end">#F97316</color>
+    
+    <!-- Background Colors -->
+    <color name="background_primary">#FEFEFE</color>
+    <color name="background_secondary">#F8FAFC</color>
+    <color name="background_card">#FFFFFF</color>
+    <color name="background_overlay">#80000000</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#1F2937</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="text_tertiary">#9CA3AF</color>
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_purple">#7C3AED</color>
+    <color name="text_orange">#F97316</color>
+    
+    <!-- Status Colors -->
+    <color name="success_green">#10B981</color>
+    <color name="success_light">#D1FAE5</color>
+    <color name="error_red">#EF4444</color>
+    <color name="error_light">#FEE2E2</color>
+    <color name="warning_amber">#F59E0B</color>
+    <color name="warning_light">#FEF3C7</color>
+    <color name="info_blue">#3B82F6</color>
+    <color name="info_light">#DBEAFE</color>
+    
+    <!-- Border & Divider Colors -->
+    <color name="border_light">#F3F4F6</color>
+    <color name="border_medium">#E5E7EB</color>
+    <color name="border_dark">#D1D5DB</color>
+    <color name="divider">#F3F4F6</color>
+    
+    <!-- Shadow Colors -->
+    <color name="shadow_light">#1A000000</color>
+    <color name="shadow_medium">#33000000</color>
+    <color name="shadow_dark">#4D000000</color>
+    
+    <!-- Legacy Support -->
+    <color name="primary_blue">#7C3AED</color>
+    <color name="primary_blue_dark">#5B21B6</color>
+    <color name="primary_blue_light">#A78BFA</color>
+    <color name="background_light">#F8FAFC</color>
+    <color name="background_white">#FFFFFF</color>
+    
+    <!-- Missing colors that are still referenced -->
+    <color name="secondary_gray">#6B7280</color>
+    <color name="secondary_gray_dark">#4B5563</color>
+    <color name="secondary_gray_light">#9CA3AF</color>
+    <color name="accent_black">#1F2937</color>
+    <color name="accent_black_light">#374151</color>
+    <color name="background_gray">#F3F4F6</color>
+    <color name="text_light">#9CA3AF</color>
+    <color name="warning_orange">#F59E0B</color>
+    
+    <!-- Material Design Colors -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

@@ -1,0 +1,98 @@
+<resources>
+    <!-- App Name -->
+    <string name="app_name">My Application</string>
+    
+    <!-- Login Activity -->
+    <string name="login_title">Login</string>
+    <string name="welcome_back">Welcome Back</string>
+    <string name="sign_in_subtitle">Sign in to your account</string>
+    <string name="email_hint">Email Address</string>
+    <string name="password_hint">Password</string>
+    <string name="login_button">Sign In</string>
+    <string name="login_successful">Login successful!</string>
+    <string name="login_failed">Login failed</string>
+    <string name="fill_all_fields">Please fill all fields</string>
+    <string name="signing_in">Signing in...</string>
+    <string name="validating_license">Validating license...</string>
+    <string name="license_validated">License validated successfully!</string>
+    <string name="license_invalid">License invalid</string>
+    <string name="checking_offline_access">Checking offline access...</string>
+    <string name="credentials_not_found_offline">Credentials not found offline, trying online login...</string>
+    
+    <!-- License Activation -->
+    <string name="license_activation">License Activation</string>
+    <string name="enter_license_key">Enter your license key to activate</string>
+    <string name="activate_button">Activate</string>
+    <string name="license_activated">License activated successfully!</string>
+    <string name="activation_failed">Activation failed</string>
+    
+    <!-- Dashboard -->
+    <string name="welcome">Welcome</string>
+    <string name="welcome_agent">Welcome, Agent</string>
+    <string name="role_agent">Role: AGENT</string>
+    <string name="my_stats">My Stats</string>
+    <string name="agent_operations">Agent Operations</string>
+    <string name="manage_customers">Manage Customers</string>
+    <string name="buy_virtual_credit">Buy Virtual Credit</string>
+    <string name="process_transactions">Process Transactions</string>
+    <string name="my_reports">My Reports</string>
+    <string name="manage_operators">Manage Operators</string>
+    <string name="dealer_dashboard">Dealer Dashboard</string>
+    <string name="agent_dashboard">Agent Dashboard</string>
+    <string name="manage_agents">Manage Agents</string>
+    <string name="cash_register">Cash Register</string>
+    <string name="virtual_accounts">Virtual Accounts</string>
+    <string name="transactions">Transactions</string>
+    <string name="reports">Reports</string>
+    <string name="dashboard_stats">Dashboard Stats</string>
+    <string name="dealer_operations">Dealer Operations</string>
+    <string name="active_agents_label">Active Agents: %1$d</string>
+    <string name="todays_transactions_label">Today\'s Transactions: %1$d</string>
+    <string name="virtual_balance_label">Virtual Balance: $%1$s</string>
+    <string name="registered_customers_label">Registered Customers: %1$d</string>
+
+    <!-- Dashboard card titles (agent) -->
+    <string name="card_my_customers">My Customers</string>
+    <string name="card_todays_transactions">Today\'s Transactions</string>
+    <string name="card_virtual_balance">Virtual Balance</string>
+    <string name="card_commission_earned">Commission Earned</string>
+
+    <!-- Dashboard card titles (dealer) -->
+    <string name="card_my_agents">My Agents</string>
+    <string name="card_total_transactions">Total Transactions</string>
+    <string name="card_total_revenue">Total Revenue</string>
+    <string name="card_all_customers">All Customers</string>
+    <string name="no_dealer_assigned">No dealer assigned</string>
+    <string name="logout">Logout</string>
+    <string name="coming_soon">Coming Soon</string>
+    
+    <!-- Main Activity -->
+    <string name="mobile_banking_app">Mobile Banking App - Test</string>
+    <string name="status_not_logged_in">Status: Not logged in</string>
+    <string name="status_logged_in">Status: Logged in as</string>
+    <string name="online_login_required">Online Login (Internet Required)</string>
+    <string name="resume_session">Resume Session</string>
+    <string name="first_time_login_required">First-time login required</string>
+    <string name="session_locked_tap_resume">Session locked - tap Resume to continue</string>
+    <string name="logs_will_appear_here">Logs will appear here...</string>
+    
+    <!-- Language Selection -->
+    <string name="select_language">Select Language</string>
+    <string name="language_english">English</string>
+    <string name="language_french">Français</string>
+    
+    <!-- Common -->
+    <string name="role">Role</string>
+    <string name="name">Name</string>
+    <string name="email">Email</string>
+    <string name="dealer">Dealer</string>
+    <string name="agent">Agent</string>
+    <string name="admin">Admin</string>
+    <string name="active">Active</string>
+    <string name="inactive">Inactive</string>
+    <string name="needs_sync">Needs Sync</string>
+    <string name="up_to_date">Up to date</string>
+    <string name="authenticated_as">Authenticated as</string>
+    <string name="downloading_language_model">Downloading language model... (30MB)</string>
+    <string name="download_language_failed">Failed to download language model. Please check your internet connection.</string>
+</resources>
