@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Camera permission for barcode scanning -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Network state to allow sync manager to detect connectivity -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
 <application
         android:name=".App"
         android:allowBackup="true"
@@ -36,6 +41,9 @@
             android:exported="false" />
         <activity
             android:name=".LicenseActivationActivity"
+            android:exported="false" />
+        <activity
+            android:name=".CustomerManagementActivity"
             android:exported="false" />
     </application>
 

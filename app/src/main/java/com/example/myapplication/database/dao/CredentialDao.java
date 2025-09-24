@@ -20,6 +20,9 @@ public interface CredentialDao {
     @Query("SELECT * FROM credentials WHERE email = :email")
     CredentialEntity getCredentialByEmail(String email);
     
+    @Query("SELECT * FROM credentials")
+    java.util.List<CredentialEntity> getAllCredentials();
+    
     @Query("DELETE FROM credentials WHERE email = :email")
     void deleteCredential(String email);
     

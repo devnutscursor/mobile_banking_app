@@ -163,8 +163,9 @@ public class AgentDashboardActivity extends AppCompatActivity {
         });
 
         btnCustomers.setOnClickListener(v -> {
-            Toast.makeText(this, "Customer Management - " + getString(R.string.coming_soon), Toast.LENGTH_SHORT).show();
-            // TODO: Navigate to CustomerManagementActivity
+            // Navigate to Customer Management
+            android.content.Intent intent = new android.content.Intent(this, CustomerManagementActivity.class);
+            startActivity(intent);
         });
 
         btnCashRegister.setOnClickListener(v -> {
@@ -263,13 +264,26 @@ public class AgentDashboardActivity extends AppCompatActivity {
             tvCommissionEarned.setText(cachedCommission);
         }
         
-        // Then load fresh data from Firestore
-        Query q = firestore.collection("customers").whereEqualTo("createdBy", currentUser.getUid());
-        q.get().addOnSuccessListener(snap -> {
-            String count = String.valueOf(snap.size());
-            tvCustomersCount.setText(count);
-            cachedCustomerCount = count; // Cache the real data
-        });
+        // Load customer count from local database first (offline-first approach)
+        new Thread(() -> {
+            try {
+                com.example.myapplication.database.AppDatabase database = 
+                    com.example.myapplication.database.AppDatabase.getDatabase(this);
+                int localCount = database.customerDao().getCustomerCountByUser(currentUser.getUid());
+                Log.d("AgentDashboard", "Local customer count: " + localCount + " for user: " + currentUser.getUid());
+                
+                runOnUiThread(() -> {
+                    String count = String.valueOf(localCount);
+                    tvCustomersCount.setText(count);
+                    cachedCustomerCount = count; // Cache the real data
+                    Log.d("AgentDashboard", "Updated UI with count: " + count);
+                });
+                
+                // Avoid overriding local count with server to prevent flicker during pending local changes
+            } catch (Exception e) {
+                android.util.Log.e("AgentDashboard", "Error loading customer count", e);
+            }
+        }).start();
         
         // For now, keep placeholder data for other fields but cache them
         String transactionCount = "15";
@@ -334,6 +348,15 @@ public class AgentDashboardActivity extends AppCompatActivity {
                 .setMessage(message)
                 .setPositiveButton("OK", null)
                 .show();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Clear cached data to force fresh load
+        cachedCustomerCount = "";
+        // Refresh customer count when returning from Customer Management
+        loadAgentCardStats();
     }
 
     private void logout() {

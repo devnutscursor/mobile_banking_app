@@ -77,4 +77,17 @@ dependencies {
   
     // WorkManager for background sync
     implementation("androidx.work:work-runtime:2.9.0")
+    
+    // ML Kit Barcode Scanning for PDF417
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    
+    val camerax_version = "1.5.0"
+    // The following line is optional, as the core library is included indirectly by camera-camera2
+    implementation("androidx.camera:camera-core:${camerax_version}")
+    implementation("androidx.camera:camera-camera2:${camerax_version}")
+    // If you want to additionally use the CameraX Lifecycle library
+    implementation("androidx.camera:camera-lifecycle:${camerax_version}")
+    // If you want to additionally use the CameraX View class
+    implementation("androidx.camera:camera-view:${camerax_version}")
+
 }

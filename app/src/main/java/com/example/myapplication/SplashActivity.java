@@ -42,8 +42,13 @@ public class SplashActivity extends AppCompatActivity {
         android.content.SharedPreferences sp = getSharedPreferences("seeders", MODE_PRIVATE);
         boolean done = sp.getBoolean("extended_v1", false);
         if (!done) {
-            com.example.myapplication.utils.DatabaseSeederExtended.runOnce();
-            sp.edit().putBoolean("extended_v1", true).apply();
+            try {
+                com.example.myapplication.utils.DatabaseSeederExtended.runOnce();
+                sp.edit().putBoolean("extended_v1", true).apply();
+            } catch (Exception e) {
+                android.util.Log.e("SplashActivity", "Error running DatabaseSeederExtended: " + e.getMessage());
+                // Continue without crashing
+            }
         }
     }
 
@@ -51,12 +56,17 @@ public class SplashActivity extends AppCompatActivity {
         android.content.SharedPreferences sp = getSharedPreferences("seeders", MODE_PRIVATE);
         boolean done = sp.getBoolean("agent2_v1", false);
         if (!done) {
-            com.example.myapplication.utils.Agent2Seeder.runOnce();
-            
-            // Store credentials for agent2 in local database
-            sessionManager.storeCredentials("agent2@test.com", "agent2123", "agent2-uid-placeholder");
-            
-            sp.edit().putBoolean("agent2_v1", true).apply();
+            try {
+                com.example.myapplication.utils.Agent2Seeder.runOnce();
+                
+                // Store credentials for agent2 in local database
+                sessionManager.storeCredentials("agent2@test.com", "agent2123", "agent2-uid-placeholder");
+                
+                sp.edit().putBoolean("agent2_v1", true).apply();
+            } catch (Exception e) {
+                android.util.Log.e("SplashActivity", "Error running Agent2Seeder: " + e.getMessage());
+                // Continue without crashing
+            }
         }
     }
 

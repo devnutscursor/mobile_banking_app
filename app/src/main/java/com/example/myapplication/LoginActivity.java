@@ -184,6 +184,20 @@ public class LoginActivity extends AppCompatActivity {
         // Use the new user-specific method
         boolean canWorkOffline = sessionManager.isFirstLoginCompleteForUser(email);
         Log.d("LoginActivity", "User " + email + " can work offline: " + canWorkOffline);
+        
+        // Debug: Check if credentials exist for this user
+        com.example.myapplication.database.entities.CredentialEntity credential = 
+            sessionManager.getCredentialByEmail(email);
+        Log.d("LoginActivity", "Stored credentials for " + email + ": " + (credential != null ? "YES" : "NO"));
+        
+        // Debug: Show all stored credentials
+        java.util.List<com.example.myapplication.database.entities.CredentialEntity> allCreds = 
+            sessionManager.getAllStoredCredentials();
+        Log.d("LoginActivity", "All stored credentials: " + allCreds.size());
+        for (com.example.myapplication.database.entities.CredentialEntity cred : allCreds) {
+            Log.d("LoginActivity", "  - " + cred.getEmail() + " (UserID: " + cred.getUserId() + ")");
+        }
+        
         return canWorkOffline;
     }
 

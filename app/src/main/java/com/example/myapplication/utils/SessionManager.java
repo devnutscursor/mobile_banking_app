@@ -377,7 +377,11 @@ public class SessionManager {
         com.example.myapplication.database.entities.CredentialEntity credential = 
             new com.example.myapplication.database.entities.CredentialEntity(email, password, userId);
         database.credentialDao().insertCredential(credential);
-        Log.d(TAG, "Stored credentials for: " + email);
+        Log.d(TAG, "Stored credentials for: " + email + " (UserID: " + userId + ")");
+        
+        // Debug: Check how many credentials we have stored
+        int totalCredentials = database.credentialDao().getAllCredentials().size();
+        Log.d(TAG, "Total stored credentials: " + totalCredentials);
     }
     
     /**
@@ -393,5 +397,12 @@ public class SessionManager {
     public void deleteCredentials(String email) {
         database.credentialDao().deleteCredential(email);
         Log.d(TAG, "Deleted credentials for: " + email);
+    }
+    
+    /**
+     * Get all stored credentials (for debugging)
+     */
+    public java.util.List<com.example.myapplication.database.entities.CredentialEntity> getAllStoredCredentials() {
+        return database.credentialDao().getAllCredentials();
     }
 }

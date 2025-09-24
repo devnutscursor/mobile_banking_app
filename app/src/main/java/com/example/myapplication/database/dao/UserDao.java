@@ -37,6 +37,9 @@ public interface UserDao {
     
     @Query("DELETE FROM users")
     void deleteAllUsers();
+    
+    @Query("SELECT * FROM users")
+    java.util.List<UserEntity> getAllUsers();
 }
 
 

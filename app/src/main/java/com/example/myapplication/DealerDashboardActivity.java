@@ -45,7 +45,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
     }
 
     private TextView tvWelcome, tvUserInfo, tvStats;
-    private androidx.cardview.widget.CardView btnManageAgents, btnCashRegister, btnVirtualAccounts, btnTransactions, btnReports;
+    private androidx.cardview.widget.CardView btnManageAgents, btnCustomerManagement, btnCashRegister, btnVirtualAccounts, btnTransactions, btnReports;
     private Button btnLogout;
     private ImageView btnMenu;
     private Spinner spinnerLanguage;
@@ -86,6 +86,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         tvUserInfo = findViewById(R.id.tvUserInfo);
         tvStats = findViewById(R.id.tvStats);
         btnManageAgents = findViewById(R.id.btnManageAgents);
+        btnCustomerManagement = findViewById(R.id.btnCustomerManagement);
         btnCashRegister = findViewById(R.id.btnCashRegister);
         btnVirtualAccounts = findViewById(R.id.btnVirtualAccounts);
         btnTransactions = findViewById(R.id.btnTransactions);
@@ -152,6 +153,12 @@ public class DealerDashboardActivity extends AppCompatActivity {
         btnManageAgents.setOnClickListener(v -> {
             Toast.makeText(this, getString(R.string.manage_agents) + " - " + getString(R.string.coming_soon), Toast.LENGTH_SHORT).show();
             // TODO: Navigate to AgentManagementActivity
+        });
+
+        btnCustomerManagement.setOnClickListener(v -> {
+            // Navigate to Customer Management
+            android.content.Intent intent = new android.content.Intent(this, CustomerManagementActivity.class);
+            startActivity(intent);
         });
 
         btnCashRegister.setOnClickListener(v -> {
@@ -244,15 +251,39 @@ public class DealerDashboardActivity extends AppCompatActivity {
                     cachedActiveAgentsCount = count; // Cache the real data
                 });
 
-        // All customers count under this dealer's agents
-        FirebaseFirestore.getInstance().collection("customers")
-                .whereEqualTo("createdByDealerId", currentUser.getUid())
-                .get()
-                .addOnSuccessListener(q -> {
-                    String count = String.valueOf(q.size());
+        // Load customer count from local database first (offline-first approach)
+        new Thread(() -> {
+            try {
+                com.example.myapplication.database.AppDatabase database = 
+                    com.example.myapplication.database.AppDatabase.getDatabase(this);
+                // New rule: count only customers created by this dealer account
+                int localCount = database.customerDao().getCustomerCountByUser(currentUser.getUid());
+                
+                runOnUiThread(() -> {
+                    String count = String.valueOf(localCount);
                     tvCustomersCount.setText(count);
                     cachedCustomersCount = count; // Cache the real data
                 });
+                
+                // Also sync with Firestore in background
+                FirebaseFirestore.getInstance().collection("customers")
+                        .whereEqualTo("createdBy", currentUser.getUid())
+                        .whereEqualTo("isActive", true)
+                        .get()
+                        .addOnSuccessListener(q -> {
+                            String firestoreCount = String.valueOf(q.size());
+                            // Only update if Firestore has more data (after sync)
+                            if (q.size() > localCount) {
+                                runOnUiThread(() -> {
+                                    tvCustomersCount.setText(firestoreCount);
+                                    cachedCustomersCount = firestoreCount;
+                                });
+                            }
+                        });
+            } catch (Exception e) {
+                android.util.Log.e("DealerDashboard", "Error loading customer count", e);
+            }
+        }).start();
         
         // For now, keep placeholder data for other fields but cache them
         String transactionCount = "47";
@@ -292,6 +323,15 @@ public class DealerDashboardActivity extends AppCompatActivity {
                 .setMessage(message)
                 .setPositiveButton("OK", null)
                 .show();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Clear cached data to force fresh load
+        cachedCustomersCount = "";
+        // Refresh customer count when returning from Customer Management
+        loadDealerCardStats();
     }
 
     private void logout() {

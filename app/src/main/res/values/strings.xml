@@ -95,4 +95,52 @@
     <string name="authenticated_as">Authenticated as</string>
     <string name="downloading_language_model">Downloading language model... (30MB)</string>
     <string name="download_language_failed">Failed to download language model. Please check your internet connection.</string>
+    
+    <!-- Customer Management -->
+    <string name="customer_management">Customer Management</string>
+    <string name="add_customer">Add Customer</string>
+    <string name="search_customers">Search Customers</string>
+    <string name="scan_barcode">Scan Barcode</string>
+    <string name="manual_entry">Manual Entry</string>
+    <string name="scanned_data">Scanned Data</string>
+    <string name="full_name">Full Name</string>
+    <string name="date_of_birth">Date of Birth</string>
+    <string name="national_id">National ID</string>
+    <string name="issue_date">Issue Date</string>
+    <string name="expiry_date">Expiry Date</string>
+    <string name="phone_number">Phone Number</string>
+    <string name="address">Address</string>
+    <string name="save_customer">Save Customer</string>
+    <string name="update_customer">Update Customer</string>
+    <string name="delete_customer">Delete Customer</string>
+    <string name="customer_saved">Customer saved successfully</string>
+    <string name="customer_updated">Customer updated successfully</string>
+    <string name="customer_deleted">Customer deleted successfully</string>
+    <string name="scan_barcode_instruction">Position the barcode within the frame to scan</string>
+    <string name="barcode_scan_failed">Failed to scan barcode. Please try again or use manual entry.</string>
+    <string name="barcode_data_extracted">Barcode data extracted successfully</string>
+    <string name="invalid_date_format">Invalid date format. Please use YYYY-MM-DD</string>
+    <string name="customer_already_exists">Customer with this National ID already exists</string>
+    <string name="required_fields_missing">Please fill all required fields</string>
+    <string name="invalid_phone_number">Invalid phone number format</string>
+    <string name="invalid_email">Invalid email format</string>
+    <string name="expired_id">This ID has expired</string>
+    <string name="my_customers">My Customers</string>
+    <string name="all_customers">All Customers</string>
+    <string name="no_customers_found">No customers found</string>
+    <string name="customer_details">Customer Details</string>
+    <string name="edit_customer">Edit Customer</string>
+    <string name="age">Age</string>
+    <string name="years_old">years old</string>
+    <string name="id_expired">ID Expired</string>
+    <string name="id_valid">ID Valid</string>
+    <string name="created_on">Created on</string>
+    <string name="last_updated">Last updated</string>
+    <string name="sync_status">Sync Status</string>
+    <string name="pending_sync">Pending Sync</string>
+    <string name="synced">Synced</string>
+    
+    <!-- Common UI -->
+    <string name="menu">Menu</string>
+    <string name="stop_scanning">Stop Scanning</string>
 </resources>

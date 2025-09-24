@@ -9,14 +9,16 @@ import com.example.myapplication.database.dao.UserDao;
 import com.example.myapplication.database.dao.LicenseDao;
 import com.example.myapplication.database.dao.SessionDao;
 import com.example.myapplication.database.dao.CredentialDao;
+import com.example.myapplication.database.dao.CustomerDao;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.database.entities.LicenseEntity;
 import com.example.myapplication.database.entities.SessionEntity;
 import com.example.myapplication.database.entities.CredentialEntity;
+import com.example.myapplication.database.entities.CustomerEntity;
 
 @Database(
-    entities = {UserEntity.class, LicenseEntity.class, SessionEntity.class, CredentialEntity.class},
-    version = 2,
+    entities = {UserEntity.class, LicenseEntity.class, SessionEntity.class, CredentialEntity.class, CustomerEntity.class},
+    version = 4,
     exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -28,6 +30,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract LicenseDao licenseDao();
     public abstract SessionDao sessionDao();
     public abstract CredentialDao credentialDao();
+    public abstract CustomerDao customerDao();
     
     public static AppDatabase getDatabase(Context context) {
         if (INSTANCE == null) {
@@ -39,6 +42,7 @@ public abstract class AppDatabase extends RoomDatabase {
                         DATABASE_NAME
                     )
                     .allowMainThreadQueries() // For simplicity, but should use background threads in production
+                    .fallbackToDestructiveMigration() // Handle version changes by recreating database
                     .build();
                 }
             }

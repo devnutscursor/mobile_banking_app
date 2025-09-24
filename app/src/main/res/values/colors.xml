@@ -23,6 +23,7 @@
     <color name="background_primary">#FEFEFE</color>
     <color name="background_secondary">#F8FAFC</color>
     <color name="background_card">#FFFFFF</color>
+    <color name="background_dark">#1F2937</color>
     <color name="background_overlay">#80000000</color>
     
     <!-- Text Colors -->
