@@ -21,7 +21,7 @@
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:src="@drawable/ic_banking"
-            android:tint="@color/text_white"
+            app:tint="@color/text_white"
             android:scaleType="centerInside" />
 
         <!-- Spacer -->
@@ -73,7 +73,7 @@
                         android:layout_height="match_parent"
                         android:src="@drawable/ic_banking"
                         android:padding="16dp"
-                        android:tint="@color/primary_orange"
+                        app:tint="@color/white"
                         android:scaleType="centerInside" />
 
                 </androidx.cardview.widget.CardView>
@@ -84,7 +84,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/sign_in_subtitle"
                     android:textSize="16sp"
-                    android:textColor="@color/text_primary"
+                    android:textColor="@color/white"
                     android:alpha="0.8" />
 
             </LinearLayout>
@@ -95,14 +95,22 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
                 app:cardCornerRadius="24dp"
-                app:cardElevation="12dp"
-                app:cardUseCompatPadding="true">
+                app:cardElevation="0dp"
+                app:cardUseCompatPadding="false"
+                android:background="@android:color/transparent">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="32dp">
+                    android:padding="0dp"
+                    android:background="@drawable/modern_glass_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="32dp">
 
                     <!-- Email Input -->
                     <com.google.android.material.textfield.TextInputLayout
@@ -118,9 +126,9 @@
                         app:boxCornerRadiusBottomEnd="16dp"
                         app:boxStrokeColor="@color/primary_purple"
                         app:boxStrokeWidth="2dp"
-                        app:hintTextColor="@color/text_secondary"
+                        app:hintTextColor="@color/white"
                         app:startIconDrawable="@android:drawable/ic_dialog_email"
-                        app:startIconTint="@color/primary_purple">
+                        app:startIconTint="@color/white">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etEmail"
@@ -128,7 +136,8 @@
                             android:layout_height="wrap_content"
                             android:inputType="textEmailAddress"
                             android:textSize="16sp"
-                            android:textColor="@color/text_primary"
+                            android:textColor="@color/white"
+                            android:textColorHint="@color/white"
                             android:padding="16dp" />
 
                     </com.google.android.material.textfield.TextInputLayout>
@@ -147,11 +156,11 @@
                         app:boxCornerRadiusBottomEnd="16dp"
                         app:boxStrokeColor="@color/primary_purple"
                         app:boxStrokeWidth="2dp"
-                        app:hintTextColor="@color/text_secondary"
+                        app:hintTextColor="@color/white"
                         app:startIconDrawable="@drawable/ic_lock"
-                        app:startIconTint="@color/primary_purple"
+                        app:startIconTint="@color/white"
                         app:endIconMode="password_toggle"
-                        app:endIconTint="@color/primary_purple">
+                        app:endIconTint="@color/white">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etPassword"
@@ -159,7 +168,8 @@
                             android:layout_height="wrap_content"
                             android:inputType="textPassword"
                             android:textSize="16sp"
-                            android:textColor="@color/text_primary"
+                            android:textColor="@color/white"
+                            android:textColorHint="@color/white"
                             android:padding="16dp" />
 
                     </com.google.android.material.textfield.TextInputLayout>
@@ -177,7 +187,7 @@
                         android:elevation="4dp"
                         android:layout_marginBottom="16dp"
                         android:fontFamily="sans-serif-medium" />
-
+                    </LinearLayout>
                 </LinearLayout>
 
             </androidx.cardview.widget.CardView>

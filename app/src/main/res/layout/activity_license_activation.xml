@@ -89,19 +89,27 @@
             </LinearLayout>
 
             <!-- License Activation Card -->
-            <androidx.cardview.widget.CardView
+    <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
-                app:cardCornerRadius="24dp"
-                app:cardElevation="12dp"
-                app:cardUseCompatPadding="true">
+        app:cardCornerRadius="24dp"
+        app:cardElevation="0dp"
+        app:cardUseCompatPadding="false"
+        android:background="@android:color/transparent">
 
-                <LinearLayout
+        <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="32dp">
+            android:orientation="vertical"
+            android:padding="0dp"
+            android:background="@drawable/modern_glass_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="32dp">
 
                     <!-- License Key Input -->
                     <com.google.android.material.textfield.TextInputLayout
@@ -131,10 +139,10 @@
                             android:padding="16dp"
                             android:textAllCaps="true" />
 
-                    </com.google.android.material.textfield.TextInputLayout>
+            </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Activate Button -->
-                    <Button
+            <Button
                         android:id="@+id/btnActivate"
                         android:layout_width="match_parent"
                         android:layout_height="60dp"
@@ -146,8 +154,8 @@
                         android:elevation="4dp"
                         android:layout_marginBottom="16dp"
                         android:fontFamily="sans-serif-medium" />
-
-                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
 
             </androidx.cardview.widget.CardView>
 

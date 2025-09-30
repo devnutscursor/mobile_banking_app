@@ -1,38 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Modern Banking Theme Colors - Purple & Orange Gradient Scheme -->
-    
-    <!-- Primary Purple Shades -->
-    <color name="primary_purple">#7C3AED</color>
-    <color name="primary_purple_dark">#5B21B6</color>
-    <color name="primary_purple_light">#A78BFA</color>
-    <color name="primary_purple_extra_light">#DDD6FE</color>
-    
-    <!-- Primary Orange Shades -->
-    <color name="primary_orange">#F97316</color>
-    <color name="primary_orange_dark">#EA580C</color>
-    <color name="primary_orange_light">#FB923C</color>
-    <color name="primary_orange_extra_light">#FED7AA</color>
-    
-    <!-- Gradient Colors -->
-    <color name="gradient_start">#7C3AED</color>
-    <color name="gradient_middle">#A855F7</color>
-    <color name="gradient_end">#F97316</color>
-    
-    <!-- Background Colors -->
-    <color name="background_primary">#FEFEFE</color>
-    <color name="background_secondary">#F8FAFC</color>
-    <color name="background_card">#FFFFFF</color>
-    <color name="background_dark">#1F2937</color>
+    <!-- Premium Dark Theme Palette (Glassmorphism) -->
+    <!-- Provided palette: #01161e, #124559, #598392, #aec3b0, #eff6e0 -->
+
+    <!-- Accents mapped onto existing names for backward compatibility -->
+    <color name="primary_purple">#124559</color>
+    <color name="primary_purple_dark">#0B2C3A</color>
+    <color name="primary_purple_light">#598392</color>
+    <color name="primary_purple_extra_light">#AEC3B0</color>
+
+    <color name="primary_orange">#AEC3B0</color>
+    <color name="primary_orange_dark">#598392</color>
+    <color name="primary_orange_light">#EFF6E0</color>
+    <color name="primary_orange_extra_light">#EFF6E0</color>
+
+    <!-- Gradient Colors (teal → blue-gray → sage) -->
+    <color name="gradient_start">#124559</color>
+    <color name="gradient_middle">#598392</color>
+    <color name="gradient_end">#AEC3B0</color>
+
+    <!-- Background Colors (dark base + glass layers) -->
+    <color name="background_primary">#01161E</color>
+    <color name="background_secondary">#1AFFFFFF</color> <!-- translucent for inputs -->
+    <color name="background_card">#26FFFFFF</color> <!-- glass card fill -->
+    <color name="background_dark">#01161E</color>
     <color name="background_overlay">#80000000</color>
-    
-    <!-- Text Colors -->
-    <color name="text_primary">#1F2937</color>
-    <color name="text_secondary">#6B7280</color>
-    <color name="text_tertiary">#9CA3AF</color>
+
+    <!-- Text Colors on dark -->
+    <color name="text_primary">#EFF6E0</color>
+    <color name="text_secondary">#AEC3B0</color>
+    <color name="text_tertiary">#7FA0A7</color>
     <color name="text_white">#FFFFFF</color>
-    <color name="text_purple">#7C3AED</color>
-    <color name="text_orange">#F97316</color>
+    <color name="text_purple">#AEC3B0</color>
+    <color name="text_orange">#124559</color>
+    <!-- Text for light glass surfaces (ensures contrast in normal mode) -->
+    <color name="text_on_light_glass">#0E2230</color>
     
     <!-- Status Colors -->
     <color name="success_green">#10B981</color>
@@ -44,23 +46,23 @@
     <color name="info_blue">#3B82F6</color>
     <color name="info_light">#DBEAFE</color>
     
-    <!-- Border & Divider Colors -->
-    <color name="border_light">#F3F4F6</color>
-    <color name="border_medium">#E5E7EB</color>
-    <color name="border_dark">#D1D5DB</color>
-    <color name="divider">#F3F4F6</color>
+    <!-- Border & Divider Colors (on dark) -->
+    <color name="border_light">#33FFFFFF</color>
+    <color name="border_medium">#24FFFFFF</color>
+    <color name="border_dark">#12FFFFFF</color>
+    <color name="divider">#12FFFFFF</color>
     
     <!-- Shadow Colors -->
     <color name="shadow_light">#1A000000</color>
     <color name="shadow_medium">#33000000</color>
     <color name="shadow_dark">#4D000000</color>
     
-    <!-- Legacy Support -->
-    <color name="primary_blue">#7C3AED</color>
-    <color name="primary_blue_dark">#5B21B6</color>
-    <color name="primary_blue_light">#A78BFA</color>
-    <color name="background_light">#F8FAFC</color>
-    <color name="background_white">#FFFFFF</color>
+    <!-- Legacy Support mapped to new palette for compatibility -->
+    <color name="primary_blue">#598392</color>
+    <color name="primary_blue_dark">#124559</color>
+    <color name="primary_blue_light">#AEC3B0</color>
+    <color name="background_light">#0E2230</color>
+    <color name="background_white">#0E2230</color>
     
     <!-- Missing colors that are still referenced -->
     <color name="secondary_gray">#6B7280</color>
@@ -68,7 +70,7 @@
     <color name="secondary_gray_light">#9CA3AF</color>
     <color name="accent_black">#1F2937</color>
     <color name="accent_black_light">#374151</color>
-    <color name="background_gray">#F3F4F6</color>
+    <color name="background_gray">	#3A3B3E</color>
     <color name="text_light">#9CA3AF</color>
     <color name="warning_orange">#F59E0B</color>
     

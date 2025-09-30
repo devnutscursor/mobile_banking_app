@@ -38,6 +38,8 @@
     <string name="process_transactions">Traiter les Transactions</string>
     <string name="my_reports">Mes Rapports</string>
     <string name="manage_operators">Gérer les opérateurs</string>
+    <string name="edit">Modifier</string>
+    <string name="delete">Supprimer</string>
     <string name="dealer_dashboard">Tableau de bord du revendeur</string>
     <string name="agent_dashboard">Tableau de bord de l\'agent</string>
     <string name="manage_agents">Gérer les agents</string>
@@ -145,4 +147,34 @@
     <!-- Common UI -->
     <string name="menu">Menu</string>
     <string name="stop_scanning">Arrêter le scan</string>
+
+    <!-- Operator Management -->
+    <string name="operator_management">Gestion des opérateurs</string>
+    <string name="add_operator">Ajouter un opérateur</string>
+    <string name="operator_name">Nom de l’opérateur</string>
+    <string name="operator_type">Type d’opérateur</string>
+    <string name="type_ussd">USSD</string>
+    <string name="type_traditional">Traditionnel</string>
+    <string name="operator_enabled">Actif</string>
+    <string name="save_operator">Enregistrer l’opérateur</string>
+    <string name="delete_operator">Supprimer l’opérateur</string>
+    <string name="operators_empty">Aucun opérateur</string>
+    <string name="operator_code">Code/Préfixe de l\'opérateur</string>
+
+    <!-- Operator Actions -->
+    <string name="operator_actions">Actions de l\'opérateur</string>
+    <string name="search_operators">Rechercher Opérateurs</string>
+    <string name="action_code">Code d\'action</string>
+    <string name="add_action">Ajouter une action</string>
+    <string name="action_name">Nom de l\'action</string>
+    <string name="action_type">Type d\'action</string>
+    <string name="type_ussd_action">USSD</string>
+    <string name="type_form_action">Formulaire</string>
+    <string name="ussd_template">Modèle USSD</string>
+    <string name="required_fields">Champs requis (JSON)</string>
+    <string name="save_action">Enregistrer l’action</string>
+    <string name="delete_action">Supprimer l’action</string>
+    <string name="ussd_preview">Aperçu USSD</string>
+    <string name="invalid_template">Modèle invalide</string>
+    <string name="are_you_sure">Êtes-vous sûr ?</string>
 </resources>

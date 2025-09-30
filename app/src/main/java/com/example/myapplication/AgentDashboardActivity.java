@@ -45,8 +45,8 @@ public class AgentDashboardActivity extends AppCompatActivity {
         super.attachBaseContext(context);
     }
 
-    private TextView tvWelcome, tvUserInfo, tvStats;
-    private androidx.cardview.widget.CardView btnCustomers, btnCashRegister, btnBuyCredit, btnTransactions, btnReports;
+    private TextView tvWelcome, tvStats;
+    private View btnCustomers, btnCashRegister, btnBuyCredit, btnTransactions, btnReports;
     private Button btnLogout;
     private ImageView btnMenu;
     private Spinner spinnerLanguage;
@@ -61,7 +61,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
     private static String cachedCustomerCount = "";
     private static String cachedTransactionCount = "";
     private static String cachedVirtualBalance = "";
-    private static String cachedCommission = "";
+    // Removed commission stat from UI; no cache needed
     private static String cachedDealerName = "";
     private FirebaseFirestore firestore;
 
@@ -85,7 +85,6 @@ public class AgentDashboardActivity extends AppCompatActivity {
 
     private void initViews() {
         tvWelcome = findViewById(R.id.tvWelcome);
-        tvUserInfo = findViewById(R.id.tvUserInfo);
         tvStats = findViewById(R.id.tvStats);
         btnCustomers = findViewById(R.id.btnCustomers);
         btnCashRegister = findViewById(R.id.btnCashRegister);
@@ -184,8 +183,9 @@ public class AgentDashboardActivity extends AppCompatActivity {
         });
 
         btnReports.setOnClickListener(v -> {
-            Toast.makeText(this, getString(R.string.manage_operators) + " - " + getString(R.string.coming_soon), Toast.LENGTH_SHORT).show();
-            // TODO: Navigate to ManageOperatorsActivity
+            // Navigate to Operator Management
+            android.content.Intent intent = new android.content.Intent(this, OperatorManagementActivity.class);
+            startActivity(intent);
         });
 
         btnLogout.setOnClickListener(v -> logout());
@@ -210,7 +210,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
                         "\n" + getString(R.string.dealer) + ": " + currentUser.getDealerId() :
                         "\nNo dealer assigned";
             }
-            tvUserInfo.setText(getString(R.string.role) + ": " + getString(R.string.agent).toUpperCase() + "\n" + getString(R.string.email) + ": " + currentUser.getEmail() + dealerInfo);
+            // User info is now static "Agents Account" in XML
             // Load realtime stats for cards
             loadAgentCardStats();
             // Load dealer name from UUID
@@ -225,7 +225,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
                         String dealerInfo = user.getDealerId() != null ?
                                 "\nDealer: " + user.getDealerId() :
                                 "\nNo dealer assigned";
-                        tvUserInfo.setText("Role: AGENT\nEmail: " + user.getEmail() + dealerInfo);
+                        // User info is now static "Agents Account" in XML
                         loadAgentCardStats();
                         Log.d("AgentDashboard", "Agent dashboard loaded for: " + user.getName());
                     });
@@ -249,7 +249,6 @@ public class AgentDashboardActivity extends AppCompatActivity {
         TextView tvCustomersCount = findViewById(R.id.tvCustomersCount);
         TextView tvTodayTransactionsCount = findViewById(R.id.tvTodayTransactionsCount);
         TextView tvVirtualBalance = findViewById(R.id.tvVirtualBalance);
-        TextView tvCommissionEarned = findViewById(R.id.tvCommissionEarned);
         
         if (!cachedCustomerCount.isEmpty()) {
             tvCustomersCount.setText(cachedCustomerCount);
@@ -260,9 +259,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
         if (!cachedVirtualBalance.isEmpty()) {
             tvVirtualBalance.setText(cachedVirtualBalance);
         }
-        if (!cachedCommission.isEmpty()) {
-            tvCommissionEarned.setText(cachedCommission);
-        }
+        // Commission stat removed from UI
         
         // Load customer count from local database first (offline-first approach)
         new Thread(() -> {
@@ -288,15 +285,14 @@ public class AgentDashboardActivity extends AppCompatActivity {
         // For now, keep placeholder data for other fields but cache them
         String transactionCount = "15";
         String virtualBalance = "$875";
-        String commission = "$125";
+        // No commission stat now
         
         tvTodayTransactionsCount.setText(transactionCount);
         tvVirtualBalance.setText(virtualBalance);
-        tvCommissionEarned.setText(commission);
         
         cachedTransactionCount = transactionCount;
         cachedVirtualBalance = virtualBalance;
-        cachedCommission = commission;
+        // No commission caching
     }
 
     private void loadDealerName() {
@@ -304,9 +300,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
         
         // If we already have cached dealer name, use it immediately
         if (!cachedDealerName.isEmpty()) {
-            String dealerInfo = "\n" + getString(R.string.dealer) + ": " + cachedDealerName;
-            tvUserInfo.setText(getString(R.string.role) + ": " + getString(R.string.agent).toUpperCase() + 
-                             "\n" + getString(R.string.email) + ": " + currentUser.getEmail() + dealerInfo);
+            // User info is now static "Agents Account" in XML
             return;
         }
         
@@ -320,10 +314,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
                             // Cache the dealer name
                             cachedDealerName = dealerName;
                             
-                            // Update the user info text with dealer name instead of UUID
-                            String dealerInfo = "\n" + getString(R.string.dealer) + ": " + dealerName;
-                            tvUserInfo.setText(getString(R.string.role) + ": " + getString(R.string.agent).toUpperCase() + 
-                                             "\n" + getString(R.string.email) + ": " + currentUser.getEmail() + dealerInfo);
+                            // User info is now static "Agents Account" in XML
                         }
                     }
                 })

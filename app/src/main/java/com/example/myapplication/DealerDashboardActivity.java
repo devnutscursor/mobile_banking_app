@@ -45,7 +45,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
     }
 
     private TextView tvWelcome, tvUserInfo, tvStats;
-    private androidx.cardview.widget.CardView btnManageAgents, btnCustomerManagement, btnCashRegister, btnVirtualAccounts, btnTransactions, btnReports;
+    private View btnCustomers, btnCashRegister, btnTransactions, btnReports;
     private Button btnLogout;
     private ImageView btnMenu;
     private Spinner spinnerLanguage;
@@ -85,10 +85,8 @@ public class DealerDashboardActivity extends AppCompatActivity {
         tvWelcome = findViewById(R.id.tvWelcome);
         tvUserInfo = findViewById(R.id.tvUserInfo);
         tvStats = findViewById(R.id.tvStats);
-        btnManageAgents = findViewById(R.id.btnManageAgents);
-        btnCustomerManagement = findViewById(R.id.btnCustomerManagement);
+        btnCustomers = findViewById(R.id.btnCustomers);
         btnCashRegister = findViewById(R.id.btnCashRegister);
-        btnVirtualAccounts = findViewById(R.id.btnVirtualAccounts);
         btnTransactions = findViewById(R.id.btnTransactions);
         btnReports = findViewById(R.id.btnReports);
         btnLogout = findViewById(R.id.btnLogout);
@@ -150,12 +148,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
             showUserDetailsDialog();
         });
 
-        btnManageAgents.setOnClickListener(v -> {
-            Toast.makeText(this, getString(R.string.manage_agents) + " - " + getString(R.string.coming_soon), Toast.LENGTH_SHORT).show();
-            // TODO: Navigate to AgentManagementActivity
-        });
-
-        btnCustomerManagement.setOnClickListener(v -> {
+        btnCustomers.setOnClickListener(v -> {
             // Navigate to Customer Management
             android.content.Intent intent = new android.content.Intent(this, CustomerManagementActivity.class);
             startActivity(intent);
@@ -166,19 +159,15 @@ public class DealerDashboardActivity extends AppCompatActivity {
             // TODO: Navigate to CashRegisterActivity
         });
 
-        btnVirtualAccounts.setOnClickListener(v -> {
-            Toast.makeText(this, getString(R.string.virtual_accounts) + " - " + getString(R.string.coming_soon), Toast.LENGTH_SHORT).show();
-            // TODO: Navigate to VirtualAccountsActivity
-        });
-
         btnTransactions.setOnClickListener(v -> {
             Toast.makeText(this, getString(R.string.transactions) + " - " + getString(R.string.coming_soon), Toast.LENGTH_SHORT).show();
             // TODO: Navigate to TransactionsActivity
         });
 
         btnReports.setOnClickListener(v -> {
-            Toast.makeText(this, getString(R.string.manage_operators) + " - " + getString(R.string.coming_soon), Toast.LENGTH_SHORT).show();
-            // TODO: Navigate to ManageOperatorsActivity
+            // Navigate to Operator Management
+            android.content.Intent intent = new android.content.Intent(this, OperatorManagementActivity.class);
+            startActivity(intent);
         });
 
         btnLogout.setOnClickListener(v -> logout());
@@ -189,7 +178,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         currentUser = sessionManager.getCurrentUser();
         if (currentUser != null) {
             tvWelcome.setText(getString(R.string.welcome) + ", " + currentUser.getName());
-            tvUserInfo.setText(getString(R.string.role) + ": " + getString(R.string.dealer).toUpperCase() + "\n" + getString(R.string.email) + ": " + currentUser.getEmail());
+            tvUserInfo.setText("Dealer Account");
             // Load stats into cards from Firestore
             loadDealerCardStats();
             Log.d("DealerDashboard", "Dealer dashboard loaded for: " + currentUser.getName());
@@ -200,7 +189,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
                 public void onSuccess(com.example.myapplication.entities.User user) {
                     runOnUiThread(() -> {
                         tvWelcome.setText("Welcome, " + user.getName());
-                        tvUserInfo.setText("Role: DEALER\nEmail: " + user.getEmail());
+                        tvUserInfo.setText("Dealer Account");
                         loadDealerCardStats();
                         Log.d("DealerDashboard", "Dealer dashboard loaded for: " + user.getName());
                     });
@@ -232,7 +221,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         if (!cachedTodayTransactionsCount.isEmpty()) {
             tvTodayTransactionsCount.setText(cachedTodayTransactionsCount);
         }
-        if (!cachedVirtualBalance.isEmpty()) {
+        if (!cachedVirtualBalance.isEmpty() && tvVirtualBalance != null) {
             tvVirtualBalance.setText(cachedVirtualBalance);
         }
         if (!cachedCustomersCount.isEmpty()) {
@@ -290,7 +279,9 @@ public class DealerDashboardActivity extends AppCompatActivity {
         String virtualBalance = "$12,450";
         
         tvTodayTransactionsCount.setText(transactionCount);
-        tvVirtualBalance.setText(virtualBalance);
+        if (tvVirtualBalance != null) {
+            tvVirtualBalance.setText(virtualBalance);
+        }
         
         cachedTodayTransactionsCount = transactionCount;
         cachedVirtualBalance = virtualBalance;

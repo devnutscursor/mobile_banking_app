@@ -7,6 +7,8 @@ import android.util.Log;
 
 import com.example.myapplication.database.AppDatabase;
 import com.example.myapplication.database.entities.CustomerEntity;
+import com.example.myapplication.database.entities.OperatorEntity;
+import com.example.myapplication.database.entities.OperatorActionEntity;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.WriteBatch;
 
@@ -121,6 +123,145 @@ public class SyncManager {
                 Log.e(TAG, "Error in sync process", e);
             }
         }).start();
+    }
+
+    /**
+     * Sync operators (upload local changes)
+     */
+    public void syncOperators() {
+        if (!isOnline()) return;
+        new Thread(() -> {
+            try {
+                java.util.List<OperatorEntity> ops = database.operatorDao().getNeedingSync();
+                if (ops.isEmpty()) return;
+                WriteBatch batch = firestore.batch();
+                for (OperatorEntity op : ops) {
+                    String id = op.getId();
+                    if (id == null || id.isEmpty()) id = java.util.UUID.randomUUID().toString();
+                    op.setId(id);
+                    java.util.Map<String,Object> data = new java.util.HashMap<>();
+                    data.put("id", op.getId());
+                    data.put("name", op.getName());
+                    data.put("type", op.getType());
+                    data.put("enabled", op.isEnabled());
+                    data.put("code", op.getCode());
+                    data.put("color", op.getColor());
+                    data.put("addedBy", op.getAddedBy());
+                    data.put("createdAt", op.getCreatedAt());
+                    data.put("updatedAt", op.getUpdatedAt());
+                    data.put("isActive", op.isActive());
+                    data.put("lastSyncAt", System.currentTimeMillis());
+                    batch.set(firestore.collection("operators").document(id), data);
+                }
+                batch.commit().addOnSuccessListener(v -> new Thread(() -> {
+                    long t = System.currentTimeMillis();
+                    for (OperatorEntity op : ops) database.operatorDao().markSynced(op.getId(), t);
+                }).start());
+            } catch (Exception e) { Log.e(TAG, "syncOperators", e); }
+        }).start();
+    }
+
+    /**
+     * Sync operator actions (upload local changes)
+     */
+    public void syncOperatorActions() {
+        if (!isOnline()) return;
+        new Thread(() -> {
+            try {
+                java.util.List<OperatorActionEntity> acts = database.operatorActionDao().getNeedingSync();
+                if (acts.isEmpty()) return;
+                WriteBatch batch = firestore.batch();
+                for (OperatorActionEntity a : acts) {
+                    String id = a.getId();
+                    if (id == null || id.isEmpty()) id = java.util.UUID.randomUUID().toString();
+                    a.setId(id);
+                    java.util.Map<String,Object> data = new java.util.HashMap<>();
+                    data.put("id", a.getId());
+                    data.put("operatorId", a.getOperatorId());
+                    data.put("name", a.getName());
+                    data.put("type", a.getType());
+                    data.put("actionCode", a.getActionCode());
+                    data.put("ussdTemplate", a.getUssdTemplate());
+                    data.put("requiredFieldsJson", a.getRequiredFieldsJson());
+                    data.put("addedBy", a.getAddedBy());
+                    data.put("createdAt", a.getCreatedAt());
+                    data.put("updatedAt", a.getUpdatedAt());
+                    data.put("isActive", a.isActive());
+                    data.put("lastSyncAt", System.currentTimeMillis());
+                    batch.set(firestore.collection("operator_actions").document(id), data);
+                }
+                batch.commit().addOnSuccessListener(v -> new Thread(() -> {
+                    long t = System.currentTimeMillis();
+                    for (OperatorActionEntity a : acts) database.operatorActionDao().markSynced(a.getId(), t);
+                }).start());
+            } catch (Exception e) { Log.e(TAG, "syncOperatorActions", e); }
+        }).start();
+    }
+
+    /** Download operators for current user */
+    public void downloadOperators() {
+        if (!isOnline()) return;
+        String uid = null; var u = sessionManager.getUserFromSession(); if (u!=null) uid = u.getUid();
+        if (uid == null || uid.isEmpty()) return;
+        firestore.collection("operators")
+                .whereEqualTo("isActive", true)
+                .whereEqualTo("addedBy", uid)
+                .get()
+                .addOnSuccessListener(snap -> new Thread(() -> {
+                    for (var d : snap) {
+                        try {
+                            OperatorEntity op = new OperatorEntity();
+                            java.util.Map<String,Object> m = d.getData();
+                            op.setId((String)m.get("id"));
+                            op.setName((String)m.get("name"));
+                            op.setType((String)m.get("type"));
+                            Object en=m.get("enabled"); op.setEnabled(en instanceof Boolean ? (Boolean)en : true);
+                            op.setAddedBy((String)m.get("addedBy"));
+                            op.setCode((String)m.get("code"));
+                            op.setColor((String)m.get("color"));
+                            Object ia=m.get("isActive"); op.setActive(!(ia instanceof Boolean) || (Boolean)ia);
+                            op.setNeedsSync(false);
+                            // Skip overwrite if local pending change
+                            OperatorEntity local = database.operatorDao().getById(op.getId());
+                            if (local != null && local.isNeedsSync()) continue;
+                            database.operatorDao().insertOperator(op);
+                        } catch (Exception ex) { Log.e(TAG, "downloadOperators item", ex); }
+                    }
+                }).start())
+                .addOnFailureListener(e -> Log.e(TAG, "downloadOperators", e));
+    }
+
+    /** Download operator actions for current user */
+    public void downloadOperatorActions() {
+        if (!isOnline()) return;
+        String uid = null; var u = sessionManager.getUserFromSession(); if (u!=null) uid = u.getUid();
+        if (uid == null || uid.isEmpty()) return;
+        firestore.collection("operator_actions")
+                .whereEqualTo("isActive", true)
+                .whereEqualTo("addedBy", uid)
+                .get()
+                .addOnSuccessListener(snap -> new Thread(() -> {
+                    for (var d : snap) {
+                        try {
+                            OperatorActionEntity a = new OperatorActionEntity();
+                            java.util.Map<String,Object> m = d.getData();
+                            a.setId((String)m.get("id"));
+                            a.setOperatorId((String)m.get("operatorId"));
+                            a.setName((String)m.get("name"));
+                            a.setType((String)m.get("type"));
+                            a.setActionCode((String)m.get("actionCode"));
+                            a.setUssdTemplate((String)m.get("ussdTemplate"));
+                            a.setRequiredFieldsJson((String)m.get("requiredFieldsJson"));
+                            a.setAddedBy((String)m.get("addedBy"));
+                            Object ia=m.get("isActive"); a.setActive(!(ia instanceof Boolean) || (Boolean)ia);
+                            a.setNeedsSync(false);
+                            OperatorActionEntity local = database.operatorActionDao().getById(a.getId());
+                            if (local != null && local.isNeedsSync()) continue;
+                            database.operatorActionDao().insertAction(a);
+                        } catch (Exception ex) { Log.e(TAG, "downloadOperatorActions item", ex); }
+                    }
+                }).start())
+                .addOnFailureListener(e -> Log.e(TAG, "downloadOperatorActions", e));
     }
     
     /**

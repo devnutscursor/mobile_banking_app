@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Back tint: very subtle teal/sage to hint stats info -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <gradient android:type="linear" android:angle="135"
+                android:startColor="#0F598392" android:endColor="#0FAEC3B0" />
+        </shape>
+    </item>
+
+    <!-- Glass fill: even lighter translucency for stronger background bleed -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <solid android:color="#10FFFFFF" />
+            <stroke android:width="1dp" android:color="#33FFFFFF" />
+        </shape>
+    </item>
+
+    <!-- Top highlight sheen -->
+    <item android:top="0dp" android:left="0dp" android:right="0dp" android:bottom="0dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp" />
+            <gradient android:type="linear" android:angle="270"
+                android:startColor="#14FFFFFF" android:endColor="#00FFFFFF" />
+        </shape>
+    </item>
+</layer-list>
+
+

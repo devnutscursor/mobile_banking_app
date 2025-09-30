@@ -45,6 +45,12 @@
         <activity
             android:name=".CustomerManagementActivity"
             android:exported="false" />
+        <activity
+            android:name=".OperatorManagementActivity"
+            android:exported="false" />
+        <activity
+            android:name=".OperatorActionsActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

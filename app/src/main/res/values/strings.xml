@@ -32,11 +32,13 @@
     <string name="role_agent">Role: AGENT</string>
     <string name="my_stats">My Stats</string>
     <string name="agent_operations">Agent Operations</string>
-    <string name="manage_customers">Manage Customers</string>
+    <string name="manage_customers">Add Customers</string>
     <string name="buy_virtual_credit">Buy Virtual Credit</string>
     <string name="process_transactions">Process Transactions</string>
     <string name="my_reports">My Reports</string>
     <string name="manage_operators">Manage Operators</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
     <string name="dealer_dashboard">Dealer Dashboard</string>
     <string name="agent_dashboard">Agent Dashboard</string>
     <string name="manage_agents">Manage Agents</string>
@@ -143,4 +145,34 @@
     <!-- Common UI -->
     <string name="menu">Menu</string>
     <string name="stop_scanning">Stop Scanning</string>
+
+    <!-- Operator Management -->
+    <string name="operator_management">Operator Management</string>
+    <string name="add_operator">Add Operator</string>
+    <string name="operator_name">Operator Name</string>
+    <string name="operator_type">Operator Type</string>
+    <string name="type_ussd">USSD</string>
+    <string name="type_traditional">Traditional</string>
+    <string name="operator_enabled">Active</string>
+    <string name="save_operator">Save Operator</string>
+    <string name="delete_operator">Delete Operator</string>
+    <string name="operators_empty">No operators yet</string>
+    <string name="operator_code">Operator Code/Prefix</string>
+
+    <!-- Operator Actions -->
+    <string name="operator_actions">Operator Actions</string>
+    <string name="search_operators">Search Operators</string>
+    <string name="action_code">Action Code</string>
+    <string name="add_action">Add Action</string>
+    <string name="action_name">Action Name</string>
+    <string name="action_type">Action Type</string>
+    <string name="type_ussd_action">USSD</string>
+    <string name="type_form_action">Form</string>
+    <string name="ussd_template">USSD Template</string>
+    <string name="required_fields">Required Fields (JSON)</string>
+    <string name="save_action">Save Action</string>
+    <string name="delete_action">Delete Action</string>
+    <string name="ussd_preview">USSD Preview</string>
+    <string name="invalid_template">Invalid template</string>
+    <string name="are_you_sure">Are you sure?</string>
 </resources>

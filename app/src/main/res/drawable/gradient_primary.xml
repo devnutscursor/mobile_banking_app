@@ -8,6 +8,7 @@
         android:centerColor="@color/gradient_middle"
         android:endColor="@color/gradient_end" />
     <corners android:radius="0dp" />
+    <padding android:bottom="0.5dp"/>
 </shape>
 
 
