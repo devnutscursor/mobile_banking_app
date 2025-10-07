@@ -40,5 +40,3 @@ public class App extends Application {
         Log.d(TAG, "Language manager initialized.");
     }
 }
-
-

@@ -10,6 +10,7 @@ import com.example.myapplication.database.dao.LicenseDao;
 import com.example.myapplication.database.dao.SessionDao;
 import com.example.myapplication.database.dao.CredentialDao;
 import com.example.myapplication.database.dao.CustomerDao;
+import com.example.myapplication.database.dao.TransactionDao;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.database.entities.LicenseEntity;
 import com.example.myapplication.database.entities.SessionEntity;
@@ -17,13 +18,14 @@ import com.example.myapplication.database.entities.CredentialEntity;
 import com.example.myapplication.database.entities.CustomerEntity;
 import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.OperatorActionEntity;
+import com.example.myapplication.database.entities.TransactionEntity;
 import com.example.myapplication.database.dao.OperatorDao;
 import com.example.myapplication.database.dao.OperatorActionDao;
 
 @Database(
     entities = {UserEntity.class, LicenseEntity.class, SessionEntity.class, CredentialEntity.class, CustomerEntity.class,
-            OperatorEntity.class, OperatorActionEntity.class},
-    version = 6,
+            OperatorEntity.class, OperatorActionEntity.class, TransactionEntity.class},
+    version = 10,
     exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -38,6 +40,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract CustomerDao customerDao();
     public abstract OperatorDao operatorDao();
     public abstract OperatorActionDao operatorActionDao();
+    public abstract TransactionDao transactionDao();
     
     public static AppDatabase getDatabase(Context context) {
         if (INSTANCE == null) {

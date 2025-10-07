@@ -34,6 +34,9 @@
     <string name="agent_operations">Agent Operations</string>
     <string name="manage_customers">Add Customers</string>
     <string name="buy_virtual_credit">Buy Virtual Credit</string>
+    <string name="buy_credit">Buy Credit</string>
+    <string name="buy_credit_info">Contact your dealer to purchase additional credits for your account.</string>
+    <string name="add_credits">Add Credits</string>
     <string name="process_transactions">Process Transactions</string>
     <string name="my_reports">My Reports</string>
     <string name="manage_operators">Manage Operators</string>
@@ -48,14 +51,39 @@
     <string name="reports">Reports</string>
     <string name="dashboard_stats">Dashboard Stats</string>
     <string name="dealer_operations">Dealer Operations</string>
+    
+    <!-- Add Credits / Buy Credit -->
+    <string name="select_agent_to_add_credits">Select an agent to add credits</string>
+    <string name="no_agents_found">No agents found</string>
+    <string name="current_credit_label">Current Credit</string>
+    <string name="enter_credit_amount">Enter amount to add</string>
+    <string name="add">Add</string>
+    <string name="cancel">Cancel</string>
+    <string name="insufficient_credit">Insufficient credit balance</string>
+    <string name="processing_please_wait">Processing, please wait...</string>
+    <string name="sync_needed">Sync needed</string>
+    <string name="sync_needed_connect_internet">Sync needed, please connect to the internet</string>
+    <string name="ok">OK</string>
+    <string name="starting_sync">Starting sync...</string>
+    <string name="sync_completed_successfully">Sync completed successfully</string>
+    <string name="sync_failed">Sync failed</string>
+    <string name="dealer_information">Dealer Information</string>
+    <string name="name_label">Name:</string>
+    <string name="email_label">Email:</string>
+    <string name="phone_label">Phone:</string>
+    <string name="available_credit">Available Credit:</string>
+    <string name="contact_dealer">Contact Dealer</string>
+    <string name="dealer_phone_not_available">Dealer phone number not available</string>
+    <string name="no_dealer_found">No dealer found</string>
+    <string name="contact_dealer_to_buy_credit">Contact your dealer to purchase additional credits</string>
     <string name="active_agents_label">Active Agents: %1$d</string>
-    <string name="todays_transactions_label">Today\'s Transactions: %1$d</string>
+    <string name="todays_transactions_label">This Week\'s Transactions: %1$d</string>
     <string name="virtual_balance_label">Virtual Balance: $%1$s</string>
     <string name="registered_customers_label">Registered Customers: %1$d</string>
 
     <!-- Dashboard card titles (agent) -->
     <string name="card_my_customers">My Customers</string>
-    <string name="card_todays_transactions">Today\'s Transactions</string>
+    <string name="card_todays_transactions">This Week\'s Transactions</string>
     <string name="card_virtual_balance">Virtual Balance</string>
     <string name="card_commission_earned">Commission Earned</string>
 
@@ -134,6 +162,7 @@
     <string name="edit_customer">Edit Customer</string>
     <string name="age">Age</string>
     <string name="years_old">years old</string>
+    <string name="not_available">Not Available</string>
     <string name="id_expired">ID Expired</string>
     <string name="id_valid">ID Valid</string>
     <string name="created_on">Created on</string>
@@ -151,10 +180,12 @@
     <string name="add_operator">Add Operator</string>
     <string name="operator_name">Operator Name</string>
     <string name="operator_type">Operator Type</string>
+    <string name="operator_color">Operator Color</string>
     <string name="type_ussd">USSD</string>
     <string name="type_traditional">Traditional</string>
     <string name="operator_enabled">Active</string>
     <string name="save_operator">Save Operator</string>
+    <string name="edit_operator">Edit Operator</string>
     <string name="delete_operator">Delete Operator</string>
     <string name="operators_empty">No operators yet</string>
     <string name="operator_code">Operator Code/Prefix</string>
@@ -175,4 +206,87 @@
     <string name="ussd_preview">USSD Preview</string>
     <string name="invalid_template">Invalid template</string>
     <string name="are_you_sure">Are you sure?</string>
+    
+    <!-- Transaction Processing -->
+    <string name="process_transaction">Process Transaction</string>
+    <string name="select_operator">Select Operator</string>
+    <string name="select_action">Select Action</string>
+    <string name="select_customer">Select Customer</string>
+    <string name="enter_amount">Enter Amount</string>
+    <string name="amount">Amount</string>
+    <string name="transaction_type">Transaction Type</string>
+    <string name="deposit">Deposit</string>
+    <string name="withdrawal">Withdrawal</string>
+    <string name="execute_transaction">Execute Transaction</string>
+    <string name="transaction_success">Transaction completed successfully!</string>
+    <string name="transaction_failed">Transaction failed</string>
+    <string name="invalid_amount">Please enter a valid amount</string>
+    <string name="select_all_fields">Please select all required fields</string>
+    <string name="ussd_launched">USSD code launched. Complete the transaction on the dialer.</string>
+    <string name="credit_updated">Credit updated successfully</string>
+    <string name="transaction_recorded">Transaction recorded in cash register</string>
+    <string name="no_operators">No operators found. Please create an operator first.</string>
+    <string name="no_actions">No actions found for this operator</string>
+    <string name="no_customers">No customers found. Please add a customer first.</string>
+    <string name="ussd_transaction">USSD Transaction</string>
+    <string name="non_ussd_transaction">Non-USSD Transaction</string>
+    <string name="transaction_details">Transaction Details</string>
+    <string name="confirm_transaction">Confirm Transaction</string>
+    <string name="confirm">Confirm</string>
+    
+    <!-- Transaction Type Array -->
+    <string-array name="transaction_types">
+        <item>Select Type</item>
+        <item>Deposit</item>
+        <item>Withdrawal</item>
+    </string-array>
+    
+    <!-- Transaction Status Array -->
+    <string-array name="transaction_statuses">
+        <item>pending</item>
+        <item>successful</item>
+        <item>failed</item>
+    </string-array>
+    
+    
+    <!-- Cash Register -->
+    <string name="cash_register_title">Cash Register</string>
+    <string name="all_transactions">All Transactions</string>
+    <string name="view_manage_transactions">View and manage all your transactions</string>
+    <string name="no_transactions_found">No transactions found</string>
+    <string name="transaction_code">Transaction Code</string>
+    <string name="customer">Customer</string>
+    <string name="operator">Operator</string>
+    <string name="action">Action</string>
+    <string name="type">Type</string>
+    <string name="current_status">Current Status</string>
+    <string name="update_status">Update Status</string>
+    <string name="pending">Pending</string>
+    <string name="successful">Successful</string>
+    <string name="failed">Failed</string>
+    <string name="update_status_button">Update Status</string>
+    <string name="status_updated">Transaction status updated</string>
+    <string name="error_updating_status">Error updating status</string>
+    
+    <!-- Sync Messages -->
+    <string name="internet_required">Internet Required</string>
+    <string name="sync_requires_internet">Sync requires internet connection. Please check your network and try again.\n\nNote: The app works offline, but sync needs internet to update cloud data.</string>
+    <string name="syncing_data">Syncing data...</string>
+    <string name="sync_completed">Sync completed successfully</string>
+    <string name="syncing_user_data">Syncing user data...</string>
+    <string name="syncing_transactions">Syncing transactions...</string>
+    
+    <!-- First Login Sync -->
+    <string name="data_sync_required">Data Sync Required</string>
+    <string name="data_found_in_cloud">We found your data in the cloud. Syncing your data is required to continue.</string>
+    <string name="sync_required">Sync Required</string>
+    <string name="data_needs_sync">Your data needs to be synced. Would you like to sync now?</string>
+    <string name="sync_now">Sync Now</string>
+    <string name="sync_later">Sync Later</string>
+    <string name="syncing_data_please_wait">Please wait while we sync your data...</string>
+    <string name="syncing_customers">Syncing customers...</string>
+    <string name="syncing_operators">Syncing operators...</string>
+    <string name="syncing_operator_actions">Syncing operator actions...</string>
+    <string name="data_synced_successfully">Data synced successfully!</string>
+    <string name="sync_failed_error">Sync failed: %1$s</string>
 </resources>

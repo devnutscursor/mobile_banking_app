@@ -1,0 +1,1406 @@
+package com.example.myapplication.services;
+
+import android.content.Context;
+import android.util.Log;
+
+import com.example.myapplication.database.AppDatabase;
+import com.example.myapplication.database.entities.CustomerEntity;
+import com.example.myapplication.database.entities.OperatorActionEntity;
+import com.example.myapplication.database.entities.OperatorEntity;
+import com.example.myapplication.database.entities.TransactionEntity;
+import com.example.myapplication.database.entities.UserEntity;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Comprehensive data synchronization service
+ * Handles bidirectional sync between local database and Firestore
+ */
+public class DataSyncService {
+    private static final String TAG = "DataSyncService";
+    
+    private final Context context;
+    private final AppDatabase database;
+    private final FirebaseFirestore firestore;
+    
+    public interface SyncCallback {
+        void onSyncStarted();
+        void onSyncProgress(String message, int current, int total);
+        void onSyncComplete(boolean success, String message);
+    }
+    
+    public DataSyncService(Context context) {
+        this.context = context;
+        this.database = AppDatabase.getDatabase(context);
+        this.firestore = FirebaseFirestore.getInstance();
+    }
+    
+    /**
+     * Comprehensive sync of all data for a user
+     */
+    public void syncAllData(String userId, SyncCallback callback) {
+        new Thread(() -> {
+            try {
+                if (callback != null) {
+                    callback.onSyncStarted();
+                }
+                
+                Log.d(TAG, "Starting comprehensive sync for user: " + userId);
+                
+                AtomicInteger progress = new AtomicInteger(0);
+                final int totalSteps = 6; // All data types + all users credits
+                
+                // Step 1: Sync user data
+                if (callback != null) {
+                    callback.onSyncProgress("Syncing user data...", progress.incrementAndGet(), totalSteps);
+                }
+                syncUserData(userId);
+                
+                // Step 2: Sync customers
+                if (callback != null) {
+                    callback.onSyncProgress("Syncing customers...", progress.incrementAndGet(), totalSteps);
+                }
+                syncCustomers(userId);
+                
+                // Step 3: Sync operators
+                if (callback != null) {
+                    callback.onSyncProgress("Syncing operators...", progress.incrementAndGet(), totalSteps);
+                }
+                syncOperators(userId);
+                
+                // Step 4: Sync operator actions
+                if (callback != null) {
+                    callback.onSyncProgress("Syncing operator actions...", progress.incrementAndGet(), totalSteps);
+                }
+                syncOperatorActions(userId);
+                
+                // Step 5: Sync transactions (bidirectional)
+                if (callback != null) {
+                    callback.onSyncProgress("Syncing transactions...", progress.incrementAndGet(), totalSteps);
+                }
+                syncTransactionsBidirectional(userId);
+                
+                // Step 6: Sync credits for all users (dealer + agents) if current user is dealer
+                if (callback != null) {
+                    callback.onSyncProgress("Syncing credits for all users...", progress.incrementAndGet(), totalSteps);
+                }
+                syncAllUsersCredits();
+                
+                Log.d(TAG, "Comprehensive sync completed successfully for user: " + userId);
+                if (callback != null) {
+                    callback.onSyncComplete(true, "Sync completed successfully");
+                }
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Error during comprehensive sync for user: " + userId, e);
+                if (callback != null) {
+                    callback.onSyncComplete(false, "Sync failed: " + e.getMessage());
+                }
+            }
+        }).start();
+    }
+    
+    /**
+     * Bidirectional sync user data (credit, profile info)
+     * First pushes local changes to Firestore, then pulls latest from Firestore
+     */
+    private void syncUserData(String userId) throws Exception {
+        Log.d(TAG, "=== SYNCING USER DATA (BIDIRECTIONAL) for user: " + userId + " ===");
+        
+        // Step 1: Push local user data to Firestore if modified
+        UserEntity localUser = database.userDao().getUserById(userId);
+        if (localUser != null) {
+            Log.d(TAG, "Local user found: " + userId + 
+                " (credit: " + localUser.getVirtualCredit() + 
+                ", updatedAt: " + new java.util.Date(localUser.getUpdatedAt()) + 
+                ", lastSyncAt: " + new java.util.Date(localUser.getLastSyncAt()) + ")");
+            
+            // Check if local user has changes that need to be pushed
+            if (localUser.getUpdatedAt() > localUser.getLastSyncAt()) {
+                Log.d(TAG, "Pushing local user changes to Firestore for: " + userId);
+                CountDownLatch pushLatch = new CountDownLatch(1);
+                final Exception[] pushError = {null};
+                
+                Map<String, Object> userData = new HashMap<>();
+                userData.put("virtualCredit", localUser.getVirtualCredit());
+                userData.put("name", localUser.getName());
+                userData.put("email", localUser.getEmail());
+                userData.put("phone", localUser.getPhone());
+                userData.put("role", localUser.getRole());
+                userData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(localUser.getUpdatedAt())));
+                
+                firestore.collection("users").document(userId)
+                        .set(userData, com.google.firebase.firestore.SetOptions.merge())
+                        .addOnSuccessListener(aVoid -> {
+                            Log.d(TAG, "Successfully pushed user data to Firestore: " + userId + 
+                                " (credit: " + localUser.getVirtualCredit() + ")");
+                            pushLatch.countDown();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to push user data to Firestore: " + userId, e);
+                            pushError[0] = e;
+                            pushLatch.countDown();
+                        });
+                
+                pushLatch.await();
+                if (pushError[0] != null) {
+                    throw pushError[0];
+                }
+            } else {
+                Log.d(TAG, "No local changes to push for user: " + userId);
+            }
+        }
+        
+        // Step 2: Pull latest data from Firestore
+        CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] error = {null};
+        
+        firestore.collection("users").document(userId)
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    try {
+                        if (documentSnapshot.exists()) {
+                            UserEntity localUserEntity = database.userDao().getUserById(userId);
+                            
+                            if (localUserEntity != null) {
+                                // Handle updatedAt as Firestore Timestamp or Long
+                                Long firestoreUpdatedAt = null;
+                                try {
+                                    Object updatedAtObj = documentSnapshot.get("updatedAt");
+                                    if (updatedAtObj instanceof com.google.firebase.Timestamp) {
+                                        firestoreUpdatedAt = ((com.google.firebase.Timestamp) updatedAtObj).toDate().getTime();
+                                    } else if (updatedAtObj instanceof Long) {
+                                        firestoreUpdatedAt = (Long) updatedAtObj;
+                                    } else if (updatedAtObj instanceof Number) {
+                                        firestoreUpdatedAt = ((Number) updatedAtObj).longValue();
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Could not parse updatedAt timestamp", e);
+                                }
+                                
+                                if (firestoreUpdatedAt == null) {
+                                    firestoreUpdatedAt = System.currentTimeMillis();
+                                }
+                                
+                                Log.d(TAG, "Comparing timestamps - Local: " + 
+                                    new java.util.Date(localUserEntity.getUpdatedAt()) + 
+                                    ", Firestore: " + new java.util.Date(firestoreUpdatedAt));
+                                
+                                // Only update if Firestore version is newer
+                                if (firestoreUpdatedAt > localUserEntity.getUpdatedAt()) {
+                                    Log.d(TAG, "Firestore version is newer, updating local user");
+                                    
+                                    Double credit = documentSnapshot.getDouble("virtualCredit");
+                                    if (credit != null) {
+                                        Log.d(TAG, "Updating credit: " + localUserEntity.getVirtualCredit() + " -> " + credit);
+                                        localUserEntity.setVirtualCredit(credit);
+                                    }
+                                    
+                                    String name = documentSnapshot.getString("name");
+                                    if (name != null) {
+                                        localUserEntity.setName(name);
+                                    }
+                                    
+                                    String email = documentSnapshot.getString("email");
+                                    if (email != null) {
+                                        localUserEntity.setEmail(email);
+                                    }
+                                    
+                                    localUserEntity.setUpdatedAt(firestoreUpdatedAt);
+                                    localUserEntity.setLastSyncAt(System.currentTimeMillis());
+                                    database.userDao().updateUser(localUserEntity);
+                                    
+                                    Log.d(TAG, "User data pulled from Firestore: " + userId +
+                                            " (credit: " + localUserEntity.getVirtualCredit() + ")");
+                                } else {
+                                    Log.d(TAG, "Local version is up-to-date or newer, skipping pull");
+                                    // Still update lastSyncAt
+                                    localUserEntity.setLastSyncAt(System.currentTimeMillis());
+                                    database.userDao().updateUser(localUserEntity);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error processing Firestore user data", e);
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to pull user data from Firestore: " + userId, e);
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "=== USER DATA SYNC COMPLETED for: " + userId + " ===");
+    }
+    
+    /**
+     * Sync credits for ALL users in local database (dealer + all agents)
+     * This ensures when dealer adds credit to agent, both get synced
+     */
+    private void syncAllUsersCredits() throws Exception {
+        Log.d(TAG, "=== SYNCING ALL USERS CREDITS ===");
+        
+        List<UserEntity> allUsers = database.userDao().getAllUsers();
+        Log.d(TAG, "Found " + allUsers.size() + " users to sync credits");
+        
+        int syncedCount = 0;
+        for (UserEntity user : allUsers) {
+            try {
+                // Check if this user has credit changes that need syncing
+                if (user.getUpdatedAt() > user.getLastSyncAt()) {
+                    Log.d(TAG, "Syncing credits for user: " + user.getUid() + 
+                        " (role: " + user.getRole() + 
+                        ", credit: " + user.getVirtualCredit() + ")");
+                    syncUserData(user.getUid());
+                    syncedCount++;
+                } else {
+                    Log.d(TAG, "User " + user.getUid() + " credits are already synced");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to sync credits for user: " + user.getUid(), e);
+                // Continue with other users
+            }
+        }
+        
+        Log.d(TAG, "=== ALL USERS CREDITS SYNC COMPLETED (" + syncedCount + " users synced) ===");
+    }
+    
+    /**
+     * Bidirectional sync of customers (DISABLED - schema mismatch)
+     */
+    private void syncCustomers(String userId) throws Exception {
+        Log.d(TAG, "=== SYNCING CUSTOMERS for user: " + userId + " ===");
+        
+        // Push local customers to Firestore
+        List<CustomerEntity> localCustomers = database.customerDao().getCustomersNeedingSync();
+        Log.d(TAG, "Found " + localCustomers.size() + " local customers needing sync");
+        int syncedCount = 0;
+        
+        for (CustomerEntity customer : localCustomers) {
+            try {
+                Log.d(TAG, "Pushing customer to Firestore: " + customer.getId() + 
+                    " (name: " + customer.getFullName() + 
+                    ", phone: " + customer.getPhoneNumber() + 
+                    ", createdAt: " + new java.util.Date(customer.getCreatedAt()) + 
+                    ", updatedAt: " + new java.util.Date(customer.getUpdatedAt()) + ")");
+                
+                Map<String, Object> customerData = new HashMap<>();
+                customerData.put("userId", customer.getCreatedBy());
+                customerData.put("fullName", customer.getFullName());
+                customerData.put("phoneNumber", customer.getPhoneNumber());
+                customerData.put("nationalIdNumber", customer.getNationalIdNumber());
+                customerData.put("address", customer.getAddress());
+                customerData.put("dateOfBirth", customer.getDateOfBirth());
+                customerData.put("isActive", customer.isActive());
+                customerData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(customer.getCreatedAt())));
+                customerData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(customer.getUpdatedAt())));
+                
+                firestore.collection("customers").document(customer.getId())
+                        .set(customerData)
+                        .addOnSuccessListener(aVoid -> {
+                            new Thread(() -> {
+                                customer.setNeedsSync(false);
+                                customer.setLastSyncAt(System.currentTimeMillis());
+                                database.customerDao().updateCustomer(customer);
+                                Log.d(TAG, "Customer synced to Firestore: " + customer.getId());
+                            }).start();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to sync customer to Firestore: " + customer.getId(), e);
+                        });
+                syncedCount++;
+            } catch (Exception e) {
+                Log.e(TAG, "Error preparing customer data for sync: " + customer.getId(), e);
+            }
+        }
+        
+        Log.d(TAG, "Pushed " + syncedCount + " local customers to Firestore");
+        
+        // Pull customers from Firestore
+        CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] error = {null};
+        
+        firestore.collection("customers")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        Log.d(TAG, "Found " + queryDocumentSnapshots.size() + " customers in Firestore for user: " + userId);
+                        int pulledCount = 0;
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String customerId = doc.getId();
+                            CustomerEntity localCustomer = database.customerDao().getCustomerById(customerId);
+                            
+                            if (localCustomer == null) {
+                                // New customer from Firestore - add to local database
+                                CustomerEntity newCustomer = new CustomerEntity();
+                                newCustomer.setId(customerId);
+                                newCustomer.setCreatedBy(doc.getString("userId"));
+                                newCustomer.setFullName(doc.getString("fullName"));
+                                newCustomer.setPhoneNumber(doc.getString("phoneNumber"));
+                                newCustomer.setNationalIdNumber(doc.getString("nationalIdNumber"));
+                                newCustomer.setAddress(doc.getString("address"));
+                                newCustomer.setDateOfBirth(doc.getString("dateOfBirth"));
+                                newCustomer.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
+                                // Robust timestamp parsing for createdAt/updatedAt
+                                Long cCreatedAt = null;
+                                Long cUpdatedAt = null;
+                                try {
+                                    Object ts = doc.get("createdAt");
+                                    if (ts instanceof com.google.firebase.Timestamp) {
+                                        cCreatedAt = ((com.google.firebase.Timestamp) ts).toDate().getTime();
+                                    } else if (ts instanceof Long) {
+                                        cCreatedAt = (Long) ts;
+                                    } else if (ts instanceof java.util.Date) {
+                                        cCreatedAt = ((java.util.Date) ts).getTime();
+                                    } else if (ts instanceof Number) {
+                                        cCreatedAt = ((Number) ts).longValue();
+                                    }
+                                } catch (Exception ignore) {}
+                                try {
+                                    Object ts = doc.get("updatedAt");
+                                    if (ts instanceof com.google.firebase.Timestamp) {
+                                        cUpdatedAt = ((com.google.firebase.Timestamp) ts).toDate().getTime();
+                                    } else if (ts instanceof Long) {
+                                        cUpdatedAt = (Long) ts;
+                                    } else if (ts instanceof java.util.Date) {
+                                        cUpdatedAt = ((java.util.Date) ts).getTime();
+                                    } else if (ts instanceof Number) {
+                                        cUpdatedAt = ((Number) ts).longValue();
+                                    }
+                                } catch (Exception ignore) {}
+                                newCustomer.setCreatedAt(cCreatedAt != null ? cCreatedAt : System.currentTimeMillis());
+                                newCustomer.setUpdatedAt(cUpdatedAt != null ? cUpdatedAt : System.currentTimeMillis());
+                                newCustomer.setNeedsSync(false);
+                                newCustomer.setLastSyncAt(System.currentTimeMillis());
+                                
+                                Log.d(TAG, "Pulling new customer from Firestore: " + customerId + 
+                                    " (name: " + newCustomer.getFullName() + 
+                                    ", phone: " + newCustomer.getPhoneNumber() + 
+                                    ", createdAt: " + new java.util.Date(newCustomer.getCreatedAt()) + 
+                                    ", updatedAt: " + new java.util.Date(newCustomer.getUpdatedAt()) + ")");
+                                
+                                database.customerDao().insertCustomer(newCustomer);
+                                Log.d(TAG, "New customer synced from Firestore: " + customerId);
+                                pulledCount++;
+                            } else {
+                                Log.d(TAG, "Customer already exists locally: " + customerId);
+                            }
+                        }
+                        Log.d(TAG, "Pulled " + pulledCount + " new customers from Firestore");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error processing Firestore customers", e);
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to read customers from Firestore", e);
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "=== CUSTOMER SYNC COMPLETED for user: " + userId + " ===");
+    }
+    
+    private void syncCustomers_DISABLED(String userId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(2);
+        final Exception[] error = {null};
+        
+        // 1. Push local customers to Firestore
+        List<CustomerEntity> localCustomers = database.customerDao().getCustomersByUser(userId);
+        for (CustomerEntity customer : localCustomers) {
+            if (customer.isNeedsSync()) {
+                Map<String, Object> customerData = new HashMap<>();
+                                customerData.put("name", customer.getFullName());
+                                customerData.put("phoneNumber", customer.getPhoneNumber());
+                                customerData.put("address", customer.getAddress());
+                                customerData.put("dateOfBirth", customer.getDateOfBirth());
+                                customerData.put("createdBy", customer.getCreatedBy());  // Fixed: use "createdBy"
+                customerData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(customer.getCreatedAt())));
+                customerData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(customer.getUpdatedAt())));
+                customerData.put("isActive", customer.isActive());
+                
+                firestore.collection("customers").document(customer.getId())
+                        .set(customerData)
+                        .addOnSuccessListener(aVoid -> {
+                            // Mark as synced in local DB
+                            new Thread(() -> {
+                                customer.setNeedsSync(false);
+                                customer.setLastSyncAt(System.currentTimeMillis());
+                                database.customerDao().updateCustomer(customer);
+                            }).start();
+                        });
+            }
+        }
+        latch.countDown();
+        
+        // 2. Pull customers from Firestore
+        firestore.collection("customers")
+                .whereEqualTo("createdBy", userId)  // Fixed: use "createdBy" to match push
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String customerId = doc.getId();
+                            CustomerEntity localCustomer = database.customerDao().getCustomerById(customerId);
+                            
+                            if (localCustomer == null) {
+                                // New customer from Firestore
+                                CustomerEntity newCustomer = new CustomerEntity();
+                                newCustomer.setId(customerId);
+                                String fullName = doc.getString("fullName");
+                                if (fullName == null || fullName.isEmpty()) {
+                                    fullName = doc.getString("name");
+                                }
+                                newCustomer.setFullName(fullName);
+                                newCustomer.setPhoneNumber(doc.getString("phoneNumber"));
+                                newCustomer.setAddress(doc.getString("address"));
+                                newCustomer.setDateOfBirth(doc.getString("dateOfBirth"));
+                                newCustomer.setCreatedBy(doc.getString("createdBy"));  // Fixed: use "createdBy"
+                                newCustomer.setCreatedAt(doc.getLong("createdAt"));
+                                newCustomer.setUpdatedAt(doc.getLong("updatedAt"));
+                                newCustomer.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
+                                newCustomer.setNeedsSync(false);
+                                newCustomer.setLastSyncAt(System.currentTimeMillis());
+                                
+                                database.customerDao().insertCustomer(newCustomer);
+                                Log.d(TAG, "New customer synced from Firestore: " + customerId);
+                            }
+                        }
+                    } catch (Exception e) {
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "Customers synced: " + localCustomers.size());
+    }
+    
+    /**
+     * Bidirectional sync of operators (DISABLED - schema mismatch)
+     */
+    private void syncOperators(String userId) throws Exception {
+        Log.d(TAG, "=== SYNCING OPERATORS for user: " + userId + " ===");
+        
+        // Push local operators to Firestore
+        List<OperatorEntity> localOperators = database.operatorDao().getNeedingSync();
+        Log.d(TAG, "Found " + localOperators.size() + " local operators needing sync");
+        int syncedCount = 0;
+        
+        for (OperatorEntity operator : localOperators) {
+            try {
+                Log.d(TAG, "Pushing operator to Firestore: " + operator.getId() + 
+                    " (name: " + operator.getName() + 
+                    ", type: " + operator.getType() + 
+                    ", createdAt: " + new java.util.Date(operator.getCreatedAt()) + 
+                    ", updatedAt: " + new java.util.Date(operator.getUpdatedAt()) + ")");
+                
+                Map<String, Object> operatorData = new HashMap<>();
+                operatorData.put("userId", operator.getAddedBy());
+                operatorData.put("name", operator.getName());
+                operatorData.put("type", operator.getType());
+                operatorData.put("enabled", operator.isEnabled());
+                operatorData.put("code", operator.getCode());
+                operatorData.put("color", operator.getColor());
+                operatorData.put("isActive", operator.isActive());
+                operatorData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(operator.getCreatedAt())));
+                operatorData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(operator.getUpdatedAt())));
+                
+                firestore.collection("operators").document(operator.getId())
+                        .set(operatorData)
+                        .addOnSuccessListener(aVoid -> {
+                            new Thread(() -> {
+                                operator.setNeedsSync(false);
+                                operator.setLastSyncAt(System.currentTimeMillis());
+                                database.operatorDao().updateOperator(operator);
+                                Log.d(TAG, "Operator synced to Firestore: " + operator.getId());
+                            }).start();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to sync operator to Firestore: " + operator.getId(), e);
+                        });
+                syncedCount++;
+            } catch (Exception e) {
+                Log.e(TAG, "Error preparing operator data for sync: " + operator.getId(), e);
+            }
+        }
+        
+        Log.d(TAG, "Pushed " + syncedCount + " local operators to Firestore");
+        
+        // Pull operators from Firestore
+        CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] error = {null};
+        
+        firestore.collection("operators")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        Log.d(TAG, "Found " + queryDocumentSnapshots.size() + " operators in Firestore for user: " + userId);
+                        int pulledCount = 0;
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String operatorId = doc.getId();
+                            OperatorEntity localOperator = database.operatorDao().getById(operatorId);
+                            
+                            if (localOperator == null) {
+                                // New operator from Firestore - add to local database
+                                OperatorEntity newOperator = new OperatorEntity();
+                                newOperator.setId(operatorId);
+                                newOperator.setAddedBy(doc.getString("userId"));
+                                newOperator.setName(doc.getString("name"));
+                                newOperator.setType(doc.getString("type"));
+                                newOperator.setEnabled(doc.getBoolean("enabled") != null ? doc.getBoolean("enabled") : true);
+                                newOperator.setCode(doc.getString("code"));
+                                newOperator.setColor(doc.getString("color"));
+                                newOperator.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
+                                // Robust timestamp parsing for createdAt/updatedAt
+                                Long oCreatedAt = null;
+                                Long oUpdatedAt = null;
+                                try {
+                                    Object ts = doc.get("createdAt");
+                                    if (ts instanceof com.google.firebase.Timestamp) {
+                                        oCreatedAt = ((com.google.firebase.Timestamp) ts).toDate().getTime();
+                                    } else if (ts instanceof Long) {
+                                        oCreatedAt = (Long) ts;
+                                    } else if (ts instanceof java.util.Date) {
+                                        oCreatedAt = ((java.util.Date) ts).getTime();
+                                    } else if (ts instanceof Number) {
+                                        oCreatedAt = ((Number) ts).longValue();
+                                    }
+                                } catch (Exception ignore) {}
+                                try {
+                                    Object ts = doc.get("updatedAt");
+                                    if (ts instanceof com.google.firebase.Timestamp) {
+                                        oUpdatedAt = ((com.google.firebase.Timestamp) ts).toDate().getTime();
+                                    } else if (ts instanceof Long) {
+                                        oUpdatedAt = (Long) ts;
+                                    } else if (ts instanceof java.util.Date) {
+                                        oUpdatedAt = ((java.util.Date) ts).getTime();
+                                    } else if (ts instanceof Number) {
+                                        oUpdatedAt = ((Number) ts).longValue();
+                                    }
+                                } catch (Exception ignore) {}
+                                newOperator.setCreatedAt(oCreatedAt != null ? oCreatedAt : System.currentTimeMillis());
+                                newOperator.setUpdatedAt(oUpdatedAt != null ? oUpdatedAt : System.currentTimeMillis());
+                                newOperator.setNeedsSync(false);
+                                newOperator.setLastSyncAt(System.currentTimeMillis());
+                                
+                                Log.d(TAG, "Pulling new operator from Firestore: " + operatorId + 
+                                    " (name: " + newOperator.getName() + 
+                                    ", type: " + newOperator.getType() + 
+                                    ", createdAt: " + new java.util.Date(newOperator.getCreatedAt()) + 
+                                    ", updatedAt: " + new java.util.Date(newOperator.getUpdatedAt()) + ")");
+                                
+                                database.operatorDao().insertOperator(newOperator);
+                                Log.d(TAG, "New operator synced from Firestore: " + operatorId);
+                                pulledCount++;
+                            } else {
+                                Log.d(TAG, "Operator already exists locally: " + operatorId);
+                            }
+                        }
+                        Log.d(TAG, "Pulled " + pulledCount + " new operators from Firestore");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error processing Firestore operators", e);
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to read operators from Firestore", e);
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "=== OPERATOR SYNC COMPLETED for user: " + userId + " ===");
+    }
+    
+    private void syncOperators_DISABLED(String userId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(2);
+        final Exception[] error = {null};
+        
+        // 1. Push local operators to Firestore
+        List<OperatorEntity> localOperators = database.operatorDao().getActiveForUser(userId);
+        for (OperatorEntity operator : localOperators) {
+            if (operator.isNeedsSync()) {
+                Map<String, Object> operatorData = new HashMap<>();
+                operatorData.put("name", operator.getName());
+                operatorData.put("code", operator.getCode());
+                operatorData.put("type", operator.getType());
+                operatorData.put("color", operator.getColor());
+                operatorData.put("enabled", operator.isEnabled());
+                operatorData.put("addedBy", operator.getAddedBy());
+                operatorData.put("isActive", operator.isActive());
+                operatorData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(operator.getCreatedAt())));
+                operatorData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(operator.getUpdatedAt())));
+                
+                firestore.collection("operators").document(operator.getId())
+                        .set(operatorData)
+                        .addOnSuccessListener(aVoid -> {
+                            new Thread(() -> {
+                                operator.setNeedsSync(false);
+                                operator.setLastSyncAt(System.currentTimeMillis());
+                                database.operatorDao().updateOperator(operator);
+                            }).start();
+                        });
+            }
+        }
+        latch.countDown();
+        
+        // 2. Pull operators from Firestore
+        firestore.collection("operators")
+                .whereEqualTo("addedBy", userId)  // Fixed: use "addedBy" to match push
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String operatorId = doc.getId();
+                            OperatorEntity localOperator = database.operatorDao().getById(operatorId);
+                            
+                            if (localOperator == null) {
+                                OperatorEntity newOperator = new OperatorEntity();
+                                newOperator.setId(operatorId);
+                                newOperator.setName(doc.getString("name"));
+                                newOperator.setCode(doc.getString("code"));
+                                newOperator.setType(doc.getString("type"));
+                                newOperator.setColor(doc.getString("color"));
+                                newOperator.setEnabled(doc.getBoolean("enabled") != null ? doc.getBoolean("enabled") : true);
+                                newOperator.setAddedBy(doc.getString("addedBy"));
+                                newOperator.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
+                                newOperator.setCreatedAt(doc.getLong("createdAt"));
+                                newOperator.setUpdatedAt(doc.getLong("updatedAt"));
+                                newOperator.setNeedsSync(false);
+                                newOperator.setLastSyncAt(System.currentTimeMillis());
+                                
+                                database.operatorDao().insertOperator(newOperator);
+                                Log.d(TAG, "New operator synced from Firestore: " + operatorId);
+                            }
+                        }
+                    } catch (Exception e) {
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "Operators synced: " + localOperators.size());
+    }
+    
+    /**
+     * Bidirectional sync of operator actions (DISABLED - schema mismatch)
+     */
+    private void syncOperatorActions(String userId) throws Exception {
+        Log.d(TAG, "=== SYNCING OPERATOR ACTIONS for user: " + userId + " ===");
+        
+        // Push local operator actions to Firestore
+        List<OperatorActionEntity> localActions = database.operatorActionDao().getNeedingSync();
+        Log.d(TAG, "Found " + localActions.size() + " local operator actions needing sync");
+        int syncedCount = 0;
+        
+        for (OperatorActionEntity action : localActions) {
+            try {
+                Log.d(TAG, "Pushing operator action to Firestore: " + action.getId() + 
+                    " (name: " + action.getName() + 
+                    ", type: " + action.getType() + 
+                    ", operatorId: " + action.getOperatorId() + 
+                    ", createdAt: " + new java.util.Date(action.getCreatedAt()) + 
+                    ", updatedAt: " + new java.util.Date(action.getUpdatedAt()) + ")");
+                
+                Map<String, Object> actionData = new HashMap<>();
+                actionData.put("userId", action.getAddedBy());
+                actionData.put("operatorId", action.getOperatorId());
+                actionData.put("name", action.getName());
+                actionData.put("type", action.getType());
+                actionData.put("actionCode", action.getActionCode());
+                actionData.put("isActive", action.isActive());
+                actionData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(action.getCreatedAt())));
+                actionData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(action.getUpdatedAt())));
+                
+                firestore.collection("operator_actions").document(action.getId())
+                        .set(actionData)
+                        .addOnSuccessListener(aVoid -> {
+                            new Thread(() -> {
+                                action.setNeedsSync(false);
+                                action.setLastSyncAt(System.currentTimeMillis());
+                                database.operatorActionDao().updateAction(action);
+                                Log.d(TAG, "Operator action synced to Firestore: " + action.getId());
+                            }).start();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to sync operator action to Firestore: " + action.getId(), e);
+                        });
+                syncedCount++;
+            } catch (Exception e) {
+                Log.e(TAG, "Error preparing operator action data for sync: " + action.getId(), e);
+            }
+        }
+        
+        Log.d(TAG, "Pushed " + syncedCount + " local operator actions to Firestore");
+        
+        // Pull operator actions from Firestore
+        CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] error = {null};
+        
+        firestore.collection("operator_actions")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        Log.d(TAG, "Found " + queryDocumentSnapshots.size() + " operator actions in Firestore for user: " + userId);
+                        int pulledCount = 0;
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String actionId = doc.getId();
+                            OperatorActionEntity localAction = database.operatorActionDao().getById(actionId);
+                            
+                            if (localAction == null) {
+                                // New operator action from Firestore - add to local database
+                                OperatorActionEntity newAction = new OperatorActionEntity();
+                                newAction.setId(actionId);
+                                newAction.setAddedBy(doc.getString("userId"));
+                                newAction.setOperatorId(doc.getString("operatorId"));
+                                newAction.setName(doc.getString("name"));
+                                newAction.setType(doc.getString("type"));
+                                newAction.setActionCode(doc.getString("actionCode"));
+                                newAction.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
+                                // Robust timestamp parsing for createdAt/updatedAt
+                                Long aCreatedAt = null;
+                                Long aUpdatedAt = null;
+                                try {
+                                    Object ts = doc.get("createdAt");
+                                    if (ts instanceof com.google.firebase.Timestamp) {
+                                        aCreatedAt = ((com.google.firebase.Timestamp) ts).toDate().getTime();
+                                    } else if (ts instanceof Long) {
+                                        aCreatedAt = (Long) ts;
+                                    } else if (ts instanceof java.util.Date) {
+                                        aCreatedAt = ((java.util.Date) ts).getTime();
+                                    } else if (ts instanceof Number) {
+                                        aCreatedAt = ((Number) ts).longValue();
+                                    }
+                                } catch (Exception ignore) {}
+                                try {
+                                    Object ts = doc.get("updatedAt");
+                                    if (ts instanceof com.google.firebase.Timestamp) {
+                                        aUpdatedAt = ((com.google.firebase.Timestamp) ts).toDate().getTime();
+                                    } else if (ts instanceof Long) {
+                                        aUpdatedAt = (Long) ts;
+                                    } else if (ts instanceof java.util.Date) {
+                                        aUpdatedAt = ((java.util.Date) ts).getTime();
+                                    } else if (ts instanceof Number) {
+                                        aUpdatedAt = ((Number) ts).longValue();
+                                    }
+                                } catch (Exception ignore) {}
+                                newAction.setCreatedAt(aCreatedAt != null ? aCreatedAt : System.currentTimeMillis());
+                                newAction.setUpdatedAt(aUpdatedAt != null ? aUpdatedAt : System.currentTimeMillis());
+                                newAction.setNeedsSync(false);
+                                newAction.setLastSyncAt(System.currentTimeMillis());
+                                
+                                Log.d(TAG, "Pulling new operator action from Firestore: " + actionId + 
+                                    " (name: " + newAction.getName() + 
+                                    ", type: " + newAction.getType() + 
+                                    ", operatorId: " + newAction.getOperatorId() + 
+                                    ", createdAt: " + new java.util.Date(newAction.getCreatedAt()) + 
+                                    ", updatedAt: " + new java.util.Date(newAction.getUpdatedAt()) + ")");
+                                
+                                database.operatorActionDao().insertAction(newAction);
+                                Log.d(TAG, "New operator action synced from Firestore: " + actionId);
+                                pulledCount++;
+                            } else {
+                                Log.d(TAG, "Operator action already exists locally: " + actionId);
+                            }
+                        }
+                        Log.d(TAG, "Pulled " + pulledCount + " new operator actions from Firestore");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error processing Firestore operator actions", e);
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to read operator actions from Firestore", e);
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "=== OPERATOR ACTION SYNC COMPLETED for user: " + userId + " ===");
+    }
+    
+    private void syncOperatorActions_DISABLED(String userId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(2);
+        final Exception[] error = {null};
+        
+        // 1. Push local actions to Firestore (NOTE: No simple query for all user actions)
+        List<OperatorActionEntity> localActions = database.operatorActionDao().getNeedingSync();
+        for (OperatorActionEntity action : localActions) {
+            if (action.isNeedsSync()) {
+                Map<String, Object> actionData = new HashMap<>();
+                actionData.put("name", action.getName());
+                actionData.put("actionCode", action.getActionCode());
+                actionData.put("type", action.getType());
+                actionData.put("operatorId", action.getOperatorId());
+                actionData.put("ussdTemplate", action.getUssdTemplate());
+                actionData.put("requiredFieldsJson", action.getRequiredFieldsJson());
+                actionData.put("addedBy", action.getAddedBy());
+                actionData.put("isActive", action.isActive());
+                actionData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(action.getCreatedAt())));
+                actionData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(action.getUpdatedAt())));
+                
+                firestore.collection("operator_actions").document(action.getId())
+                        .set(actionData)
+                        .addOnSuccessListener(aVoid -> {
+                            new Thread(() -> {
+                                action.setNeedsSync(false);
+                                action.setLastSyncAt(System.currentTimeMillis());
+                                database.operatorActionDao().updateAction(action);
+                            }).start();
+                        });
+            }
+        }
+        latch.countDown();
+        
+        // 2. Pull actions from Firestore
+        firestore.collection("operator_actions")
+                .whereEqualTo("addedBy", userId)  // Fixed: use "addedBy" to match push
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String actionId = doc.getId();
+                            OperatorActionEntity localAction = database.operatorActionDao().getById(actionId);
+                            
+                            if (localAction == null) {
+                                OperatorActionEntity newAction = new OperatorActionEntity();
+                                newAction.setId(actionId);
+                                newAction.setName(doc.getString("name"));
+                                newAction.setActionCode(doc.getString("actionCode"));
+                                newAction.setType(doc.getString("type"));
+                                newAction.setOperatorId(doc.getString("operatorId"));
+                                newAction.setUssdTemplate(doc.getString("ussdTemplate"));
+                                newAction.setRequiredFieldsJson(doc.getString("requiredFieldsJson"));
+                                newAction.setAddedBy(doc.getString("addedBy"));
+                                newAction.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
+                                newAction.setCreatedAt(doc.getLong("createdAt"));
+                                newAction.setUpdatedAt(doc.getLong("updatedAt"));
+                                newAction.setNeedsSync(false);
+                                newAction.setLastSyncAt(System.currentTimeMillis());
+                                
+                                database.operatorActionDao().insertAction(newAction);
+                                Log.d(TAG, "New action synced from Firestore: " + actionId);
+                            }
+                        }
+                    } catch (Exception e) {
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "Operator actions synced: " + localActions.size());
+    }
+    
+    /**
+     * Bidirectional sync of transactions
+     */
+    private void syncTransactions(String userId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(2);
+        final Exception[] error = {null};
+        
+        // 1. Push local transactions to Firestore
+        List<TransactionEntity> localTransactions = database.transactionDao().getTransactionsByUser(userId);
+        for (TransactionEntity transaction : localTransactions) {
+            if (transaction.isNeedsSync()) {
+                Map<String, Object> transactionData = new HashMap<>();
+                transactionData.put("userId", transaction.getUserId());
+                transactionData.put("userName", transaction.getUserName());
+                transactionData.put("userRole", transaction.getUserRole());
+                transactionData.put("customerId", transaction.getCustomerId());
+                transactionData.put("customerName", transaction.getCustomerName());
+                transactionData.put("operatorId", transaction.getOperatorId());
+                transactionData.put("operatorName", transaction.getOperatorName());
+                transactionData.put("actionId", transaction.getActionId());
+                transactionData.put("actionName", transaction.getActionName());
+                transactionData.put("transactionType", transaction.getTransactionType());
+                transactionData.put("amount", transaction.getAmount());
+                transactionData.put("status", transaction.getStatus());
+                transactionData.put("notes", transaction.getNotes());
+                transactionData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getCreatedAt())));
+                transactionData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getUpdatedAt())));
+                
+                firestore.collection("transactions").document(transaction.getId())
+                        .set(transactionData)
+                        .addOnSuccessListener(aVoid -> {
+                            new Thread(() -> {
+                                transaction.setNeedsSync(false);
+                                transaction.setLastSyncAt(System.currentTimeMillis());
+                                database.transactionDao().updateTransaction(transaction);
+                            }).start();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to sync transaction to Firestore: " + transaction.getId(), e);
+                        });
+            }
+        }
+        latch.countDown();
+        
+        // 2. Pull transactions from Firestore
+        firestore.collection("transactions")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String transactionId = doc.getId();
+                            TransactionEntity localTransaction = database.transactionDao().getTransactionById(transactionId);
+                            
+                            if (localTransaction == null) {
+                                TransactionEntity newTransaction = new TransactionEntity();
+                                newTransaction.setId(transactionId);
+                                newTransaction.setUserId(doc.getString("userId"));
+                                newTransaction.setUserName(doc.getString("userName"));
+                                newTransaction.setUserRole(doc.getString("userRole"));
+                                newTransaction.setCustomerId(doc.getString("customerId"));
+                                newTransaction.setCustomerName(doc.getString("customerName"));
+                                newTransaction.setOperatorId(doc.getString("operatorId"));
+                                newTransaction.setOperatorName(doc.getString("operatorName"));
+                                newTransaction.setActionId(doc.getString("actionId"));
+                                newTransaction.setActionName(doc.getString("actionName"));
+                                newTransaction.setTransactionType(doc.getString("transactionType"));
+                                newTransaction.setAmount(doc.getDouble("amount"));
+                                newTransaction.setStatus(doc.getString("status"));
+                                newTransaction.setNotes(doc.getString("notes"));
+                                // Handle timestamp conversion from Firestore
+                                Long createdAt = null;
+                                try {
+                                    Object timestampObj = doc.get("createdAt");
+                                    if (timestampObj instanceof com.google.firebase.Timestamp) {
+                                        createdAt = ((com.google.firebase.Timestamp) timestampObj).toDate().getTime();
+                                    } else if (timestampObj instanceof Long) {
+                                        createdAt = (Long) timestampObj;
+                                    } else if (timestampObj instanceof java.util.Date) {
+                                        createdAt = ((java.util.Date) timestampObj).getTime();
+                                    } else if (timestampObj instanceof Number) {
+                                        createdAt = ((Number) timestampObj).longValue();
+                                    } else {
+                                        Log.w(TAG, "Unknown timestamp type for createdAt: " + (timestampObj != null ? timestampObj.getClass().getSimpleName() : "null"));
+                                        createdAt = System.currentTimeMillis();
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Could not parse createdAt timestamp", e);
+                                    createdAt = System.currentTimeMillis();
+                                }
+                                newTransaction.setCreatedAt(createdAt != null ? createdAt : System.currentTimeMillis());
+                                
+                                // Log timestamp details for debugging
+                                Log.d(TAG, "Transaction " + transactionId + " createdAt parsed as: " + 
+                                    (createdAt != null ? new java.util.Date(createdAt).toString() : "null"));
+                                
+                                Long updatedAt = null;
+                                try {
+                                    Object timestampObj = doc.get("updatedAt");
+                                    if (timestampObj instanceof com.google.firebase.Timestamp) {
+                                        updatedAt = ((com.google.firebase.Timestamp) timestampObj).toDate().getTime();
+                                    } else if (timestampObj instanceof Long) {
+                                        updatedAt = (Long) timestampObj;
+                                    } else if (timestampObj instanceof java.util.Date) {
+                                        updatedAt = ((java.util.Date) timestampObj).getTime();
+                                    } else if (timestampObj instanceof Number) {
+                                        updatedAt = ((Number) timestampObj).longValue();
+                                    } else {
+                                        Log.w(TAG, "Unknown timestamp type for updatedAt: " + (timestampObj != null ? timestampObj.getClass().getSimpleName() : "null"));
+                                        updatedAt = System.currentTimeMillis();
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Could not parse updatedAt timestamp", e);
+                                    updatedAt = System.currentTimeMillis();
+                                }
+                                newTransaction.setUpdatedAt(updatedAt != null ? updatedAt : System.currentTimeMillis());
+                                
+                                // Log timestamp details for debugging
+                                Log.d(TAG, "Transaction " + transactionId + " updatedAt parsed as: " + 
+                                    (updatedAt != null ? new java.util.Date(updatedAt).toString() : "null"));
+                                
+                                newTransaction.setNeedsSync(false);
+                                newTransaction.setLastSyncAt(System.currentTimeMillis());
+                                
+                                database.transactionDao().insertTransaction(newTransaction);
+                                Log.d(TAG, "New transaction synced from Firestore: " + transactionId);
+                            }
+                        }
+                    } catch (Exception e) {
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to read transactions from Firestore", e);
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "Transactions synced: " + localTransactions.size());
+    }
+    
+    /**
+     * Simplified transaction sync - only push local to Firestore
+     */
+    private void syncTransactionsSimple(String userId) throws Exception {
+        Log.d(TAG, "Starting simple transaction sync for user: " + userId);
+        
+        // Get all transactions for this user that need sync
+        List<TransactionEntity> localTransactions = database.transactionDao().getTransactionsByUser(userId);
+        
+        for (TransactionEntity transaction : localTransactions) {
+            if (transaction.isNeedsSync()) {
+                try {
+                    Map<String, Object> transactionData = new HashMap<>();
+                    transactionData.put("userId", transaction.getUserId());
+                    transactionData.put("userName", transaction.getUserName());
+                    transactionData.put("userRole", transaction.getUserRole());
+                    transactionData.put("customerId", transaction.getCustomerId());
+                    transactionData.put("customerName", transaction.getCustomerName());
+                    transactionData.put("operatorId", transaction.getOperatorId());
+                    transactionData.put("operatorName", transaction.getOperatorName());
+                    transactionData.put("actionId", transaction.getActionId());
+                    transactionData.put("actionName", transaction.getActionName());
+                    transactionData.put("transactionType", transaction.getTransactionType());
+                    transactionData.put("amount", transaction.getAmount());
+                    transactionData.put("status", transaction.getStatus());
+                    transactionData.put("notes", transaction.getNotes());
+                    transactionData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getCreatedAt())));
+                    transactionData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getUpdatedAt())));
+                    
+                    firestore.collection("transactions").document(transaction.getId())
+                            .set(transactionData)
+                            .addOnSuccessListener(aVoid -> {
+                                new Thread(() -> {
+                                    transaction.setNeedsSync(false);
+                                    transaction.setLastSyncAt(System.currentTimeMillis());
+                                    database.transactionDao().updateTransaction(transaction);
+                                    Log.d(TAG, "Transaction synced to Firestore: " + transaction.getId());
+                                }).start();
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e(TAG, "Failed to sync transaction to Firestore: " + transaction.getId(), e);
+                            });
+                } catch (Exception e) {
+                    Log.e(TAG, "Error preparing transaction data for sync: " + transaction.getId(), e);
+                }
+            }
+        }
+        
+        Log.d(TAG, "Simple transaction sync completed for user: " + userId);
+    }
+    
+    /**
+     * Bidirectional transaction sync - push local to Firestore and pull from Firestore
+     */
+    private void syncTransactionsBidirectional(String userId) throws Exception {
+        Log.d(TAG, "Starting bidirectional transaction sync for user: " + userId);
+        
+        // Step 1: Push local transactions to Firestore
+        List<TransactionEntity> localTransactions = database.transactionDao().getTransactionsByUser(userId);
+        int syncedCount = 0;
+        
+        for (TransactionEntity transaction : localTransactions) {
+            if (transaction.isNeedsSync()) {
+                try {
+                    Map<String, Object> transactionData = new HashMap<>();
+                    transactionData.put("userId", transaction.getUserId());
+                    transactionData.put("userName", transaction.getUserName());
+                    transactionData.put("userRole", transaction.getUserRole());
+                    transactionData.put("customerId", transaction.getCustomerId());
+                    transactionData.put("customerName", transaction.getCustomerName());
+                    transactionData.put("operatorId", transaction.getOperatorId());
+                    transactionData.put("operatorName", transaction.getOperatorName());
+                    transactionData.put("actionId", transaction.getActionId());
+                    transactionData.put("actionName", transaction.getActionName());
+                    transactionData.put("transactionType", transaction.getTransactionType());
+                    transactionData.put("amount", transaction.getAmount());
+                    transactionData.put("status", transaction.getStatus());
+                    transactionData.put("notes", transaction.getNotes());
+                    transactionData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getCreatedAt())));
+                    transactionData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getUpdatedAt())));
+                    
+                    firestore.collection("transactions").document(transaction.getId())
+                            .set(transactionData)
+                            .addOnSuccessListener(aVoid -> {
+                                new Thread(() -> {
+                                    transaction.setNeedsSync(false);
+                                    transaction.setLastSyncAt(System.currentTimeMillis());
+                                    database.transactionDao().updateTransaction(transaction);
+                                    Log.d(TAG, "Transaction synced to Firestore: " + transaction.getId());
+                                }).start();
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e(TAG, "Failed to sync transaction to Firestore: " + transaction.getId(), e);
+                            });
+                    syncedCount++;
+                } catch (Exception e) {
+                    Log.e(TAG, "Error preparing transaction data for sync: " + transaction.getId(), e);
+                }
+            }
+        }
+        
+        Log.d(TAG, "Pushed " + syncedCount + " local transactions to Firestore");
+        
+        // Step 2: Pull transactions from Firestore
+        CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] error = {null};
+        
+        firestore.collection("transactions")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        int pulledCount = 0;
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String transactionId = doc.getId();
+                            TransactionEntity localTransaction = database.transactionDao().getTransactionById(transactionId);
+                            
+                            if (localTransaction == null) {
+                                // New transaction from Firestore - add to local database
+                                TransactionEntity newTransaction = new TransactionEntity();
+                                newTransaction.setId(transactionId);
+                                newTransaction.setUserId(doc.getString("userId"));
+                                newTransaction.setUserName(doc.getString("userName"));
+                                newTransaction.setUserRole(doc.getString("userRole"));
+                                newTransaction.setCustomerId(doc.getString("customerId"));
+                                newTransaction.setCustomerName(doc.getString("customerName"));
+                                newTransaction.setOperatorId(doc.getString("operatorId"));
+                                newTransaction.setOperatorName(doc.getString("operatorName"));
+                                newTransaction.setActionId(doc.getString("actionId"));
+                                newTransaction.setActionName(doc.getString("actionName"));
+                                newTransaction.setTransactionType(doc.getString("transactionType"));
+                                newTransaction.setAmount(doc.getDouble("amount") != null ? doc.getDouble("amount") : 0.0);
+                                newTransaction.setStatus(doc.getString("status"));
+                                newTransaction.setNotes(doc.getString("notes"));
+                                
+                                // Additional fields from Firestore schema
+                                newTransaction.setChannel(doc.getString("channel"));
+                                newTransaction.setCustomerPhone(doc.getString("customerPhone"));
+                                newTransaction.setCreditBefore(doc.getDouble("creditBefore") != null ? doc.getDouble("creditBefore") : 0.0);
+                                newTransaction.setCreditAfter(doc.getDouble("creditAfter") != null ? doc.getDouble("creditAfter") : 0.0);
+                                
+                                // Handle timestamps safely - Firestore stores as Timestamp
+                                Long createdAt = null;
+                                Long updatedAt = null;
+                                
+                                try {
+                                    // Try to get as Long first
+                                    createdAt = doc.getLong("createdAt");
+                                    if (createdAt == null) {
+                                        // If not Long, try to get as Timestamp and convert
+                                        Object timestampObj = doc.get("createdAt");
+                                        if (timestampObj != null) {
+                                            // Firestore Timestamp - convert to milliseconds
+                                            createdAt = ((com.google.firebase.Timestamp) timestampObj).toDate().getTime();
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Could not parse createdAt timestamp", e);
+                                    createdAt = System.currentTimeMillis();
+                                }
+                                
+                                try {
+                                    // Try to get as Long first
+                                    updatedAt = doc.getLong("updatedAt");
+                                    if (updatedAt == null) {
+                                        // If not Long, try to get as Timestamp and convert
+                                        Object timestampObj = doc.get("updatedAt");
+                                        if (timestampObj != null) {
+                                            // Firestore Timestamp - convert to milliseconds
+                                            updatedAt = ((com.google.firebase.Timestamp) timestampObj).toDate().getTime();
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Could not parse updatedAt timestamp", e);
+                                    updatedAt = System.currentTimeMillis();
+                                }
+                                
+                                newTransaction.setCreatedAt(createdAt != null ? createdAt : System.currentTimeMillis());
+                                newTransaction.setUpdatedAt(updatedAt != null ? updatedAt : System.currentTimeMillis());
+                                
+                                // Log timestamp details for debugging
+                                Log.d(TAG, "Transaction " + transactionId + " timestamps - createdAt: " + 
+                                    (createdAt != null ? new java.util.Date(createdAt).toString() : "null") + 
+                                    ", updatedAt: " + (updatedAt != null ? new java.util.Date(updatedAt).toString() : "null"));
+                                
+                                newTransaction.setNeedsSync(false);
+                                newTransaction.setLastSyncAt(System.currentTimeMillis());
+                                
+                                database.transactionDao().insertTransaction(newTransaction);
+                                pulledCount++;
+                                Log.d(TAG, "New transaction pulled from Firestore: " + transactionId);
+                            } else {
+                                // Existing transaction - update if Firestore has newer data
+                                try {
+                                    // Parse timestamps robustly
+                                    Long createdAt = null;
+                                    Long updatedAt = null;
+                                    Object createdObj = doc.get("createdAt");
+                                    if (createdObj instanceof com.google.firebase.Timestamp) {
+                                        createdAt = ((com.google.firebase.Timestamp) createdObj).toDate().getTime();
+                                    } else if (createdObj instanceof Long) {
+                                        createdAt = (Long) createdObj;
+                                    } else if (createdObj instanceof java.util.Date) {
+                                        createdAt = ((java.util.Date) createdObj).getTime();
+                                    } else if (createdObj instanceof Number) {
+                                        createdAt = ((Number) createdObj).longValue();
+                                    }
+
+                                    Object updatedObj = doc.get("updatedAt");
+                                    if (updatedObj instanceof com.google.firebase.Timestamp) {
+                                        updatedAt = ((com.google.firebase.Timestamp) updatedObj).toDate().getTime();
+                                    } else if (updatedObj instanceof Long) {
+                                        updatedAt = (Long) updatedObj;
+                                    } else if (updatedObj instanceof java.util.Date) {
+                                        updatedAt = ((java.util.Date) updatedObj).getTime();
+                                    } else if (updatedObj instanceof Number) {
+                                        updatedAt = ((Number) updatedObj).longValue();
+                                    }
+
+                                    long localUpdatedAt = localTransaction.getUpdatedAt();
+                                    long remoteUpdatedAt = updatedAt != null ? updatedAt : localUpdatedAt;
+
+                                    Log.d(TAG, "Transaction " + transactionId + " compare timestamps: local=" +
+                                            new java.util.Date(localUpdatedAt) + ", remote=" + new java.util.Date(remoteUpdatedAt) +
+                                            ", needsSync=" + localTransaction.isNeedsSync());
+
+                                    boolean shouldUpdateFromRemote = false;
+                                    if (!localTransaction.isNeedsSync()) {
+                                        // If local doesn't have pending changes, update whenever timestamps differ
+                                        shouldUpdateFromRemote = (remoteUpdatedAt != localUpdatedAt);
+                                    }
+
+                                    if (shouldUpdateFromRemote) {
+                                        // Firestore is newer → update local
+                                        localTransaction.setUserName(doc.getString("userName"));
+                                        localTransaction.setUserRole(doc.getString("userRole"));
+                                        localTransaction.setCustomerId(doc.getString("customerId"));
+                                        localTransaction.setCustomerName(doc.getString("customerName"));
+                                        localTransaction.setOperatorId(doc.getString("operatorId"));
+                                        localTransaction.setOperatorName(doc.getString("operatorName"));
+                                        localTransaction.setActionId(doc.getString("actionId"));
+                                        localTransaction.setActionName(doc.getString("actionName"));
+                                        localTransaction.setTransactionType(doc.getString("transactionType"));
+                                        localTransaction.setAmount(doc.getDouble("amount") != null ? doc.getDouble("amount") : 0.0);
+                                        localTransaction.setStatus(doc.getString("status"));
+                                        localTransaction.setNotes(doc.getString("notes"));
+                                        localTransaction.setChannel(doc.getString("channel"));
+                                        localTransaction.setCustomerPhone(doc.getString("customerPhone"));
+                                        localTransaction.setCreditBefore(doc.getDouble("creditBefore") != null ? doc.getDouble("creditBefore") : 0.0);
+                                        localTransaction.setCreditAfter(doc.getDouble("creditAfter") != null ? doc.getDouble("creditAfter") : 0.0);
+                                        if (createdAt != null) localTransaction.setCreatedAt(createdAt);
+                                        localTransaction.setUpdatedAt(remoteUpdatedAt);
+                                        localTransaction.setNeedsSync(false);
+                                        localTransaction.setLastSyncAt(System.currentTimeMillis());
+                                        database.transactionDao().updateTransaction(localTransaction);
+                                        Log.d(TAG, "Updated local transaction from Firestore: " + transactionId);
+                                    } else {
+                                        // Local is newer/same or has pending changes → mark synced/time
+                                        localTransaction.setLastSyncAt(System.currentTimeMillis());
+                                        database.transactionDao().updateTransaction(localTransaction);
+                                        Log.d(TAG, "Skipped updating local transaction (kept local): " + transactionId);
+                                    }
+                                } catch (Exception e) {
+                                    Log.e(TAG, "Error updating local transaction from Firestore: " + transactionId, e);
+                                }
+                            }
+                        }
+                        Log.d(TAG, "Pulled " + pulledCount + " new transactions from Firestore");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error processing Firestore transactions", e);
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to read transactions from Firestore", e);
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "Bidirectional transaction sync completed for user: " + userId);
+    }
+    
+    /**
+     * Check if first login and internet is available
+     */
+    public static boolean isFirstLogin(Context context, String userId) {
+        AppDatabase database = AppDatabase.getDatabase(context);
+        UserEntity user = database.userDao().getUserById(userId);
+        return user == null || user.getLastSyncAt() == 0;
+    }
+}

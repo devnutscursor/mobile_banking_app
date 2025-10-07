@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,6 +39,12 @@ public class OperatorActionsActivity extends AppCompatActivity {
         db = AppDatabase.getDatabase(this); sm = new SessionManager(this); sync = new SyncManager(this);
         operatorId = getIntent().getStringExtra(EXTRA_OPERATOR_ID);
         uid = sm.getUserFromSession() != null ? sm.getUserFromSession().getUid() : "";
+        
+        // Setup header
+        TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
+        tvHeaderTitle.setText(getString(R.string.operator_actions));
+        findViewById(R.id.btnBack).setOnClickListener(v -> finish());
+        
         recyclerView = findViewById(R.id.recyclerViewActions);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         adapter = new OperatorActionAdapter(items, uid, this::onEdit, this::onDelete);
@@ -60,7 +67,7 @@ public class OperatorActionsActivity extends AppCompatActivity {
                 .setMessage(getString(R.string.are_you_sure))
                 .setPositiveButton(android.R.string.yes, (d,w) -> new Thread(() -> {
                     db.operatorActionDao().softDelete(a.getId(), System.currentTimeMillis());
-                    runOnUiThread(() -> { load(); sync.syncOperatorActions(); });
+                    runOnUiThread(() -> { load(); /* sync.syncOperatorActions(); */ });
                 }).start())
                 .setNegativeButton(android.R.string.no, null)
                 .show();
@@ -68,31 +75,49 @@ public class OperatorActionsActivity extends AppCompatActivity {
 
     private void showAddEditDialog(@Nullable OperatorActionEntity existing) {
         View v = LayoutInflater.from(this).inflate(R.layout.dialog_add_action, null);
-        EditText etName = v.findViewById(R.id.etActionName);
-        EditText etType = v.findViewById(R.id.etActionType);
+        Spinner spinnerName = v.findViewById(R.id.spinnerActionName);
+        // Remove manual type field; type comes from operator
         EditText etCode = v.findViewById(R.id.etActionCode);
+        
+        // Setup action name spinner with Deposit/Withdrawal
+        String[] actionNames = new String[]{"Deposit", "Withdrawal"};
+        android.widget.ArrayAdapter<String> nameAdapter = new android.widget.ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, actionNames);
+        nameAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerName.setAdapter(nameAdapter);
+        
         if (existing != null) {
-            etName.setText(existing.getName()); 
-            etType.setText(existing.getType());
+            // Set spinner selection based on existing name
+            String existingName = existing.getName();
+            if (existingName != null && existingName.toLowerCase().contains("withdraw")) {
+                spinnerName.setSelection(1); // Withdrawal
+            } else {
+                spinnerName.setSelection(0); // Deposit
+            }
             etCode.setText(existing.getActionCode());
         }
         new AlertDialog.Builder(this)
                 .setTitle(existing == null ? getString(R.string.add_action) : getString(R.string.edit_customer))
                 .setView(v)
                 .setPositiveButton(R.string.save_action, (d,w) -> {
-                    String name = etName.getText().toString().trim();
-                    String type = etType.getText().toString().trim();
+                    String name = (String) spinnerName.getSelectedItem();
                     String actionCode = etCode.getText().toString().trim();
-                    if (TextUtils.isEmpty(name) || TextUtils.isEmpty(type) || TextUtils.isEmpty(actionCode)) {
+                    if (TextUtils.isEmpty(name) || TextUtils.isEmpty(actionCode)) {
                         Toast.makeText(this, R.string.required_fields_missing, Toast.LENGTH_SHORT).show(); return;
                     }
                     new Thread(() -> {
-                        OperatorActionEntity a = existing != null ? existing : new OperatorActionEntity(UUID.randomUUID().toString(), operatorId, name, type, null, null, uid);
-                        a.setName(name); a.setType(type); a.setAddedBy(uid);
+                        // Derive type from operator
+                        String derivedType = "USSD";
+                        try {
+                            com.example.myapplication.database.entities.OperatorEntity op = db.operatorDao().getById(operatorId);
+                            if (op != null && !TextUtils.isEmpty(op.getType())) derivedType = op.getType();
+                        } catch (Exception ignore) {}
+                        OperatorActionEntity a = existing != null ? existing : new OperatorActionEntity(UUID.randomUUID().toString(), operatorId, name, derivedType, null, null, uid);
+                        a.setName(name); a.setType(derivedType); a.setAddedBy(uid);
                         a.setActionCode(actionCode);
                         a.setUpdatedAt(System.currentTimeMillis()); a.setNeedsSync(true);
                         db.operatorActionDao().insertAction(a);
-                        runOnUiThread(() -> { load(); sync.syncOperatorActions(); });
+                        runOnUiThread(() -> { load(); /* sync.syncOperatorActions(); */ });
                     }).start();
                 })
                 .setNegativeButton(android.R.string.cancel, null)

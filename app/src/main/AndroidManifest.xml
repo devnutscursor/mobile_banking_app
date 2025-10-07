@@ -51,6 +51,18 @@
         <activity
             android:name=".OperatorActionsActivity"
             android:exported="false" />
+        <activity
+            android:name=".ProcessTransactionActivity"
+            android:exported="false" />
+        <activity
+            android:name=".CashRegisterActivity"
+            android:exported="false" />
+        <activity
+            android:name=".AddCreditsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".BuyCreditActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

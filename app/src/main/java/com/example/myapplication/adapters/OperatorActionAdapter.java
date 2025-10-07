@@ -35,6 +35,19 @@ public class OperatorActionAdapter extends RecyclerView.Adapter<OperatorActionAd
         h.tvActionName.setText(a.getName());
         h.tvActionType.setText(a.getType());
         h.tvUssdTemplate.setText(a.getUssdTemplate() == null ? "" : a.getUssdTemplate());
+        
+        // Set icon color based on action name
+        String actionName = a.getName().toLowerCase();
+        int iconColor;
+        if (actionName.contains("deposit")) {
+            iconColor = h.itemView.getContext().getColor(R.color.error_red);
+        } else if (actionName.contains("withdrawal") || actionName.contains("withdraw")) {
+            iconColor = h.itemView.getContext().getColor(R.color.success_green);
+        } else {
+            iconColor = h.itemView.getContext().getColor(R.color.primary_purple);
+        }
+        h.ivActionIcon.setColorFilter(iconColor);
+        
         boolean canEdit = currentUserId != null && currentUserId.equals(a.getAddedBy());
         h.ivEdit.setVisibility(canEdit ? View.VISIBLE : View.GONE);
         h.ivDelete.setVisibility(canEdit ? View.VISIBLE : View.GONE);
@@ -45,11 +58,13 @@ public class OperatorActionAdapter extends RecyclerView.Adapter<OperatorActionAd
     @Override public int getItemCount() { return items.size(); }
 
     static class VH extends RecyclerView.ViewHolder {
-        TextView tvActionName, tvActionType, tvUssdTemplate; ImageView ivEdit, ivDelete;
+        TextView tvActionName, tvActionType, tvUssdTemplate; 
+        ImageView ivActionIcon, ivEdit, ivDelete;
         VH(@NonNull View itemView) { super(itemView);
             tvActionName = itemView.findViewById(R.id.tvActionName);
             tvActionType = itemView.findViewById(R.id.tvActionType);
             tvUssdTemplate = itemView.findViewById(R.id.tvUssdTemplate);
+            ivActionIcon = itemView.findViewById(R.id.ivActionIcon);
             ivEdit = itemView.findViewById(R.id.ivEdit);
             ivDelete = itemView.findViewById(R.id.ivDelete);
         }

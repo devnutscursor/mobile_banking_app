@@ -1,35 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:maxHeight="600dp">
 
     <LinearLayout
-        android:orientation="vertical"
-        android:padding="16dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
 
-        <EditText
-            android:id="@+id/etActionName"
+        <!-- Action Name Label -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/action_name" />
+            android:text="@string/action_name"
+            android:textSize="12sp"
+            android:textColor="@color/text_on_light_glass"
+            android:layout_marginBottom="4dp" />
 
-        <EditText
-            android:id="@+id/etActionType"
+        <!-- Action Name Spinner -->
+        <Spinner
+            android:id="@+id/spinnerActionName"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:background="@drawable/spinner_light_background_with_arrow"
+            android:paddingStart="12dp"
+            android:paddingEnd="40dp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Action Code -->
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/action_type"
-            android:text="USSD" />
+            android:layout_marginBottom="8dp"
+            android:hint="@string/action_code"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusTopStart="8dp"
+            app:boxCornerRadiusTopEnd="8dp"
+            app:boxCornerRadiusBottomStart="8dp"
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
 
-        <EditText
-            android:id="@+id/etActionCode"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/action_code" />
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etActionCode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
     </LinearLayout>
+
 </ScrollView>
-
-

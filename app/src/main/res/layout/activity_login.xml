@@ -119,7 +119,7 @@
                         android:layout_marginBottom="20dp"
                         android:hint="@string/email_hint"
                         app:boxBackgroundMode="filled"
-                        app:boxBackgroundColor="@color/background_secondary"
+                        app:boxBackgroundColor="@color/card_background"
                         app:boxCornerRadiusTopStart="16dp"
                         app:boxCornerRadiusTopEnd="16dp"
                         app:boxCornerRadiusBottomStart="16dp"
@@ -127,7 +127,7 @@
                         app:boxStrokeColor="@color/primary_purple"
                         app:boxStrokeWidth="2dp"
                         app:hintTextColor="@color/white"
-                        app:startIconDrawable="@android:drawable/ic_dialog_email"
+                        app:startIconDrawable="@drawable/ic_email"
                         app:startIconTint="@color/white">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -149,7 +149,7 @@
                         android:layout_marginBottom="32dp"
                         android:hint="@string/password_hint"
                         app:boxBackgroundMode="filled"
-                        app:boxBackgroundColor="@color/background_secondary"
+                        app:boxBackgroundColor="@color/card_background"
                         app:boxCornerRadiusTopStart="16dp"
                         app:boxCornerRadiusTopEnd="16dp"
                         app:boxCornerRadiusBottomStart="16dp"

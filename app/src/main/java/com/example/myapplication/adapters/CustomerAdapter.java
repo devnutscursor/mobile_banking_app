@@ -120,7 +120,8 @@ public class CustomerAdapter extends RecyclerView.Adapter<CustomerAdapter.Custom
             if (age > 0) {
                 tvAge.setText(age + " " + itemView.getContext().getString(R.string.years_old));
             } else {
-                tvAge.setText("-");
+                // Show "Not Available" instead of just "-" for better UX
+                tvAge.setText(itemView.getContext().getString(R.string.not_available));
             }
             
             // ID status

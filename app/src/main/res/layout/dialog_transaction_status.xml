@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/modern_glass_card"
+    android:padding="24dp">
+
+    <!-- Title -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/transaction_details"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@color/primary_purple"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Transaction Code -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="@string/transaction_code"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tvTransactionCode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="TXN12345"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/black" />
+
+    </LinearLayout>
+
+    <!-- Customer Name -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="@string/customer"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tvCustomerName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Customer Name"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+    </LinearLayout>
+
+    <!-- Operator -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="@string/operator"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tvOperator"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Airtel"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+    </LinearLayout>
+
+    <!-- Action -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="@string/action"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tvAction"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Deposit"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+    </LinearLayout>
+
+    <!-- Type -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="@string/type"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tvType"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Deposit"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+    </LinearLayout>
+
+    <!-- Amount -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="@string/amount"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tvAmount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="5000.00 XAF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary_green" />
+
+    </LinearLayout>
+
+    <!-- Divider -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/border_light"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Current Status -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="@string/current_status"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tvCurrentStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="pending"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/black" />
+
+    </LinearLayout>
+
+    <!-- Update Status -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/update_status"
+        android:textSize="13sp"
+        android:textColor="@color/black"
+        android:layout_marginBottom="8dp" />
+
+    <Spinner
+        android:id="@+id/spinnerStatus"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/spinner_light_background_with_arrow"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:layout_marginBottom="24dp"
+        android:popupBackground="@drawable/spinner_dropdown_background"
+        android:textColor="@color/white"
+        android:dropDownSelector="@drawable/spinner_dropdown_selector" />
+
+    <!-- Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/btnCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="@string/cancel"
+            android:textColor="@color/primary_purple"
+            android:background="@drawable/button_outline_purple"
+            android:backgroundTint="@android:color/white"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:layout_marginEnd="12dp"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/btnUpdateStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="@string/update_status_button"
+            android:textColor="@color/white"
+            android:background="@drawable/modern_button_primary"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -3,10 +3,11 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="2dp"
-    android:layout_marginBottom="8dp"
-    android:foreground="?android:attr/selectableItemBackground">
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp"
+    android:layout_marginBottom="12dp"
+    android:foreground="?android:attr/selectableItemBackground"
+    android:backgroundTint="@color/card_background">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -20,6 +21,15 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
+
+            <!-- Avatar/Icon -->
+            <ImageView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:src="@drawable/ic_users"
+                app:tint="@color/text_secondary"
+                android:layout_marginEnd="12dp"
+                android:padding="10dp" />
 
             <!-- Customer Info -->
             <LinearLayout
@@ -56,23 +66,23 @@
 
                 <ImageView
                     android:id="@+id/ivEdit"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
                     android:src="@drawable/ic_edit"
-                    android:tint="@color/primary_purple"
+                    app:tint="@color/text_secondary"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:padding="6dp"
-                    android:layout_marginEnd="8dp"
+                    android:padding="8dp"
+                    android:layout_marginEnd="4dp"
                     android:contentDescription="@string/edit_customer" />
 
                 <ImageView
                     android:id="@+id/ivDelete"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
                     android:src="@drawable/ic_delete"
-                    android:tint="@color/error_red"
+                    app:tint="@color/error_red"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:padding="6dp"
+                    android:padding="8dp"
                     android:contentDescription="@string/delete_customer" />
 
             </LinearLayout>
@@ -164,7 +174,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/id_valid"
-                    android:textColor="@color/text_primary"
+                    android:textColor="@color/white"
                     android:textSize="12sp" />
 
             </LinearLayout>
@@ -188,7 +198,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/pending_sync"
-                    android:textColor="@color/text_primary"
+                    android:textColor="@color/white"
                     android:textSize="12sp" />
 
             </LinearLayout>

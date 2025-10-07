@@ -50,19 +50,25 @@ public class OperatorAdapter extends RecyclerView.Adapter<OperatorAdapter.VH> {
         h.ivEdit.setVisibility(canEdit ? View.VISIBLE : View.GONE);
         h.ivDelete.setVisibility(canEdit ? View.VISIBLE : View.GONE);
 
-        // Apply color bar based on operator color
+        // Apply color bar and icon color based on operator color
         View colorBar = h.itemView.findViewById(R.id.colorBar);
+        ImageView operatorIcon = h.itemView.findViewById(R.id.ivOperatorIcon);
+        
+        int colorRes = R.color.primary_orange;
+        String c = op.getColor();
+        if ("purple".equals(c)) colorRes = R.color.primary_purple;
+        else if ("blue".equals(c)) colorRes = R.color.info_blue;
+        else if ("green".equals(c)) colorRes = R.color.success_green;
+        else if ("amber".equals(c)) colorRes = R.color.warning_amber;
+        else if ("red".equals(c)) colorRes = R.color.error_red;
+        else if ("teal".equals(c)) colorRes = R.color.teal_200;
+        else if ("indigo".equals(c)) colorRes = R.color.primary_blue_dark;
+        
         if (colorBar != null) {
-            int colorRes = R.color.primary_orange;
-            String c = op.getColor();
-            if ("purple".equals(c)) colorRes = R.color.primary_purple;
-            else if ("blue".equals(c)) colorRes = R.color.info_blue;
-            else if ("green".equals(c)) colorRes = R.color.success_green;
-            else if ("amber".equals(c)) colorRes = R.color.warning_amber;
-            else if ("red".equals(c)) colorRes = R.color.error_red;
-            else if ("teal".equals(c)) colorRes = R.color.teal_200;
-            else if ("indigo".equals(c)) colorRes = R.color.primary_blue_dark;
             colorBar.setBackgroundResource(colorRes);
+        }
+        if (operatorIcon != null) {
+            operatorIcon.setColorFilter(h.itemView.getContext().getColor(colorRes));
         }
 
         h.itemView.setOnClickListener(v -> { if (onClick != null) onClick.onClick(op); });

@@ -35,6 +35,21 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
+        <!-- Sync Button -->
+        <ImageView
+            android:id="@+id/btnSync"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_sync"
+            app:tint="@color/text_white"
+            android:scaleType="centerInside"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="4dp"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="Sync data" />
+
         <!-- Language Selection -->
         <include layout="@layout/language_selector" 
             android:layout_width="wrap_content"
@@ -116,7 +131,7 @@
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
+                android:layout_marginBottom="20dp"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="0dp"
                 android:backgroundTint="@color/white">
@@ -130,11 +145,11 @@
                     <!-- Customers -->
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="80dp"
+                        android:layout_height="70dp"
                         android:layout_weight="1"
                         android:layout_marginEnd="4dp"
                         android:orientation="vertical"
-                        android:padding="6dp">
+                        android:padding="8dp">
 
                         <!-- First Row: Icon + Label -->
                         <LinearLayout
@@ -144,16 +159,16 @@
                             android:gravity="center_vertical"
                             android:layout_gravity="center_horizontal">
                             <ImageView
-                                android:layout_width="18dp"
-                                android:layout_height="18dp"
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
                                 android:src="@drawable/contacts_product_24"
                                 app:tint="@color/primary_purple"
-                                android:layout_marginEnd="4dp" />
+                                android:layout_marginEnd="3dp" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Total"
-                                android:textSize="12sp"
+                                android:textSize="9sp"
                                 android:textColor="@color/primary_purple" />
                         </LinearLayout>
 
@@ -163,9 +178,9 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textSize="18sp"
+                            android:textSize="16sp"
                             android:textColor="@color/black"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="3dp"
                             android:layout_gravity="center_horizontal" />
 
                         <!-- Third Row: Description -->
@@ -173,7 +188,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Customers"
-                            android:textSize="9sp"
+                            android:textSize="8sp"
                             android:textColor="@color/black"
                             android:layout_marginTop="1dp"
                             android:layout_gravity="center_horizontal" />
@@ -189,11 +204,11 @@
                     <!-- Today Transactions -->
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="80dp"
+                        android:layout_height="70dp"
                         android:layout_weight="1"
                         android:layout_marginHorizontal="4dp"
                         android:orientation="vertical"
-                        android:padding="6dp">
+                        android:padding="8dp">
 
                         <!-- First Row: Icon + Label -->
                         <LinearLayout
@@ -203,16 +218,16 @@
                             android:gravity="center_vertical"
                             android:layout_gravity="center_horizontal">
                             <ImageView
-                                android:layout_width="18dp"
-                                android:layout_height="18dp"
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
                                 android:src="@drawable/swap_horiz_24"
                                 app:tint="@color/primary_purple"
-                                android:layout_marginEnd="4dp" />
+                                android:layout_marginEnd="3dp" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Today"
-                                android:textSize="12sp"
+                                android:text="Weekly"
+                                android:textSize="9sp"
                                 android:textColor="@color/primary_purple" />
                         </LinearLayout>
 
@@ -222,9 +237,9 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="15"
-                            android:textSize="18sp"
+                            android:textSize="16sp"
                             android:textColor="@color/black"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="3dp"
                             android:layout_gravity="center_horizontal" />
 
                         <!-- Third Row: Description -->
@@ -232,7 +247,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Transactions"
-                            android:textSize="9sp"
+                            android:textSize="8sp"
                             android:textColor="@color/black"
                             android:layout_marginTop="1dp"
                             android:layout_gravity="center_horizontal" />
@@ -248,11 +263,11 @@
                     <!-- Virtual Balance -->
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="80dp"
+                        android:layout_height="70dp"
                         android:layout_weight="1"
                         android:layout_marginStart="4dp"
                         android:orientation="vertical"
-                        android:padding="6dp">
+                        android:padding="8dp">
 
                         <!-- First Row: Icon + Label -->
                         <LinearLayout
@@ -262,16 +277,16 @@
                             android:gravity="center_vertical"
                             android:layout_gravity="center_horizontal">
                             <ImageView
-                                android:layout_width="18dp"
-                                android:layout_height="18dp"
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
                                 android:src="@drawable/account_balance_wallet_24"
                                 app:tint="@color/primary_purple"
-                                android:layout_marginEnd="4dp" />
+                                android:layout_marginEnd="3dp" />
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="Current"
-                                android:textSize="12sp"
+                                android:textSize="9sp"
                                 android:textColor="@color/primary_purple" />
                         </LinearLayout>
 
@@ -281,9 +296,9 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="$875"
-                            android:textSize="18sp"
+                            android:textSize="16sp"
                             android:textColor="@color/black"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="3dp"
                             android:layout_gravity="center_horizontal" />
 
                         <!-- Third Row: Description -->
@@ -291,7 +306,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Balance"
-                            android:textSize="9sp"
+                            android:textSize="8sp"
                             android:textColor="@color/black"
                             android:layout_marginTop="1dp"
                             android:layout_gravity="center_horizontal" />
@@ -414,7 +429,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Buy Credit"
+                                android:text="@string/buy_credit"
                                 android:textSize="11sp"
                                 android:textColor="@color/black"
                                 android:layout_marginTop="4dp" />

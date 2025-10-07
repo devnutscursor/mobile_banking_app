@@ -25,6 +25,7 @@ import com.example.myapplication.utils.LicenseManager;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.LanguageManager;
 import com.example.myapplication.adapters.LanguageSpinnerAdapter;
+import com.example.myapplication.services.FirstLoginSyncService;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -336,6 +337,40 @@ public class LoginActivity extends AppCompatActivity {
 
     private void navigateToDashboard() {
         // Get user role and navigate to appropriate dashboard
+        if (sessionManager.getUserFromSession() != null) {
+            String userId = sessionManager.getUserFromSession().getUid();
+            
+            // Check if this is first login and needs compulsory sync
+            FirstLoginSyncService syncService = new FirstLoginSyncService(this);
+            syncService.checkAndSyncFirstLogin(userId, new FirstLoginSyncService.FirstLoginSyncCallback() {
+                @Override
+                public void onSyncStarted() {
+                    // Sync started - user will see progress dialog
+                }
+
+                @Override
+                public void onSyncProgress(String message, int current, int total) {
+                    // Progress updates handled by the service
+                }
+
+                @Override
+                public void onSyncComplete(boolean success, String message) {
+                    runOnUiThread(() -> {
+                        if (success) {
+                            // Sync completed (or no data to sync), proceed to dashboard
+                            proceedToDashboard();
+                        } else {
+                            // Sync failed, show error but still allow navigation
+                            Toast.makeText(LoginActivity.this, "Sync failed: " + message, Toast.LENGTH_LONG).show();
+                            proceedToDashboard();
+                        }
+                    });
+                }
+            });
+        }
+    }
+    
+    private void proceedToDashboard() {
         if (sessionManager.getUserFromSession() != null) {
             String role = sessionManager.getUserFromSession().getRole();
             Intent intent;

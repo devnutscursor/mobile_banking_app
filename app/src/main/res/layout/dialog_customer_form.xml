@@ -21,13 +21,17 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
-            app:boxCornerRadiusBottomEnd="8dp">
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etFullName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textPersonName" />
+                android:inputType="textPersonName"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -42,13 +46,17 @@
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
             app:boxCornerRadiusBottomEnd="8dp"
-            app:placeholderText="YYYY-MM-DD">
+            app:placeholderText="YYYY-MM-DD"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etDateOfBirth"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="date" />
+                android:inputType="date"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -62,13 +70,17 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
-            app:boxCornerRadiusBottomEnd="8dp">
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etNationalId"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text" />
+                android:inputType="text"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -83,13 +95,17 @@
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
             app:boxCornerRadiusBottomEnd="8dp"
-            app:placeholderText="YYYY-MM-DD">
+            app:placeholderText="YYYY-MM-DD"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etIssueDate"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="date" />
+                android:inputType="date"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -104,13 +120,17 @@
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
             app:boxCornerRadiusBottomEnd="8dp"
-            app:placeholderText="YYYY-MM-DD">
+            app:placeholderText="YYYY-MM-DD"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etExpiryDate"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="date" />
+                android:inputType="date"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -124,13 +144,17 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
-            app:boxCornerRadiusBottomEnd="8dp">
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etPhoneNumber"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="phone" />
+                android:inputType="phone"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -144,14 +168,18 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
-            app:boxCornerRadiusBottomEnd="8dp">
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etAddress"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textPostalAddress"
-                android:lines="2" />
+                android:lines="2"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -165,13 +193,17 @@
             app:boxCornerRadiusTopStart="8dp"
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
-            app:boxCornerRadiusBottomEnd="8dp">
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etEmail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textEmailAddress" />
+                android:inputType="textEmailAddress"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
 
         </com.google.android.material.textfield.TextInputLayout>
 

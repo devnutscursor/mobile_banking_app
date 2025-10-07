@@ -19,6 +19,7 @@ import com.example.myapplication.utils.LicenseManager;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.LanguageManager;
 import com.example.myapplication.adapters.LanguageSpinnerAdapter;
+import com.example.myapplication.services.FirstLoginSyncService;
 
 public class LicenseActivationActivity extends AppCompatActivity {
 
@@ -143,8 +144,8 @@ public class LicenseActivationActivity extends AppCompatActivity {
                             
                             Toast.makeText(LicenseActivationActivity.this, getString(R.string.license_activated), Toast.LENGTH_SHORT).show();
                             
-                            // Navigate to appropriate dashboard based on user role
-                            navigateToDashboard(user);
+                            // After activation, run first-time sync (if needed) before navigating
+                            startFirstSyncThenNavigate(user);
                         });
                     }
 
@@ -182,6 +183,29 @@ public class LicenseActivationActivity extends AppCompatActivity {
         intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
+    }
+
+    private void startFirstSyncThenNavigate(User user) {
+        FirstLoginSyncService syncService = new FirstLoginSyncService(this);
+        syncService.checkAndSyncFirstLogin(user.getUid(), new FirstLoginSyncService.FirstLoginSyncCallback() {
+            @Override
+            public void onSyncStarted() {
+                // Progress dialog handled inside service
+            }
+
+            @Override
+            public void onSyncProgress(String message, int current, int total) {
+                // Progress handled by the service UI
+            }
+
+            @Override
+            public void onSyncComplete(boolean success, String message) {
+                runOnUiThread(() -> {
+                    // Whether success or not, proceed to dashboard to avoid blocking
+                    navigateToDashboard(user);
+                });
+            }
+        });
     }
 }
 

@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App Name -->
-    <string name="app_name">Application Mobile Banking</string>
+    <string name="app_name">Mon Application</string>
     
     <!-- Login Activity -->
     <string name="login_title">Connexion</string>
-    <string name="welcome_back">Bon retour</string>
+    <string name="welcome_back">Bon Retour</string>
     <string name="sign_in_subtitle">Connectez-vous à votre compte</string>
-    <string name="email_hint">Adresse e-mail</string>
-    <string name="password_hint">Mot de passe</string>
-    <string name="login_button">Se connecter</string>
+    <string name="email_hint">Adresse Email</string>
+    <string name="password_hint">Mot de Passe</string>
+    <string name="login_button">Se Connecter</string>
     <string name="login_successful">Connexion réussie!</string>
     <string name="login_failed">Échec de la connexion</string>
     <string name="fill_all_fields">Veuillez remplir tous les champs</string>
@@ -21,7 +21,7 @@
     <string name="credentials_not_found_offline">Identifiants non trouvés hors ligne, tentative de connexion en ligne...</string>
     
     <!-- License Activation -->
-    <string name="license_activation">Activation de la licence</string>
+    <string name="license_activation">Activation de Licence</string>
     <string name="enter_license_key">Entrez votre clé de licence pour activer</string>
     <string name="activate_button">Activer</string>
     <string name="license_activated">Licence activée avec succès!</string>
@@ -32,149 +32,170 @@
     <string name="welcome_agent">Bienvenue, Agent</string>
     <string name="role_agent">Rôle: AGENT</string>
     <string name="my_stats">Mes Statistiques</string>
-    <string name="agent_operations">Opérations d\'Agent</string>
-    <string name="manage_customers">Gérer les Clients</string>
-    <string name="buy_virtual_credit">Acheter du Crédit Virtuel</string>
-    <string name="process_transactions">Traiter les Transactions</string>
+    <string name="agent_operations">Opérations Agent</string>
+    <string name="manage_customers">Ajouter Clients</string>
+    <string name="buy_virtual_credit">Acheter Crédit Virtuel</string>
+    <string name="buy_credit">Acheter Crédit</string>
+    <string name="buy_credit_info">Contactez votre revendeur pour acheter des crédits supplémentaires pour votre compte.</string>
+    <string name="add_credits">Ajouter Crédits</string>
+    <string name="process_transactions">Traiter Transactions</string>
     <string name="my_reports">Mes Rapports</string>
-    <string name="manage_operators">Gérer les opérateurs</string>
+    <string name="manage_operators">Gérer Opérateurs</string>
     <string name="edit">Modifier</string>
     <string name="delete">Supprimer</string>
-    <string name="dealer_dashboard">Tableau de bord du revendeur</string>
-    <string name="agent_dashboard">Tableau de bord de l\'agent</string>
-    <string name="manage_agents">Gérer les agents</string>
-    <string name="cash_register">Caisse enregistreuse</string>
-    <string name="virtual_accounts">Comptes virtuels</string>
+    <string name="dealer_dashboard">Tableau de Bord Revendeur</string>
+    <string name="agent_dashboard">Tableau de Bord Agent</string>
+    <string name="manage_agents">Gérer Agents</string>
+    <string name="cash_register">Caisse</string>
+    <string name="virtual_accounts">Comptes Virtuels</string>
     <string name="transactions">Transactions</string>
     <string name="reports">Rapports</string>
-    <string name="dashboard_stats">Statistiques du tableau de bord</string>
-    <string name="dealer_operations">Opérations du revendeur</string>
-    <string name="active_agents_label">Agents actifs : %1$d</string>
-    <string name="todays_transactions_label">Transactions d\'aujourd\'hui : %1$d</string>
-    <string name="virtual_balance_label">Solde virtuel : $%1$s</string>
-    <string name="registered_customers_label">Clients enregistrés : %1$d</string>
-    <!-- Dashboard card titles (agent) -->
-    <string name="card_my_customers">Mes clients</string>
-    <string name="card_todays_transactions">Transactions d\'aujourd\'hui</string>
-    <string name="card_virtual_balance">Solde virtuel</string>
-    <string name="card_commission_earned">Commission gagnée</string>
-
-    <!-- Dashboard card titles (dealer) -->
-    <string name="card_my_agents">Mes agents</string>
-    <string name="card_total_transactions">Transactions totales</string>
-    <string name="card_total_revenue">Revenu total</string>
-    <string name="card_all_customers">Tous les clients</string>
-    <string name="no_dealer_assigned">Aucun revendeur attribué</string>
-    <string name="logout">Déconnexion</string>
-    <string name="coming_soon">Bientôt disponible</string>
+    <string name="dashboard_stats">Statistiques Tableau de Bord</string>
     
-    <!-- Main Activity -->
-    <string name="mobile_banking_app">Application Mobile Banking - Test</string>
-    <string name="status_not_logged_in">Statut: Non connecté</string>
-    <string name="status_logged_in">Statut: Connecté en tant que</string>
-    <string name="online_login_required">Connexion en ligne (Internet requis)</string>
-    <string name="resume_session">Reprendre la session</string>
-    <string name="first_time_login_required">Connexion initiale requise</string>
-    <string name="session_locked_tap_resume">Session verrouillée - appuyez sur Reprendre pour continuer</string>
-    <string name="logs_will_appear_here">Les journaux apparaîtront ici...</string>
-    
-    <!-- Language Selection -->
-    <string name="select_language">Sélectionner la langue</string>
-    <string name="language_english">Anglais</string>
-    <string name="language_french">Français</string>
-    
-    <!-- Common -->
-    <string name="role">Rôle</string>
-    <string name="name">Nom</string>
-    <string name="email">Email</string>
+    <!-- Add Credits / Buy Credit -->
+    <string name="select_agent_to_add_credits">Sélectionnez un agent pour ajouter des crédits</string>
+    <string name="no_agents_found">Aucun agent trouvé</string>
+    <string name="current_credit_label">Crédit Actuel</string>
+    <string name="enter_credit_amount">Entrez le montant à ajouter</string>
+    <string name="add">Ajouter</string>
+    <string name="cancel">Annuler</string>
+    <string name="insufficient_credit">Solde de crédit insuffisant</string>
+    <string name="processing_please_wait">Traitement en cours, veuillez patienter...</string>
+    <string name="sync_needed">Synchronisation nécessaire</string>
+    <string name="sync_needed_connect_internet">Synchronisation nécessaire, veuillez vous connecter à Internet</string>
+    <string name="ok">OK</string>
+    <string name="starting_sync">Démarrage de la synchronisation...</string>
+    <string name="sync_completed_successfully">Synchronisation terminée avec succès</string>
+    <string name="sync_failed">Échec de la synchronisation</string>
+    <string name="dealer_information">Informations du Revendeur</string>
+    <string name="name_label">Nom:</string>
+    <string name="email_label">Email:</string>
+    <string name="phone_label">Téléphone:</string>
+    <string name="available_credit">Crédit Disponible:</string>
+    <string name="contact_dealer">Contacter le Revendeur</string>
+    <string name="dealer_phone_not_available">Numéro de téléphone du revendeur non disponible</string>
+    <string name="no_dealer_found">Aucun revendeur trouvé</string>
+    <string name="contact_dealer_to_buy_credit">Contactez votre revendeur pour acheter des crédits supplémentaires</string>
+    <string name="dealer_operations">Opérations Revendeur</string>
+    <string name="agent_account">Compte Agent</string>
+    <string name="dealer_account">Compte Revendeur</string>
     <string name="dealer">Revendeur</string>
-    <string name="agent">Agent</string>
-    <string name="admin">Administrateur</string>
-    <string name="active">Actif</string>
-    <string name="inactive">Inactif</string>
-    <string name="needs_sync">Nécessite une synchronisation</string>
-    <string name="up_to_date">À jour</string>
-    <string name="authenticated_as">Authentifié en tant que</string>
+    <string name="total">Total</string>
+    <string name="today">Aujourd\'hui</string>
+    <string name="current">Actuel</string>
+    <string name="customers">Clients</string>
+    <string name="balance">Solde</string>
+    <string name="agents">Agents</string>
+    <string name="operators">Opérateurs</string>
+    <string name="credit">Crédit</string>
+    <string name="coming_soon">Bientôt Disponible</string>
+    <string name="logout">Déconnexion</string>
     
-    <!-- Language download messages -->
-    <string name="downloading_language_model">Téléchargement du modèle de langue... (30 Mo)</string>
-    <string name="download_language_failed">Échec du téléchargement du modèle de langue. Vérifiez votre connexion Internet.</string>
+    <!-- Transaction Processing -->
+    <string name="process_transaction">Traiter Transaction</string>
+    <string name="select_customer">Sélectionner Client</string>
+    <string name="select_operator">Sélectionner Opérateur</string>
+    <string name="select_action">Sélectionner Action</string>
+    <string name="enter_amount">Entrer Montant</string>
+    <string name="amount_hint">Montant (XAF)</string>
+    <string name="process_transaction_button">Traiter Transaction</string>
+    <string name="transaction_successful">Transaction Réussie</string>
+    <string name="transaction_failed">Transaction Échouée</string>
+    <string name="ussd_code_generated">Code USSD Généré</string>
+    <string name="ussd_code_opened">Code USSD ouvert dans le composeur</string>
+    <string name="select_all_fields">Veuillez sélectionner tous les champs</string>
+    <string name="enter_valid_amount">Veuillez entrer un montant valide</string>
+    <string name="processing_transaction">Traitement de la transaction...</string>
+    
+    <!-- Cash Register -->
+    <string name="cash_register_title">Caisse</string>
+    <string name="all_transactions">Toutes les Transactions</string>
+    <string name="view_manage_transactions">Voir et gérer toutes vos transactions</string>
+    <string name="no_transactions_found">Aucune transaction trouvée</string>
+    <string name="transaction_details">Détails de la Transaction</string>
+    <string name="transaction_code">Code Transaction</string>
+    <string name="customer">Client</string>
+    <string name="operator">Opérateur</string>
+    <string name="action">Action</string>
+    <string name="type">Type</string>
+    <string name="amount">Montant</string>
+    <string name="current_status">Statut Actuel</string>
+    <string name="update_status">Mettre à Jour Statut</string>
+    <string name="pending">En Attente</string>
+    <string name="successful">Réussi</string>
+    <string name="failed">Échoué</string>
+    <string name="update_status_button">Mettre à Jour Statut</string>
+    <string name="status_updated">Statut de la transaction mis à jour</string>
+    <string name="error_updating_status">Erreur lors de la mise à jour du statut</string>
+    
+    <!-- Sync Messages -->
+    <string name="internet_required">Internet Requis</string>
+    <string name="sync_requires_internet">La synchronisation nécessite une connexion internet. Veuillez vérifier votre réseau et réessayer.\n\nNote: L\'application fonctionne hors ligne, mais la synchronisation nécessite internet pour mettre à jour les données cloud.</string>
+    <string name="syncing_data">Synchronisation des données...</string>
+    <string name="sync_completed">Synchronisation terminée avec succès</string>
+    <string name="syncing_user_data">Synchronisation des données utilisateur...</string>
+    <string name="syncing_transactions">Synchronisation des transactions...</string>
     
     <!-- Customer Management -->
-    <string name="customer_management">Gestion des clients</string>
-    <string name="add_customer">Ajouter un client</string>
-    <string name="search_customers">Rechercher des clients</string>
-    <string name="scan_barcode">Scanner le code-barres</string>
-    <string name="manual_entry">Saisie manuelle</string>
-    <string name="scanned_data">Données scannées</string>
-    <string name="full_name">Nom complet</string>
-    <string name="date_of_birth">Date de naissance</string>
-    <string name="national_id">Pièce d\'identité nationale</string>
-    <string name="issue_date">Date d\'émission</string>
-    <string name="expiry_date">Date d\'expiration</string>
-    <string name="phone_number">Numéro de téléphone</string>
-    <string name="address">Adresse</string>
-    <string name="save_customer">Enregistrer le client</string>
-    <string name="update_customer">Mettre à jour le client</string>
-    <string name="delete_customer">Supprimer le client</string>
+    <string name="customer_management">Gestion des Clients</string>
+    <string name="add_customer">Ajouter Client</string>
+    <string name="customer_name">Nom du Client</string>
+    <string name="customer_phone">Téléphone du Client</string>
+    <string name="customer_address">Adresse du Client</string>
+    <string name="customer_dob">Date de Naissance</string>
+    <string name="save_customer">Enregistrer Client</string>
     <string name="customer_saved">Client enregistré avec succès</string>
     <string name="customer_updated">Client mis à jour avec succès</string>
     <string name="customer_deleted">Client supprimé avec succès</string>
-    <string name="scan_barcode_instruction">Positionnez le code-barres dans le cadre pour le scanner</string>
-    <string name="barcode_scan_failed">Échec du scan du code-barres. Veuillez réessayer ou utiliser la saisie manuelle.</string>
-    <string name="barcode_data_extracted">Données du code-barres extraites avec succès</string>
-    <string name="invalid_date_format">Format de date invalide. Veuillez utiliser AAAA-MM-JJ</string>
-    <string name="customer_already_exists">Un client avec cette pièce d\'identité nationale existe déjà</string>
-    <string name="required_fields_missing">Veuillez remplir tous les champs obligatoires</string>
-    <string name="invalid_phone_number">Format de numéro de téléphone invalide</string>
-    <string name="invalid_email">Format d\'email invalide</string>
-    <string name="expired_id">Cette pièce d\'identité a expiré</string>
-    <string name="my_customers">Mes clients</string>
-    <string name="all_customers">Tous les clients</string>
-    <string name="no_customers_found">Aucun client trouvé</string>
-    <string name="customer_details">Détails du client</string>
-    <string name="edit_customer">Modifier le client</string>
-    <string name="age">Âge</string>
-    <string name="years_old">ans</string>
-    <string name="id_expired">Pièce d\'identité expirée</string>
-    <string name="id_valid">Pièce d\'identité valide</string>
-    <string name="created_on">Créé le</string>
-    <string name="last_updated">Dernière mise à jour</string>
-    <string name="sync_status">Statut de synchronisation</string>
-    <string name="pending_sync">Synchronisation en attente</string>
-    <string name="synced">Synchronisé</string>
     
-    <!-- Common UI -->
-    <string name="menu">Menu</string>
-    <string name="stop_scanning">Arrêter le scan</string>
-
     <!-- Operator Management -->
-    <string name="operator_management">Gestion des opérateurs</string>
-    <string name="add_operator">Ajouter un opérateur</string>
-    <string name="operator_name">Nom de l’opérateur</string>
-    <string name="operator_type">Type d’opérateur</string>
-    <string name="type_ussd">USSD</string>
-    <string name="type_traditional">Traditionnel</string>
-    <string name="operator_enabled">Actif</string>
-    <string name="save_operator">Enregistrer l’opérateur</string>
-    <string name="delete_operator">Supprimer l’opérateur</string>
-    <string name="operators_empty">Aucun opérateur</string>
-    <string name="operator_code">Code/Préfixe de l\'opérateur</string>
-
-    <!-- Operator Actions -->
-    <string name="operator_actions">Actions de l\'opérateur</string>
-    <string name="search_operators">Rechercher Opérateurs</string>
-    <string name="action_code">Code d\'action</string>
-    <string name="add_action">Ajouter une action</string>
-    <string name="action_name">Nom de l\'action</string>
-    <string name="action_type">Type d\'action</string>
-    <string name="type_ussd_action">USSD</string>
-    <string name="type_form_action">Formulaire</string>
-    <string name="ussd_template">Modèle USSD</string>
-    <string name="required_fields">Champs requis (JSON)</string>
-    <string name="save_action">Enregistrer l’action</string>
-    <string name="delete_action">Supprimer l’action</string>
-    <string name="ussd_preview">Aperçu USSD</string>
-    <string name="invalid_template">Modèle invalide</string>
-    <string name="are_you_sure">Êtes-vous sûr ?</string>
+    <string name="operator_management">Gestion des Opérateurs</string>
+    <string name="add_operator">Ajouter Opérateur</string>
+    <string name="operator_name">Nom de l\'Opérateur</string>
+    <string name="operator_code">Code Opérateur</string>
+    <string name="operator_type">Type d\'Opérateur</string>
+    <string name="operator_color">Couleur de l\'Opérateur</string>
+    <string name="save_operator">Enregistrer Opérateur</string>
+    <string name="edit_operator">Modifier l\'Opérateur</string>
+    <string name="delete_operator">Supprimer l\'Opérateur</string>
+    <string name="operator_saved">Opérateur enregistré avec succès</string>
+    <string name="operator_updated">Opérateur mis à jour avec succès</string>
+    <string name="operator_deleted">Opérateur supprimé avec succès</string>
+    
+    <!-- Common -->
+    <string name="confirm_transaction">Confirmer Transaction</string>
+    <string name="confirm">Confirmer</string>
+    <string name="no_operators">Aucun opérateur trouvé. Veuillez créer un opérateur d\'abord.</string>
+    <string name="no_actions">Aucune action trouvée pour cet opérateur</string>
+    <string name="no_customers">Aucun client trouvé. Veuillez ajouter un client d\'abord.</string>
+    <string name="ussd_transaction">Transaction USSD</string>
+    <string name="non_ussd_transaction">Transaction Non-USSD</string>
+    
+    <!-- Transaction Type Array -->
+    <string-array name="transaction_types">
+        <item>Sélectionner Type</item>
+        <item>Dépôt</item>
+        <item>Retrait</item>
+    </string-array>
+    
+    <!-- Transaction Status Array -->
+    <string-array name="transaction_statuses">
+        <item>en_attente</item>
+        <item>réussi</item>
+        <item>échoué</item>
+    </string-array>
+    
+    <!-- First Login Sync -->
+    <string name="data_sync_required">Synchronisation des Données Requise</string>
+    <string name="data_found_in_cloud">Nous avons trouvé vos données dans le cloud. La synchronisation de vos données est requise pour continuer.</string>
+    <string name="sync_required">Synchronisation requise</string>
+    <string name="data_needs_sync">Vos données doivent être synchronisées. Voulez-vous synchroniser maintenant ?</string>
+    <string name="sync_now">Synchroniser Maintenant</string>
+    <string name="sync_later">Synchroniser plus tard</string>
+    <string name="syncing_data_please_wait">Veuillez patienter pendant que nous synchronisons vos données...</string>
+    <string name="syncing_customers">Synchronisation des clients...</string>
+    <string name="syncing_operators">Synchronisation des opérateurs...</string>
+    <string name="syncing_operator_actions">Synchronisation des actions d\'opérateur...</string>
+    <string name="data_synced_successfully">Données synchronisées avec succès!</string>
+    <string name="sync_failed_error">Échec de la synchronisation: %1$s</string>
 </resources>

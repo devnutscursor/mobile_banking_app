@@ -55,9 +55,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
     private static final int CAMERA_PERMISSION_REQUEST = 1001;
     
     // UI Components
-    private TextView tvWelcome, tvUserInfo;
-    private ImageView btnMenu, ivLanguageFlag;
-    private Button btnScanBarcode, btnManualEntry, btnStopScanning;
+    private TextView tvHeaderTitle;
+    private View btnScanBarcode, btnManualEntry;
+    private Button btnStopScanning;
     private EditText etSearch;
     private RecyclerView recyclerViewCustomers;
     private CustomerAdapter customerAdapter;
@@ -91,7 +91,6 @@ public class CustomerManagementActivity extends AppCompatActivity {
         
         initDatabase();
         initViews();
-        setupLanguageSpinner();
         setupClickListeners();
         loadCustomers();
     }
@@ -111,10 +110,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
     
     private void initViews() {
         // Header components
-        tvWelcome = findViewById(R.id.tvWelcome);
-        tvUserInfo = findViewById(R.id.tvUserInfo);
-        btnMenu = findViewById(R.id.btnMenu);
-        ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
+        tvHeaderTitle.setText(getString(R.string.customer_management));
+        findViewById(R.id.btnBack).setOnClickListener(v -> finish());
         
         // Main components
         btnScanBarcode = findViewById(R.id.btnScanBarcode);
@@ -135,8 +133,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
         
         // Update UI with user info now that UI elements are initialized
         if (currentUser != null) {
-            tvWelcome.setText(getString(R.string.customer_management));
-            tvUserInfo.setText(currentUser.getEmail() + " (" + currentUser.getRole() + ")");
+            // tvWelcome and tvUserInfo are removed from this screen's new design
+            // tvWelcome.setText(getString(R.string.customer_management));
+            // tvUserInfo.setText(currentUser.getEmail() + " (" + currentUser.getRole() + ")");
         }
     }
     
@@ -202,45 +201,15 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 .build();
         barcodeScanner = BarcodeScanning.getClient(options);
         
-        // Start auto-sync and perform an initial pull so fresh installs see server data
-        syncManager.startAutoSync();
+        // Removed sync prompt from Customer Management - only show on dashboards
+        
+        // Only download customers if online (no auto-sync)
         if (syncManager.isOnline()) {
             syncManager.downloadCustomers(this::loadCustomers);
         }
     }
     
-    private void setupLanguageSpinner() {
-        updateLanguageFlag();
-        
-        ivLanguageFlag.setOnClickListener(v -> {
-            // Debounce mechanism to prevent rapid language changes
-            long currentTime = System.currentTimeMillis();
-            if (currentTime - lastLanguageChangeTime < 1000) {
-                return;
-            }
-            lastLanguageChangeTime = currentTime;
-            
-            // Toggle language
-            String currentLang = languageManager.getCurrentLanguage();
-            String newLang = "en".equals(currentLang) ? "fr" : "en";
-            
-            languageManager.setLanguage(newLang);
-            recreate();
-        });
-    }
-    
-    private void updateLanguageFlag() {
-        String currentLang = languageManager.getCurrentLanguage();
-        if ("fr".equals(currentLang)) {
-            ivLanguageFlag.setImageResource(R.drawable.ic_flag_fr);
-        } else {
-            ivLanguageFlag.setImageResource(R.drawable.ic_flag_us);
-        }
-    }
-    
     private void setupClickListeners() {
-        btnMenu.setOnClickListener(v -> showUserDetailsDialog());
-        
         btnScanBarcode.setOnClickListener(v -> startBarcodeScanning());
         btnManualEntry.setOnClickListener(v -> showManualEntryDialog());
         btnStopScanning.setOnClickListener(v -> stopBarcodeScanning());
@@ -610,6 +579,57 @@ public class CustomerManagementActivity extends AppCompatActivity {
         }
     }
     
+    /**
+     * Normalizes date format to YYYY-MM-DD with zero-padding
+     * Handles formats like: 2003-9-9, 2003-09-9, 2003-9-09, 2003-09-09
+     */
+    private String normalizeDateFormat(String date) {
+        if (date == null || date.trim().isEmpty()) {
+            return null;
+        }
+        
+        try {
+            // Remove any extra spaces
+            String cleanDate = date.trim();
+            
+            // Handle different date formats
+            if (cleanDate.matches("\\d{4}-\\d{1,2}-\\d{1,2}")) {
+                // Format: YYYY-M-D, YYYY-MM-D, YYYY-M-DD, YYYY-MM-DD
+                String[] parts = cleanDate.split("-");
+                if (parts.length == 3) {
+                    String year = parts[0];
+                    String month = String.format("%02d", Integer.parseInt(parts[1]));
+                    String day = String.format("%02d", Integer.parseInt(parts[2]));
+                    return year + "-" + month + "-" + day;
+                }
+            } else if (cleanDate.matches("\\d{8}")) {
+                // Format: YYYYMMDD
+                return cleanDate.substring(0, 4) + "-" + 
+                       cleanDate.substring(4, 6) + "-" + 
+                       cleanDate.substring(6, 8);
+            } else if (cleanDate.matches("\\d{6}")) {
+                // Format: YYMMDD (assume 20xx)
+                String year = "20" + cleanDate.substring(0, 2);
+                String month = cleanDate.substring(2, 4);
+                String day = cleanDate.substring(4, 6);
+                return year + "-" + month + "-" + day;
+            }
+            
+            // If none of the patterns match, try to parse as-is
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            sdf.setLenient(true);
+            java.util.Date parsedDate = sdf.parse(cleanDate);
+            
+            // If parsing succeeded, format it properly
+            SimpleDateFormat outputFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            return outputFormat.format(parsedDate);
+            
+        } catch (Exception e) {
+            Log.w(TAG, "Could not normalize date format: " + date, e);
+            return null;
+        }
+    }
+    
     private void saveCustomer(CustomerEntity customer, EditText etFullName, EditText etDateOfBirth, 
                             EditText etNationalId, EditText etIssueDate, EditText etExpiryDate, 
                             EditText etPhoneNumber, EditText etAddress, EditText etEmail) {
@@ -636,10 +656,55 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 }
                 
                 customer.setFullName(etFullName.getText().toString());
-                customer.setDateOfBirth(etDateOfBirth.getText().toString());
+                
+                // Format and validate date of birth
+                String dobText = etDateOfBirth.getText().toString().trim();
+                if (!dobText.isEmpty()) {
+                    // Normalize the date format (handles 2003-9-9, 2003-09-09, etc.)
+                    String normalizedDob = normalizeDateFormat(dobText);
+                    if (normalizedDob != null && isValidDateFormat(normalizedDob)) {
+                        customer.setDateOfBirth(normalizedDob);
+                        Log.d(TAG, "Date of birth normalized: " + dobText + " -> " + normalizedDob);
+                    } else {
+                        // Invalid date format - set to null
+                        customer.setDateOfBirth(null);
+                        Log.w(TAG, "Invalid date of birth format: " + dobText);
+                    }
+                } else {
+                    customer.setDateOfBirth(null);
+                }
+                
                 customer.setNationalIdNumber(etNationalId.getText().toString());
-                customer.setIssueDate(etIssueDate.getText().toString());
-                customer.setExpiryDate(etExpiryDate.getText().toString());
+                
+                // Format and validate issue date
+                String issueText = etIssueDate.getText().toString().trim();
+                if (!issueText.isEmpty()) {
+                    String normalizedIssue = normalizeDateFormat(issueText);
+                    if (normalizedIssue != null && isValidDateFormat(normalizedIssue)) {
+                        customer.setIssueDate(normalizedIssue);
+                        Log.d(TAG, "Issue date normalized: " + issueText + " -> " + normalizedIssue);
+                    } else {
+                        customer.setIssueDate(null);
+                        Log.w(TAG, "Invalid issue date format: " + issueText);
+                    }
+                } else {
+                    customer.setIssueDate(null);
+                }
+                
+                // Format and validate expiry date
+                String expiryText = etExpiryDate.getText().toString().trim();
+                if (!expiryText.isEmpty()) {
+                    String normalizedExpiry = normalizeDateFormat(expiryText);
+                    if (normalizedExpiry != null && isValidDateFormat(normalizedExpiry)) {
+                        customer.setExpiryDate(normalizedExpiry);
+                        Log.d(TAG, "Expiry date normalized: " + expiryText + " -> " + normalizedExpiry);
+                    } else {
+                        customer.setExpiryDate(null);
+                        Log.w(TAG, "Invalid expiry date format: " + expiryText);
+                    }
+                } else {
+                    customer.setExpiryDate(null);
+                }
                 customer.setPhoneNumber(etPhoneNumber.getText().toString());
                 customer.setAddress(etAddress.getText().toString());
                 customer.setEmail(etEmail.getText().toString());
@@ -655,8 +720,8 @@ public class CustomerManagementActivity extends AppCompatActivity {
                     Toast.makeText(this, getString(R.string.customer_saved) + " (#=" + afterCount + ")", Toast.LENGTH_SHORT).show();
                     loadCustomers();
                     
-                    // Trigger sync after saving
-                    syncManager.syncCustomers();
+                    // Mark for sync prompt (no auto-sync)
+                    // syncManager.syncCustomers(); // Removed auto-sync
                 });
                 
             } catch (Exception e) {
@@ -678,8 +743,8 @@ public class CustomerManagementActivity extends AppCompatActivity {
                         runOnUiThread(() -> {
                             Toast.makeText(this, getString(R.string.customer_deleted), Toast.LENGTH_SHORT).show();
                             loadCustomers();
-                            // Trigger sync after deletion
-                            syncManager.syncCustomers();
+                            // Mark for sync prompt (no auto-sync)
+                            // syncManager.syncCustomers(); // Removed auto-sync
                         });
                     }).start();
                 })

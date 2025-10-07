@@ -20,6 +20,12 @@ public class UserEntity {
     private long createdAt;
     private long updatedAt;
     private long lastSyncAt; // When this record was last synced with Firebase
+    
+    // Credit tracking fields
+    private double virtualCredit; // Current available credit
+    private double totalCreditUsed; // Total credit used in deposits
+    private double totalCreditEarned; // Total credit earned from withdrawals
+    private long creditUpdatedAt; // Last credit update timestamp
 
     // Default constructor
     public UserEntity() {}
@@ -70,6 +76,18 @@ public class UserEntity {
 
     public long getLastSyncAt() { return lastSyncAt; }
     public void setLastSyncAt(long lastSyncAt) { this.lastSyncAt = lastSyncAt; }
+
+    public double getVirtualCredit() { return virtualCredit; }
+    public void setVirtualCredit(double virtualCredit) { this.virtualCredit = virtualCredit; }
+
+    public double getTotalCreditUsed() { return totalCreditUsed; }
+    public void setTotalCreditUsed(double totalCreditUsed) { this.totalCreditUsed = totalCreditUsed; }
+
+    public double getTotalCreditEarned() { return totalCreditEarned; }
+    public void setTotalCreditEarned(double totalCreditEarned) { this.totalCreditEarned = totalCreditEarned; }
+
+    public long getCreditUpdatedAt() { return creditUpdatedAt; }
+    public void setCreditUpdatedAt(long creditUpdatedAt) { this.creditUpdatedAt = creditUpdatedAt; }
 
     // Helper methods
     public boolean isDealer() {

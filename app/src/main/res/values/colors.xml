@@ -23,6 +23,7 @@
     <color name="background_primary">#01161E</color>
     <color name="background_secondary">#1AFFFFFF</color> <!-- translucent for inputs -->
     <color name="background_card">#26FFFFFF</color> <!-- glass card fill -->
+    <color name="card_background">#0E2230</color> <!-- opaque card background -->
     <color name="background_dark">#01161E</color>
     <color name="background_overlay">#80000000</color>
 
@@ -38,6 +39,7 @@
     
     <!-- Status Colors -->
     <color name="success_green">#10B981</color>
+    <color name="primary_green">#10B981</color>
     <color name="success_light">#D1FAE5</color>
     <color name="error_red">#EF4444</color>
     <color name="error_light">#FEE2E2</color>

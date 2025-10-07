@@ -37,8 +37,7 @@ public class OperatorManagementActivity extends AppCompatActivity {
     private SyncManager syncManager;
     private AppDatabase database;
 
-    private TextView tvWelcome, tvUserInfo; private ImageView btnMenu, ivLanguageFlag;
-    private androidx.cardview.widget.CardView btnAddOperator; private EditText etSearch;
+    private View btnAddOperator;
     private RecyclerView recyclerView; private OperatorAdapter adapter;
 
     private List<OperatorEntity> items = new ArrayList<>();
@@ -64,61 +63,34 @@ public class OperatorManagementActivity extends AppCompatActivity {
         currentUser = sessionManager.getUserFromSession();
         initViews();
         loadOperators();
+        // Removed sync prompt from Operator Management - only show on dashboards
+        
         if (syncManager.isOnline()) {
             syncManager.downloadOperators();
             syncManager.downloadOperatorActions();
-            // Auto-sync any pending changes
-            syncManager.syncOperators();
-            syncManager.syncOperatorActions();
+            // Removed auto-sync - user will be prompted instead
+            // syncManager.syncOperators();
+            // syncManager.syncOperatorActions();
         }
     }
 
     private void initViews() {
-        tvWelcome = findViewById(R.id.tvWelcome);
-        tvUserInfo = findViewById(R.id.tvUserInfo);
-        btnMenu = findViewById(R.id.btnMenu);
-        ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        // Header
+        TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
+        tvHeaderTitle.setText(getString(R.string.operator_management));
+        findViewById(R.id.btnBack).setOnClickListener(v -> finish());
+
         btnAddOperator = findViewById(R.id.btnAddOperator);
-        etSearch = findViewById(R.id.etSearchOperators);
         recyclerView = findViewById(R.id.recyclerViewOperators);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         adapter = new OperatorAdapter(items, currentUser != null ? currentUser.getUid() : "",
                 this::onEdit, this::onDelete, this::onClick);
         recyclerView.setAdapter(adapter);
         if (currentUser != null) {
-            tvUserInfo.setText(currentUser.getEmail() + " (" + currentUser.getRole() + ")");
+            // tvUserInfo is no longer part of this screen's design
+            // tvUserInfo.setText(currentUser.getEmail() + " (" + currentUser.getRole() + ")");
         }
         btnAddOperator.setOnClickListener(v -> showAddEditDialog(null));
-        
-        // Set initial flag based on current language
-        updateLanguageFlag();
-        
-        // Make the language selector clickable
-        View languageSelector = findViewById(R.id.ivLanguageFlag);
-        languageSelector.setOnClickListener(v -> {
-            // Prevent rapid language changes (debounce)
-            long currentTime = System.currentTimeMillis();
-            if (currentTime - lastLanguageChangeTime < 1000) { // 1 second debounce
-                return;
-            }
-            
-            // Toggle between English and French
-            String currentLang = languageManager.getCurrentLanguage();
-            String newLang = currentLang.equals("en") ? "fr" : "en";
-            
-            // Update language
-            languageManager.setLanguage(newLang);
-            lastLanguageChangeTime = currentTime;
-            
-            // Recreate activity to apply new language
-            recreate();
-        });
-    }
-
-    private void updateLanguageFlag() {
-        String currentLang = languageManager.getCurrentLanguage();
-        int flagResource = currentLang.equals("en") ? R.drawable.ic_flag_us : R.drawable.ic_flag_fr;
-        ivLanguageFlag.setImageResource(flagResource);
     }
 
     private void loadOperators() {
@@ -146,7 +118,7 @@ public class OperatorManagementActivity extends AppCompatActivity {
                 .setPositiveButton(android.R.string.yes, (d,w) -> {
                     new Thread(() -> {
                         database.operatorDao().softDelete(op.getId(), System.currentTimeMillis());
-                        runOnUiThread(() -> { loadOperators(); syncManager.syncOperators(); });
+                        runOnUiThread(() -> { loadOperators(); /* syncManager.syncOperators(); */ });
                     }).start();
                 })
                 .setNegativeButton(android.R.string.no, null)
@@ -167,11 +139,10 @@ public class OperatorManagementActivity extends AppCompatActivity {
                 new String[]{getString(R.string.type_ussd), getString(R.string.type_traditional)});
         typeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spType.setAdapter(typeAdapter);
-        // Colors list
+        // Colors list with visual swatch
         String[] colors = new String[]{"orange","purple","blue","green","amber","red","teal","indigo"};
-        android.widget.ArrayAdapter<String> colorAdapter = new android.widget.ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, colors);
-        colorAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        com.example.myapplication.adapters.ColorSpinnerAdapter colorAdapter =
+                new com.example.myapplication.adapters.ColorSpinnerAdapter(this, colors);
         spColor.setAdapter(colorAdapter);
 
         if (existing != null) {
@@ -193,7 +164,6 @@ public class OperatorManagementActivity extends AppCompatActivity {
             });
         }
         new AlertDialog.Builder(this)
-                .setTitle(existing == null ? getString(R.string.add_operator) : getString(R.string.edit_customer))
                 .setView(view)
                 .setPositiveButton(R.string.save_operator, (d,w) -> {
                     String name = etName.getText().toString().trim();
@@ -211,7 +181,7 @@ public class OperatorManagementActivity extends AppCompatActivity {
                         op.setColor(color);
                         op.setUpdatedAt(System.currentTimeMillis()); op.setNeedsSync(true);
                         database.operatorDao().insertOperator(op);
-                        runOnUiThread(() -> { loadOperators(); syncManager.syncOperators(); });
+                        runOnUiThread(() -> { loadOperators(); /* syncManager.syncOperators(); */ });
                     }).start();
                 })
                 .setNegativeButton(android.R.string.cancel, null)

@@ -296,8 +296,16 @@ public class SyncManager {
                                     Map<String, Object> data = document.getData();
                                     
                                     CustomerEntity customer = new CustomerEntity();
-                                    customer.setId((String) data.get("id"));
-                                    customer.setFullName((String) data.get("fullName"));
+                                    String id = (String) data.get("id");
+                                    if (id == null || id.isEmpty()) {
+                                        id = document.getId();
+                                    }
+                                    customer.setId(id);
+                                    String fullName = (String) data.get("fullName");
+                                    if (fullName == null || fullName.isEmpty()) {
+                                        fullName = (String) data.get("name");
+                                    }
+                                    customer.setFullName(fullName);
                                     customer.setDateOfBirth((String) data.get("dateOfBirth"));
                                     customer.setNationalIdNumber((String) data.get("nationalIdNumber"));
                                     customer.setIssueDate((String) data.get("issueDate"));

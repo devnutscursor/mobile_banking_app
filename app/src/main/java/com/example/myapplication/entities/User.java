@@ -10,6 +10,12 @@ public class User {
     private boolean active;
     private java.util.Date createdAt;
     private java.util.Date updatedAt;
+    
+    // Credit tracking fields
+    private double virtualCredit; // Current available credit
+    private double totalCreditUsed; // Total credit used in deposits
+    private double totalCreditEarned; // Total credit earned from withdrawals
+    private java.util.Date creditUpdatedAt; // Last credit update timestamp
 
     // Default constructor
     public User() {}
@@ -53,6 +59,18 @@ public class User {
 
     public java.util.Date getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(java.util.Date updatedAt) { this.updatedAt = updatedAt; }
+
+    public double getVirtualCredit() { return virtualCredit; }
+    public void setVirtualCredit(double virtualCredit) { this.virtualCredit = virtualCredit; }
+
+    public double getTotalCreditUsed() { return totalCreditUsed; }
+    public void setTotalCreditUsed(double totalCreditUsed) { this.totalCreditUsed = totalCreditUsed; }
+
+    public double getTotalCreditEarned() { return totalCreditEarned; }
+    public void setTotalCreditEarned(double totalCreditEarned) { this.totalCreditEarned = totalCreditEarned; }
+
+    public java.util.Date getCreditUpdatedAt() { return creditUpdatedAt; }
+    public void setCreditUpdatedAt(java.util.Date creditUpdatedAt) { this.creditUpdatedAt = creditUpdatedAt; }
 
     // Helper methods
     public boolean isDealer() {
