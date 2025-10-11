@@ -180,6 +180,9 @@ public class LicenseActivationActivity extends AppCompatActivity {
             intent = new android.content.Intent(this, DealerDashboardActivity.class);
         }
         
+        // Signal that stats should be refreshed after first-time sync
+        intent.putExtra("refreshStatsAfterSync", true);
+        
         intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();

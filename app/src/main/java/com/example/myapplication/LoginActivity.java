@@ -214,6 +214,14 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
         
+        // CRITICAL: Check if user is disabled
+        if (userEntity.isDisabled()) {
+            Log.d("LoginActivity", "User is disabled, cannot login offline: " + email);
+            showError("Your account has been disabled. Please contact support.");
+            btnLogin.setEnabled(true);
+            return;
+        }
+        
         // CRITICAL: Validate password against stored credentials
         if (!validateOfflinePassword(email, password)) {
             showError("Invalid password");
@@ -272,6 +280,14 @@ public class LoginActivity extends AppCompatActivity {
                         authManager.getCurrentUser(new AuthManager.AuthCallback() {
                             @Override
                             public void onSuccess(User user) {
+                                // CRITICAL: Check if user is disabled
+                                if (user.isDisabled()) {
+                                    Log.d("LoginActivity", "User is disabled, cannot login online: " + email);
+                                    showError("Your account has been disabled. Please contact support.");
+                                    mAuth.signOut();
+                                    return;
+                                }
+                                
                                 // Store credentials for offline login
                                 sessionManager.storeCredentials(email, password, user.getUid());
                                 validateUserLicense(user);
@@ -383,6 +399,9 @@ public class LoginActivity extends AppCompatActivity {
                 // Default to dealer dashboard
                 intent = new Intent(LoginActivity.this, DealerDashboardActivity.class);
             }
+            
+            // Signal that stats should be refreshed after first-time sync
+            intent.putExtra("refreshStatsAfterSync", true);
             
             startActivity(intent);
             finish();

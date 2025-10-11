@@ -22,14 +22,13 @@ public class App extends Application {
             FirebaseApp.initializeApp(this);
         }
 
-        // Enable Firestore offline persistence
+        // Disable Firestore offline persistence for complete data clearing on uninstall
         FirebaseFirestoreSettings settings = new FirebaseFirestoreSettings.Builder()
-                .setPersistenceEnabled(true)
-                .setCacheSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
+                .setPersistenceEnabled(false)
                 .build();
         FirebaseFirestore.getInstance().setFirestoreSettings(settings);
 
-        Log.d(TAG, "Firestore offline persistence enabled.");
+        Log.d(TAG, "Firestore offline persistence disabled for complete data clearing.");
         
         // Initialize Room Database
         AppDatabase.getDatabase(this);

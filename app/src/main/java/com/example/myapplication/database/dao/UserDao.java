@@ -40,6 +40,9 @@ public interface UserDao {
     
     @Query("SELECT * FROM users")
     java.util.List<UserEntity> getAllUsers();
+    
+    @Query("SELECT COUNT(*) FROM users WHERE role = 'agent' AND dealerId = :dealerId AND active = 1")
+    int getAgentCountByDealer(String dealerId);
 }
 
 

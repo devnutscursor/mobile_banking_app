@@ -186,6 +186,10 @@ public class AuthManager {
         user.setDealerId(doc.getString("dealerId"));
         Boolean active = doc.getBoolean("active");
         user.setActive(active != null ? active : true);
+        
+        // CRITICAL: Read disabled status from Firestore
+        Boolean disabled = doc.getBoolean("disabled");
+        user.setDisabled(disabled != null ? disabled : false);
 
         java.util.Date created = toDateFlexible(doc.get("createdAt"));
         java.util.Date updated = toDateFlexible(doc.get("updatedAt"));

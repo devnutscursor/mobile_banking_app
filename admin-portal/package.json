@@ -1,0 +1,38 @@
+{
+  "name": "admin-portal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --turbopack",
+    "start": "next start",
+    "lint": "next lint",
+    "create-admin": "node scripts/create-admin-user.js"
+  },
+  "dependencies": {
+    "@ant-design/charts": "^2.6.5",
+    "@ant-design/icons": "^5.6.1",
+    "@ant-design/nextjs-registry": "^1.1.0",
+    "antd": "^5.27.4",
+    "date-fns": "^4.1.0",
+    "firebase": "^11.2.0",
+    "firebase-admin": "^13.0.2",
+    "lucide-react": "^0.468.0",
+    "next": "15.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.4.0",
+    "recharts": "^2.15.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22",
+    "@types/react": "^18.3.26",
+    "@types/react-dom": "^18.3.7",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.4",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5"
+  }
+}

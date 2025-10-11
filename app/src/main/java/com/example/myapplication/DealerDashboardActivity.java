@@ -81,6 +81,17 @@ public class DealerDashboardActivity extends AppCompatActivity {
         setupLanguageSpinner();
         setupClickListeners();
         loadUserData();
+        
+        // Check if we need to refresh stats after first-time sync
+        boolean refreshStatsAfterSync = getIntent().getBooleanExtra("refreshStatsAfterSync", false);
+        if (refreshStatsAfterSync) {
+            // Delay refresh to allow first-time sync to complete
+            new android.os.Handler().postDelayed(() -> {
+                Log.d("DealerDashboard", "Refreshing stats after first-time sync");
+                loadDealerCardStats();
+            }, 2000); // 2 second delay
+        }
+        
         // No explicit apply here; locale is already applied via attachBaseContext
     }
 
@@ -240,18 +251,28 @@ public class DealerDashboardActivity extends AppCompatActivity {
             tvCustomersCount.setText(cachedCustomersCount);
         }
         
-        // Then load fresh data from Firestore
-        // Active agents under this dealer
-        FirebaseFirestore.getInstance().collection("users")
-                .whereEqualTo("role", "agent")
-                .whereEqualTo("dealerId", currentUser.getUid())
-                .whereEqualTo("active", true)
-                .get()
-                .addOnSuccessListener(q -> {
-                    String count = String.valueOf(q.size());
+        // Load agents count from local database first (offline-first approach)
+        new Thread(() -> {
+            try {
+                com.example.myapplication.database.AppDatabase database = 
+                    com.example.myapplication.database.AppDatabase.getDatabase(this);
+                // Count agents under this dealer from local database
+                int localAgentsCount = database.userDao().getAgentCountByDealer(currentUser.getUid());
+                
+                runOnUiThread(() -> {
+                    String count = String.valueOf(localAgentsCount);
                     tvActiveAgentsCount.setText(count);
                     cachedActiveAgentsCount = count; // Cache the real data
                 });
+                
+            } catch (Exception e) {
+                android.util.Log.e("DealerDashboardActivity", "Error loading agents count from local DB", e);
+                runOnUiThread(() -> {
+                    tvActiveAgentsCount.setText("0");
+                    cachedActiveAgentsCount = "0";
+                });
+            }
+        }).start();
 
         // Load customer count from local database first (offline-first approach)
         new Thread(() -> {
@@ -314,85 +335,42 @@ public class DealerDashboardActivity extends AppCompatActivity {
             }
         }).start();
 
-        // Load virtual credit (Total Credit) from Firestore with timestamp checking
-        FirebaseFirestore.getInstance().collection("users")
-                .document(currentUser.getUid())
-                .get()
-                .addOnSuccessListener(doc -> {
-                    if (doc.exists()) {
-                        Double credit = doc.getDouble("virtualCredit");
-                        if (credit != null) {
-                            // Check if local credit is more recent than Firestore
-                            new Thread(() -> {
-                                try {
-                                    com.example.myapplication.database.AppDatabase dbLocal = com.example.myapplication.database.AppDatabase.getDatabase(this);
-                                    com.example.myapplication.database.entities.UserEntity localUser = dbLocal.userDao().getUserById(currentUser.getUid());
-                                    
-                                    if (localUser != null && localUser.getCreditUpdatedAt() > 0) {
-                                        long localUpdateTime = localUser.getCreditUpdatedAt();
-                                        long firestoreUpdateTime = 0;
-                                        
-                                        // Get Firestore update time if available
-                                        if (doc.contains("creditUpdatedAt")) {
-                                            Object creditUpdatedAt = doc.get("creditUpdatedAt");
-                                            if (creditUpdatedAt instanceof com.google.firebase.Timestamp) {
-                                                firestoreUpdateTime = ((com.google.firebase.Timestamp) creditUpdatedAt).toDate().getTime();
-                                            } else if (creditUpdatedAt instanceof Long) {
-                                                firestoreUpdateTime = (Long) creditUpdatedAt;
-                                            }
-                                        }
-                                        
-                                        // Only update if Firestore is more recent
-                                        if (firestoreUpdateTime > localUpdateTime) {
-                                            String display = String.format(java.util.Locale.getDefault(), "%.0f", credit);
-                                            runOnUiThread(() -> {
-                                                if (tvVirtualBalance != null) {
-                                                    tvVirtualBalance.setText(display);
-                                                }
-                                                cachedVirtualBalance = display;
-                                            });
-                                            
-                                            localUser.setVirtualCredit(credit);
-                                            localUser.setLastSyncAt(System.currentTimeMillis());
-                                            dbLocal.userDao().updateUser(localUser);
-                                            android.util.Log.d("DealerDashboard", "Updated credit from Firestore: " + credit);
-                                        } else {
-                                            // Use local credit
-                                            double localCredit = localUser.getVirtualCredit();
-                                            String display = String.format(java.util.Locale.getDefault(), "%.0f", localCredit);
-                                            runOnUiThread(() -> {
-                                                if (tvVirtualBalance != null) {
-                                                    tvVirtualBalance.setText(display);
-                                                }
-                                                cachedVirtualBalance = display;
-                                            });
-                                            android.util.Log.d("DealerDashboard", "Using local credit (more recent): " + localCredit);
-                                        }
-                                    } else {
-                                        // No local update time, use Firestore value
-                                        String display = String.format(java.util.Locale.getDefault(), "%.0f", credit);
-                                        runOnUiThread(() -> {
-                                            if (tvVirtualBalance != null) {
-                                                tvVirtualBalance.setText(display);
-                                            }
-                                            cachedVirtualBalance = display;
-                                        });
-                                        
-                                        if (localUser != null) {
-                                            localUser.setVirtualCredit(credit);
-                                            localUser.setLastSyncAt(System.currentTimeMillis());
-                                            dbLocal.userDao().updateUser(localUser);
-                                        }
-                                        android.util.Log.d("DealerDashboard", "Updated credit from Firestore: " + credit);
-                                    }
-                                } catch (Exception ex) {
-                                    android.util.Log.e("DealerDashboard", "Error handling credit update", ex);
-                                }
-                            }).start();
+        // Load virtual credit from local database first (offline-first approach)
+        new Thread(() -> {
+            try {
+                com.example.myapplication.database.AppDatabase database = 
+                    com.example.myapplication.database.AppDatabase.getDatabase(this);
+                com.example.myapplication.database.entities.UserEntity localUser = database.userDao().getUserById(currentUser.getUid());
+                
+                if (localUser != null) {
+                    double localCredit = localUser.getVirtualCredit();
+                    String display = String.format(java.util.Locale.getDefault(), "%.0f", localCredit);
+                    runOnUiThread(() -> {
+                        if (tvVirtualBalance != null) {
+                            tvVirtualBalance.setText(display);
                         }
+                        cachedVirtualBalance = display;
+                    });
+                    android.util.Log.d("DealerDashboard", "Loaded credit from local DB: " + localCredit);
+                } else {
+                    runOnUiThread(() -> {
+                        if (tvVirtualBalance != null) {
+                            tvVirtualBalance.setText("0");
+                        }
+                        cachedVirtualBalance = "0";
+                    });
+                }
+                
+            } catch (Exception e) {
+                android.util.Log.e("DealerDashboard", "Error loading credit from local DB", e);
+                runOnUiThread(() -> {
+                    if (tvVirtualBalance != null) {
+                        tvVirtualBalance.setText("0");
                     }
-                })
-                .addOnFailureListener(e -> android.util.Log.e("DealerDashboard", "Error loading credit", e));
+                    cachedVirtualBalance = "0";
+                });
+            }
+        }).start();
     }
 
     /**
@@ -427,6 +405,10 @@ public class DealerDashboardActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        
+        // Check if user is disabled and logout if necessary
+        checkUserDisabledStatus();
+        
         // Clear cached data to force fresh load
         cachedCustomersCount = "";
         // Refresh customer count when returning from Customer Management
@@ -491,6 +473,8 @@ public class DealerDashboardActivity extends AppCompatActivity {
                     if (success) {
                         Toast.makeText(DealerDashboardActivity.this, 
                                 "Sync completed successfully", Toast.LENGTH_SHORT).show();
+                        // Check if user is disabled after sync
+                        checkUserDisabledStatus();
                         // Refresh UI with synced data
                         loadDealerCardStats();
                     } else {
@@ -500,6 +484,33 @@ public class DealerDashboardActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+    
+    /**
+     * Check if the current user is disabled and logout if necessary
+     */
+    private void checkUserDisabledStatus() {
+        UserEntity currentUser = sessionManager.getCurrentUser();
+        Log.d("DealerDashboardActivity", "checkUserDisabledStatus called");
+        Log.d("DealerDashboardActivity", "currentUser: " + (currentUser != null ? "exists" : "null"));
+        
+        if (currentUser != null) {
+            Log.d("DealerDashboardActivity", "User disabled status: " + currentUser.isDisabled());
+            Log.d("DealerDashboardActivity", "User email: " + currentUser.getEmail());
+            Log.d("DealerDashboardActivity", "User role: " + currentUser.getRole());
+        }
+        
+        if (currentUser != null && currentUser.isDisabled()) {
+            Log.d("DealerDashboardActivity", "User is disabled, logging out");
+            Toast.makeText(this, "Your account has been disabled. Please contact support.", Toast.LENGTH_LONG).show();
+            sessionManager.fullLogout();
+            Intent intent = new Intent(this, LoginActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        } else {
+            Log.d("DealerDashboardActivity", "User is not disabled or currentUser is null");
+        }
     }
     
     private void logout() {

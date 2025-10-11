@@ -1,0 +1,211 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Rich Black */
+  --rich-black: #01161e;
+  --rich-black-100: #000406;
+  --rich-black-200: #00090c;
+  --rich-black-300: #010d12;
+  --rich-black-400: #011118;
+  --rich-black-500: #01161e;
+  --rich-black-600: #04597b;
+  --rich-black-700: #079cd8;
+  --rich-black-800: #45c6f9;
+  --rich-black-900: #a2e3fc;
+  
+  /* Midnight Green */
+  --midnight-green: #124559;
+  --midnight-green-100: #040e12;
+  --midnight-green-200: #071c24;
+  --midnight-green-300: #0b2935;
+  --midnight-green-400: #0f3747;
+  --midnight-green-500: #124559;
+  --midnight-green-600: #20799c;
+  --midnight-green-700: #36a9d6;
+  --midnight-green-800: #79c5e4;
+  --midnight-green-900: #bce2f1;
+  
+  /* Air Force Blue */
+  --air-force-blue: #598392;
+  --air-force-blue-100: #121a1d;
+  --air-force-blue-200: #24343a;
+  --air-force-blue-300: #354e57;
+  --air-force-blue-400: #476874;
+  --air-force-blue-500: #598392;
+  --air-force-blue-600: #769dab;
+  --air-force-blue-700: #99b6c0;
+  --air-force-blue-800: #bbced5;
+  --air-force-blue-900: #dde7ea;
+  
+  /* Ash Gray */
+  --ash-gray: #aec3b0;
+  --ash-gray-100: #1f2a20;
+  --ash-gray-200: #3e5441;
+  --ash-gray-300: #5e7f61;
+  --ash-gray-400: #83a386;
+  --ash-gray-500: #aec3b0;
+  --ash-gray-600: #bdcebf;
+  --ash-gray-700: #cedbcf;
+  --ash-gray-800: #dee7df;
+  --ash-gray-900: #eff3ef;
+  
+  /* Beige */
+  --beige: #eff6e0;
+  --beige-100: #384915;
+  --beige-200: #71912a;
+  --beige-300: #a4cc4e;
+  --beige-400: #c9e197;
+  --beige-500: #eff6e0;
+  --beige-600: #f2f8e6;
+  --beige-700: #f5f9ec;
+  --beige-800: #f8fbf2;
+  --beige-900: #fcfdf9;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  color: var(--beige-500);
+  background: var(--rich-black-500);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--rich-black-400);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--air-force-blue-500);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--air-force-blue-600);
+}
+
+/* Glassmorphism effect */
+.glass-card {
+  background: rgba(18, 69, 89, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(89, 131, 146, 0.3);
+  box-shadow: 0 8px 32px rgba(1, 22, 30, 0.5);
+}
+
+/* Gradient backgrounds */
+.gradient-primary {
+  background: linear-gradient(135deg, var(--midnight-green-600), var(--air-force-blue-600));
+}
+
+.gradient-success {
+  background: linear-gradient(135deg, var(--ash-gray-500), var(--beige-400));
+}
+
+.gradient-card {
+  background: linear-gradient(
+    135deg,
+    var(--midnight-green-500),
+    var(--midnight-green-400)
+  );
+}
+
+/* Animated gradient */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animated-gradient {
+  background: linear-gradient(
+    -45deg,
+    var(--rich-black-500),
+    var(--midnight-green-500),
+    var(--air-force-blue-500),
+    var(--midnight-green-600)
+  );
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+/* Hover effects */
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(1, 22, 30, 0.6);
+}
+
+/* Pulse animation */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(32, 121, 156, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(32, 121, 156, 0);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* Ant Design overrides */
+.ant-btn-primary {
+  box-shadow: 0 4px 14px rgba(32, 121, 156, 0.4);
+}
+
+.ant-btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(32, 121, 156, 0.6);
+}
+
+.ant-card {
+  transition: all 0.3s ease;
+}
+
+.ant-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(1, 22, 30, 0.6);
+}
+
+/* Loading animation */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--midnight-green-500) 0%,
+    var(--air-force-blue-500) 50%,
+    var(--midnight-green-500) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}

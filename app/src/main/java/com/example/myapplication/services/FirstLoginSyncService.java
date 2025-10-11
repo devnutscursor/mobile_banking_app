@@ -217,22 +217,26 @@ public class FirstLoginSyncService {
             try {
                 callback.onSyncStarted();
                 
-                int totalSteps = 4;
+                int totalSteps = 5;
                 int currentStep = 0;
                 
-                // Step 1: Sync customers
+                // Step 1: Sync users (to get disabled status)
+                callback.onSyncProgress("Syncing users...", ++currentStep, totalSteps);
+                syncUsersFromFirestore(userId);
+                
+                // Step 2: Sync customers
                 callback.onSyncProgress(context.getString(R.string.syncing_customers), ++currentStep, totalSteps);
                 syncCustomersFromFirestore(userId);
                 
-                // Step 2: Sync operators
+                // Step 3: Sync operators
                 callback.onSyncProgress(context.getString(R.string.syncing_operators), ++currentStep, totalSteps);
                 syncOperatorsFromFirestore(userId);
                 
-                // Step 3: Sync operator actions
+                // Step 4: Sync operator actions
                 callback.onSyncProgress(context.getString(R.string.syncing_operator_actions), ++currentStep, totalSteps);
                 syncOperatorActionsFromFirestore(userId);
                 
-                // Step 4: Sync transactions
+                // Step 5: Sync transactions
                 callback.onSyncProgress(context.getString(R.string.syncing_transactions), ++currentStep, totalSteps);
                 syncTransactionsFromFirestore(userId);
                 
@@ -687,5 +691,164 @@ public class FirstLoginSyncService {
         }
         Log.w(TAG, "Using current time as fallback for " + fieldName);
         return System.currentTimeMillis();
+    }
+    
+    /**
+     * Sync users from Firestore to get disabled status
+     */
+    private void syncUsersFromFirestore(String userId) throws Exception {
+        Log.d(TAG, "Starting user sync for: " + userId);
+        
+        // Get current user from Firestore
+        firestore.collection("users")
+                .document(userId)
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        try {
+                            // Get user data from Firestore
+                            String email = documentSnapshot.getString("email");
+                            String name = documentSnapshot.getString("name");
+                            String phone = documentSnapshot.getString("phone");
+                            String role = documentSnapshot.getString("role");
+                            String dealerId = documentSnapshot.getString("dealerId");
+                            Boolean active = documentSnapshot.getBoolean("active");
+                            Boolean disabled = documentSnapshot.getBoolean("disabled");
+                            
+                            // Get credit data
+                            Double virtualCredit = documentSnapshot.getDouble("virtualCredit");
+                            Double totalCreditUsed = documentSnapshot.getDouble("totalCreditUsed");
+                            Double totalCreditEarned = documentSnapshot.getDouble("totalCreditEarned");
+                            
+                            // Create or update user entity
+                            com.example.myapplication.database.entities.UserEntity userEntity = 
+                                database.userDao().getUserById(userId);
+                            
+                            if (userEntity == null) {
+                                // Create new user entity
+                                userEntity = new com.example.myapplication.database.entities.UserEntity();
+                                userEntity.setUid(userId);
+                            }
+                            
+                            // Update user data
+                            userEntity.setEmail(email);
+                            userEntity.setName(name);
+                            userEntity.setPhone(phone);
+                            userEntity.setRole(role);
+                            userEntity.setDealerId(dealerId);
+                            userEntity.setActive(active != null ? active : true);
+                            userEntity.setDisabled(disabled != null ? disabled : false); // Default to false
+                            
+                            // Update credit data
+                            if (virtualCredit != null) {
+                                userEntity.setVirtualCredit(virtualCredit);
+                            }
+                            if (totalCreditUsed != null) {
+                                userEntity.setTotalCreditUsed(totalCreditUsed);
+                            }
+                            if (totalCreditEarned != null) {
+                                userEntity.setTotalCreditEarned(totalCreditEarned);
+                            }
+                            
+                            userEntity.setUpdatedAt(System.currentTimeMillis());
+                            userEntity.setLastSyncAt(System.currentTimeMillis());
+                            
+                            // Save to local database
+                            database.userDao().insertUser(userEntity);
+                            Log.d(TAG, "Synced user from Firestore: " + userId + " (disabled: " + userEntity.isDisabled() + ")");
+                            
+                            // If this is a dealer, also sync all agents under this dealer
+                            if ("dealer".equals(role)) {
+                                Log.d(TAG, "Dealer detected, syncing all agents under dealer: " + userId);
+                                syncAllAgentsForDealer(userId);
+                            }
+                            
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error syncing user: " + userId, e);
+                        }
+                    } else {
+                        Log.w(TAG, "User document not found in Firestore: " + userId);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to sync user: " + userId, e);
+                });
+    }
+    
+    /**
+     * Sync all agents under a dealer for dashboard stats
+     */
+    private void syncAllAgentsForDealer(String dealerId) {
+        Log.d(TAG, "Syncing all agents for dealer: " + dealerId);
+        
+        firestore.collection("users")
+                .whereEqualTo("dealerId", dealerId)
+                .whereEqualTo("role", "agent")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    Log.d(TAG, "Found " + querySnapshot.size() + " agents for dealer: " + dealerId);
+                    
+                    for (com.google.firebase.firestore.DocumentSnapshot doc : querySnapshot) {
+                        try {
+                            String agentId = doc.getId();
+                            String email = doc.getString("email");
+                            String name = doc.getString("name");
+                            String phone = doc.getString("phone");
+                            String role = doc.getString("role");
+                            String agentDealerId = doc.getString("dealerId");
+                            Boolean active = doc.getBoolean("active");
+                            Boolean disabled = doc.getBoolean("disabled");
+                            
+                            // Get credit data
+                            Double virtualCredit = doc.getDouble("virtualCredit");
+                            Double totalCreditUsed = doc.getDouble("totalCreditUsed");
+                            Double totalCreditEarned = doc.getDouble("totalCreditEarned");
+                            
+                            // Create or update agent entity
+                            com.example.myapplication.database.entities.UserEntity agentEntity = 
+                                database.userDao().getUserById(agentId);
+                            
+                            if (agentEntity == null) {
+                                agentEntity = new com.example.myapplication.database.entities.UserEntity();
+                                agentEntity.setUid(agentId);
+                            }
+                            
+                            // Update agent data
+                            agentEntity.setEmail(email);
+                            agentEntity.setName(name);
+                            agentEntity.setPhone(phone);
+                            agentEntity.setRole(role);
+                            agentEntity.setDealerId(agentDealerId);
+                            agentEntity.setActive(active != null ? active : true);
+                            agentEntity.setDisabled(disabled != null ? disabled : false);
+                            
+                            // Update credit data
+                            if (virtualCredit != null) {
+                                agentEntity.setVirtualCredit(virtualCredit);
+                            }
+                            if (totalCreditUsed != null) {
+                                agentEntity.setTotalCreditUsed(totalCreditUsed);
+                            }
+                            if (totalCreditEarned != null) {
+                                agentEntity.setTotalCreditEarned(totalCreditEarned);
+                            }
+                            
+                            agentEntity.setUpdatedAt(System.currentTimeMillis());
+                            agentEntity.setLastSyncAt(System.currentTimeMillis());
+                            
+                            // Save to local database
+                            database.userDao().insertUser(agentEntity);
+                            Log.d(TAG, "Synced agent: " + agentId + " (credit: " + agentEntity.getVirtualCredit() + ")");
+                            
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error syncing agent: " + doc.getId(), e);
+                        }
+                    }
+                    
+                    Log.d(TAG, "Completed syncing all agents for dealer: " + dealerId);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to sync agents for dealer: " + dealerId, e);
+                });
     }
 }

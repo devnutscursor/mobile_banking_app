@@ -267,19 +267,20 @@ public class SessionManager {
     }
     
     /**
-     * Full logout - clear all local data (user needs internet next time)
+     * Full logout - clear session only (keep all user data for offline access)
      */
     public void fullLogout() {
-        Log.d(TAG, "Full logout - clearing all local data");
+        Log.d(TAG, "Full logout - clearing session only, keeping user data for offline access");
         
-        // Clear all local data
+        // Just clear the session - don't delete user data
+        // This allows other users to still login offline
         database.sessionDao().deleteAllSessions();
-        database.userDao().deleteAllUsers();
-        database.licenseDao().deleteAllLicenses();
         
         // Create fresh session
         currentSession = new SessionEntity(CURRENT_SESSION_ID);
         database.sessionDao().insertSession(currentSession);
+        
+        Log.d(TAG, "Session cleared, user data preserved for offline access");
     }
     
     /**

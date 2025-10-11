@@ -17,6 +17,7 @@ public class UserEntity {
     private String role; // "dealer" or "agent"
     private String dealerId; // null for dealers, dealer's uid for agents
     private boolean active;
+    private boolean disabled; // User disabled status - defaults to false
     private long createdAt;
     private long updatedAt;
     private long lastSyncAt; // When this record was last synced with Firebase
@@ -39,6 +40,7 @@ public class UserEntity {
         this.phone = phone;
         this.role = role;
         this.active = true;
+        this.disabled = false; // Default to not disabled
         long now = System.currentTimeMillis();
         this.createdAt = now;
         this.updatedAt = now;
@@ -67,6 +69,9 @@ public class UserEntity {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public boolean isDisabled() { return disabled; }
+    public void setDisabled(boolean disabled) { this.disabled = disabled; }
 
     public long getCreatedAt() { return createdAt; }
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }

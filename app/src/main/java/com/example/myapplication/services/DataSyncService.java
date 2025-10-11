@@ -134,6 +134,8 @@ public class DataSyncService {
                 userData.put("email", localUser.getEmail());
                 userData.put("phone", localUser.getPhone());
                 userData.put("role", localUser.getRole());
+                userData.put("disabled", localUser.isDisabled());
+                userData.put("creditUpdatedAt", localUser.getCreditUpdatedAt());
                 userData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(localUser.getUpdatedAt())));
                 
                 firestore.collection("users").document(userId)
@@ -193,14 +195,39 @@ public class DataSyncService {
                                     new java.util.Date(localUserEntity.getUpdatedAt()) + 
                                     ", Firestore: " + new java.util.Date(firestoreUpdatedAt));
                                 
+                                // ALWAYS sync disabled status (critical for security)
+                                Boolean disabled = documentSnapshot.getBoolean("disabled");
+                                if (disabled != null) {
+                                    localUserEntity.setDisabled(disabled);
+                                    Log.d(TAG, "Synced disabled status from Firestore: " + disabled);
+                                }
+                                
                                 // Only update if Firestore version is newer
                                 if (firestoreUpdatedAt > localUserEntity.getUpdatedAt()) {
                                     Log.d(TAG, "Firestore version is newer, updating local user");
                                     
+                                    // Check credit-specific timestamp before updating credit
                                     Double credit = documentSnapshot.getDouble("virtualCredit");
                                     if (credit != null) {
-                                        Log.d(TAG, "Updating credit: " + localUserEntity.getVirtualCredit() + " -> " + credit);
-                                        localUserEntity.setVirtualCredit(credit);
+                                        // Check if Firestore credit is more recent than local credit
+                                        long firestoreCreditUpdatedAt = 0;
+                                        if (documentSnapshot.contains("creditUpdatedAt")) {
+                                            Object creditUpdatedAt = documentSnapshot.get("creditUpdatedAt");
+                                            if (creditUpdatedAt instanceof com.google.firebase.Timestamp) {
+                                                firestoreCreditUpdatedAt = ((com.google.firebase.Timestamp) creditUpdatedAt).toDate().getTime();
+                                            } else if (creditUpdatedAt instanceof Long) {
+                                                firestoreCreditUpdatedAt = (Long) creditUpdatedAt;
+                                            }
+                                        }
+                                        
+                                        // Only update credit if Firestore credit is more recent
+                                        if (firestoreCreditUpdatedAt > localUserEntity.getCreditUpdatedAt()) {
+                                            Log.d(TAG, "Updating credit: " + localUserEntity.getVirtualCredit() + " -> " + credit);
+                                            localUserEntity.setVirtualCredit(credit);
+                                            localUserEntity.setCreditUpdatedAt(firestoreCreditUpdatedAt);
+                                        } else {
+                                            Log.d(TAG, "Local credit is more recent, keeping local value: " + localUserEntity.getVirtualCredit());
+                                        }
                                     }
                                     
                                     String name = documentSnapshot.getString("name");
@@ -221,7 +248,7 @@ public class DataSyncService {
                                             " (credit: " + localUserEntity.getVirtualCredit() + ")");
                                 } else {
                                     Log.d(TAG, "Local version is up-to-date or newer, skipping pull");
-                                    // Still update lastSyncAt
+                                    // Still update lastSyncAt and disabled status
                                     localUserEntity.setLastSyncAt(System.currentTimeMillis());
                                     database.userDao().updateUser(localUserEntity);
                                 }

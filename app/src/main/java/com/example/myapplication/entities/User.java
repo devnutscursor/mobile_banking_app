@@ -8,6 +8,7 @@ public class User {
     private String role; // "dealer" or "agent" (admin is web-only)
     private String dealerId; // null for dealers, dealer's uid for agents
     private boolean active;
+    private boolean disabled; // If true, user cannot login
     private java.util.Date createdAt;
     private java.util.Date updatedAt;
     
@@ -53,6 +54,9 @@ public class User {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public boolean isDisabled() { return disabled; }
+    public void setDisabled(boolean disabled) { this.disabled = disabled; }
 
     public java.util.Date getCreatedAt() { return createdAt; }
     public void setCreatedAt(java.util.Date createdAt) { this.createdAt = createdAt; }
