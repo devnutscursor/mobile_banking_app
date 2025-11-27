@@ -12,7 +12,8 @@ public class CustomerEntity {
     private String id; // Unique customer ID (can be national ID or generated UUID)
     
     private String fullName;
-    private String dateOfBirth; // Format: YYYY-MM-DD
+    private String dateOfBirth; // Format: DD-MM-YYYY (display), stored as DD-MM-YYYY
+    private String documentType; // CNI, PASSPORT, CNI AES, CNI CEDEAO, PASSPORT ETRANGER, CARTE CONSULAIRE
     private String nationalIdNumber;
     private String issueDate; // Format: YYYY-MM-DD
     private String expiryDate; // Format: YYYY-MM-DD
@@ -59,6 +60,9 @@ public class CustomerEntity {
 
     public String getDateOfBirth() { return dateOfBirth; }
     public void setDateOfBirth(String dateOfBirth) { this.dateOfBirth = dateOfBirth; }
+
+    public String getDocumentType() { return documentType; }
+    public void setDocumentType(String documentType) { this.documentType = documentType; }
 
     public String getNationalIdNumber() { return nationalIdNumber; }
     public void setNationalIdNumber(String nationalIdNumber) { this.nationalIdNumber = nationalIdNumber; }
@@ -110,7 +114,20 @@ public class CustomerEntity {
     public int getAge() {
         if (dateOfBirth == null || dateOfBirth.isEmpty()) return 0;
         try {
-            java.time.LocalDate birthDate = java.time.LocalDate.parse(dateOfBirth);
+            java.time.LocalDate birthDate;
+            // Handle both DD-MM-YYYY and YYYY-MM-DD formats
+            if (dateOfBirth.matches("\\d{2}-\\d{2}-\\d{4}")) {
+                // DD-MM-YYYY format
+                String[] parts = dateOfBirth.split("-");
+                birthDate = java.time.LocalDate.of(
+                    Integer.parseInt(parts[2]), // year
+                    Integer.parseInt(parts[1]), // month
+                    Integer.parseInt(parts[0])  // day
+                );
+            } else {
+                // YYYY-MM-DD format (legacy)
+                birthDate = java.time.LocalDate.parse(dateOfBirth);
+            }
             return java.time.Period.between(birthDate, java.time.LocalDate.now()).getYears();
         } catch (Exception e) {
             return 0;

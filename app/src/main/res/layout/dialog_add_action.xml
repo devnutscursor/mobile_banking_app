@@ -54,6 +54,16 @@
 
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- Disable USSD Checkbox -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbDisableUssd"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/disable_ussd"
+            android:textColor="@color/text_on_light_glass"
+            android:textSize="14sp" />
+
     </LinearLayout>
 
 </ScrollView>

@@ -1,14 +1,19 @@
 package com.example.myapplication.entities;
 
 import com.google.firebase.firestore.PropertyName;
+import com.google.firebase.firestore.IgnoreExtraProperties;
 
+@IgnoreExtraProperties
 public class License {
     private String licenseKey;
-    private String assignedToUserId;
+    // Store as Object to handle both String (legacy) and List<String> (array) formats
+    private Object assignedToUserId;
     private java.util.Date issueDate;
     private java.util.Date expiryDate;
     // Map exactly to Firestore field name "isActive"
     private boolean isActive;
+    private Integer maxAgentCount; // Maximum number of agents allowed (null means unlimited)
+    private String licenseType; // "monthly" or "annual"
 
     // Default constructor
     public License() {}
@@ -26,8 +31,44 @@ public class License {
     public String getLicenseKey() { return licenseKey; }
     public void setLicenseKey(String licenseKey) { this.licenseKey = licenseKey; }
 
-    public String getAssignedToUserId() { return assignedToUserId; }
-    public void setAssignedToUserId(String assignedToUserId) { this.assignedToUserId = assignedToUserId; }
+    // Handle both String and List<String> formats
+    public Object getAssignedToUserId() { return assignedToUserId; }
+    public void setAssignedToUserId(Object assignedToUserId) { this.assignedToUserId = assignedToUserId; }
+    
+    // Helper method to get assigned user ID as String (for backward compatibility)
+    public String getAssignedToUserIdAsString() {
+        if (assignedToUserId == null) return null;
+        if (assignedToUserId instanceof String) {
+            return (String) assignedToUserId;
+        }
+        if (assignedToUserId instanceof java.util.List) {
+            @SuppressWarnings("unchecked")
+            java.util.List<Object> list = (java.util.List<Object>) assignedToUserId;
+            if (!list.isEmpty()) {
+                Object first = list.get(0);
+                return first != null ? first.toString() : null;
+            }
+        }
+        return assignedToUserId.toString();
+    }
+    
+    // Helper method to check if a specific user is assigned
+    public boolean isAssignedToUser(String userId) {
+        if (assignedToUserId == null || userId == null) return false;
+        if (assignedToUserId instanceof String) {
+            return assignedToUserId.equals(userId);
+        }
+        if (assignedToUserId instanceof java.util.List) {
+            @SuppressWarnings("unchecked")
+            java.util.List<Object> list = (java.util.List<Object>) assignedToUserId;
+            for (Object userObj : list) {
+                if (userObj != null && userObj.toString().equals(userId)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     public java.util.Date getIssueDate() { return issueDate; }
     public void setIssueDate(java.util.Date issueDate) { this.issueDate = issueDate; }
@@ -40,6 +81,12 @@ public class License {
 
     @PropertyName("isActive")
     public void setActive(boolean active) { this.isActive = active; }
+
+    public Integer getMaxAgentCount() { return maxAgentCount; }
+    public void setMaxAgentCount(Integer maxAgentCount) { this.maxAgentCount = maxAgentCount; }
+
+    public String getLicenseType() { return licenseType; }
+    public void setLicenseType(String licenseType) { this.licenseType = licenseType; }
 
     // Helper methods
     public boolean isValid() {

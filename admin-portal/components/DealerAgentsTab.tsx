@@ -1,0 +1,316 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { collection, getDocs, query, where, doc, setDoc, Timestamp } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { Button, Card, Form, Input, Modal, Space, Table, Typography, App, Tag } from 'antd';
+import { PlusOutlined, UserOutlined, MailOutlined, PhoneOutlined } from '@ant-design/icons';
+import { db, getSecondaryAuth, signOutSecondary } from '@/lib/firebase';
+import { User, License } from '@/lib/types';
+import { colors } from '@/lib/theme';
+import { useAuth } from '@/lib/authContext';
+
+interface DealerAgentsTabProps {
+  onAgentsUpdated?: () => void;
+}
+
+export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProps) {
+  const { message } = App.useApp();
+  const { user: currentUser } = useAuth();
+  const [agents, setAgents] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [form] = Form.useForm();
+  const [licenseInfo, setLicenseInfo] = useState<{ maxAgentCount: number | null; currentCount: number } | null>(null);
+  const [loadingLicense, setLoadingLicense] = useState(true);
+
+  useEffect(() => {
+    loadData();
+    loadLicenseInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
+  const loadLicenseInfo = async () => {
+    if (!currentUser) return;
+    
+    try {
+      setLoadingLicense(true);
+      
+      // Find license assigned to this dealer
+      const licensesSnapshot = await getDocs(
+        query(collection(db, 'licenses'), where('assignedToUserId', '==', currentUser.uid))
+      );
+      
+      let maxAgentCount: number | null = null;
+      
+      if (!licensesSnapshot.empty) {
+        const licenseDoc = licensesSnapshot.docs[0];
+        const licenseData = licenseDoc.data() as License;
+        maxAgentCount = licenseData.maxAgentCount ?? null;
+      }
+
+      // Count current agents
+      const agentsSnapshot = await getDocs(
+        query(
+          collection(db, 'users'),
+          where('role', '==', 'agent'),
+          where('dealerId', '==', currentUser.uid)
+        )
+      );
+      const currentCount = agentsSnapshot.size;
+
+      setLicenseInfo({ maxAgentCount, currentCount });
+    } catch (error) {
+      console.error('Error loading license info:', error);
+    } finally {
+      setLoadingLicense(false);
+    }
+  };
+
+  const loadData = async () => {
+    if (!currentUser) return;
+    
+    try {
+      setLoading(true);
+      const agentsQuery = query(
+        collection(db, 'users'),
+        where('role', '==', 'agent'),
+        where('dealerId', '==', currentUser.uid)
+      );
+      const agentsSnapshot = await getDocs(agentsQuery);
+      const agentsData = agentsSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+      setAgents(agentsData);
+    } catch (error) {
+      console.error('Error loading agents:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const canAddMoreAgents = () => {
+    if (!licenseInfo) return false;
+    if (licenseInfo.maxAgentCount === null) return true; // Unlimited
+    return licenseInfo.currentCount < licenseInfo.maxAgentCount;
+  };
+
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      
+      if (!currentUser) {
+        message.error('User not found');
+        return;
+      }
+
+      // Check license limit
+      if (!canAddMoreAgents()) {
+        message.error(`Cannot add more agents. License limit reached (${licenseInfo?.maxAgentCount} users allowed).`);
+        return;
+      }
+
+      // Create agent account
+      const secAuth = getSecondaryAuth() || getAuth();
+      const userCredential = await createUserWithEmailAndPassword(secAuth, values.email, values.password);
+      
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        uid: userCredential.user.uid,
+        email: values.email,
+        name: values.name,
+        phone: values.phone || null,
+        role: 'agent',
+        dealerId: currentUser.uid, // Assign to current dealer
+        active: false, // New users start as not active
+        disabled: false,
+        virtualCredit: 0,
+        totalCreditUsed: 0,
+        totalCreditEarned: 0,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        creditUpdatedAt: Timestamp.now(),
+      });
+      
+      message.success('Agent created successfully!');
+      await signOutSecondary();
+      
+      setIsModalOpen(false);
+      form.resetFields();
+      loadData();
+      loadLicenseInfo();
+      if (onAgentsUpdated) onAgentsUpdated();
+    } catch (error: any) {
+      message.error(error.message || 'Failed to create agent');
+    }
+  };
+
+  const columns = [
+    {
+      title: 'Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name: string) => <Typography.Text strong style={{ color: colors.beige[500] }}>{name}</Typography.Text>,
+    },
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+    },
+    {
+      title: 'Phone',
+      dataIndex: 'phone',
+      key: 'phone',
+      render: (phone: string | null) => phone || 'N/A',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'active',
+      key: 'active',
+      render: (active: boolean, record: User) => {
+        if (record.disabled) {
+          return <Tag color="red">Disabled</Tag>;
+        }
+        return active ? <Tag color="green">Active</Tag> : <Tag color="orange">Inactive</Tag>;
+      },
+    },
+  ];
+
+  return (
+    <Card
+      style={{
+        background: colors.midnight_green[400],
+        border: `1px solid ${colors.air_force_blue[300]}40`,
+      }}
+    >
+      {/* License Info */}
+      {licenseInfo && (
+        <div
+          style={{
+            padding: '12px 16px',
+            marginBottom: 16,
+            borderRadius: 8,
+            background: colors.midnight_green[500],
+            border: `1px solid ${colors.air_force_blue[300]}40`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            transition: 'all 0.3s ease',
+            cursor: 'default',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = colors.midnight_green[600];
+            e.currentTarget.style.borderColor = colors.air_force_blue[300];
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = colors.midnight_green[500];
+            e.currentTarget.style.borderColor = `${colors.air_force_blue[300]}40`;
+          }}
+        >
+          {licenseInfo.maxAgentCount !== null && licenseInfo.currentCount === licenseInfo.maxAgentCount && (
+            <span style={{ color: colors.air_force_blue[600], fontSize: 16 }}>⚠️</span>
+          )}
+          <Typography.Text style={{ color: colors.beige[500], fontSize: 14 }}>
+            {licenseInfo.maxAgentCount === null
+              ? `You have ${licenseInfo.currentCount} agent(s). Unlimited users allowed.`
+              : `You have ${licenseInfo.currentCount} of ${licenseInfo.maxAgentCount} users allowed by your license.`
+            }
+          </Typography.Text>
+        </div>
+      )}
+
+      {/* Add Agent Button */}
+      <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => setIsModalOpen(true)}
+          disabled={!canAddMoreAgents()}
+          style={{
+            background: `linear-gradient(135deg, ${colors.midnight_green[600]}, ${colors.air_force_blue[600]})`,
+            border: 'none',
+          }}
+        >
+          Add Agent
+        </Button>
+      </Space>
+
+      {/* Agents Table */}
+      <Table
+        columns={columns}
+        dataSource={agents}
+        loading={loading || loadingLicense}
+        rowKey="uid"
+        pagination={{
+          pageSize: 50,
+          showSizeChanger: true,
+          showTotal: (total) => `Total ${total} agents`,
+        }}
+      />
+
+      {/* Add Agent Modal */}
+      <Modal
+        title="Add New Agent"
+        open={isModalOpen}
+        onCancel={() => {
+          setIsModalOpen(false);
+          form.resetFields();
+        }}
+        onOk={handleSubmit}
+        okText="Create Agent"
+        cancelText="Cancel"
+        styles={{
+          content: {
+            background: colors.midnight_green[400],
+          },
+        }}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="name"
+            label="Name"
+            rules={[{ required: true, message: 'Please enter agent name' }]}
+          >
+            <Input
+              prefix={<UserOutlined style={{ color: colors.air_force_blue[600] }} />}
+              placeholder="Agent Name"
+            />
+          </Form.Item>
+          
+          <Form.Item
+            name="email"
+            label="Email"
+            rules={[
+              { required: true, message: 'Please enter email' },
+              { type: 'email', message: 'Please enter a valid email' }
+            ]}
+          >
+            <Input
+              prefix={<MailOutlined style={{ color: colors.air_force_blue[600] }} />}
+              placeholder="agent@example.com"
+            />
+          </Form.Item>
+          
+          <Form.Item
+            name="password"
+            label="Password"
+            rules={[
+              { required: true, message: 'Please enter password' },
+              { min: 6, message: 'Password must be at least 6 characters' }
+            ]}
+          >
+            <Input.Password placeholder="••••••••" />
+          </Form.Item>
+          
+          <Form.Item
+            name="phone"
+            label="Phone (Optional)"
+          >
+            <Input
+              prefix={<PhoneOutlined style={{ color: colors.air_force_blue[600] }} />}
+              placeholder="+1234567890"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Card>
+  );
+}
+

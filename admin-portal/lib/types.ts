@@ -20,10 +20,12 @@ export interface User {
 
 export interface License {
   licenseKey: string;
-  assignedToUserId: string;
+  assignedToUserId: string | string[] | null; // Can be single user ID or array of user IDs for multi-user licenses
   issueDate: Timestamp | Date;
   expiryDate: Timestamp | Date;
   isActive: boolean;
+  maxAgentCount?: number; // Maximum number of agents allowed for this license
+  licenseType?: 'monthly' | 'annual'; // License type: monthly or annual
 }
 
 export interface Transaction {
@@ -74,8 +76,32 @@ export interface OperatorAction {
   userId: string;
   isActive?: boolean;
   actionCode?: string;
+  disableUssd?: boolean; // If true, USSD dialer will not be launched (for verification-only actions)
   createdAt: Timestamp | Date;
   updatedAt: Timestamp | Date;
+}
+
+export interface Commission {
+  id?: string;
+  transactionId: string;
+  transactionType: 'deposit' | 'withdrawal';
+  transactionAmount: number;
+  userId: string;
+  userName: string;
+  userRole: 'agent' | 'dealer';
+  operatorId: string;
+  operatorName: string;
+  commissionRate: number;
+  taxRate: number;
+  commissionAmount: number;
+  taxAmount: number;
+  totalCommission: number;
+  year: number;
+  month: number;
+  day: number;
+  commissionDate: Timestamp | Date;
+  createdAt?: Timestamp | Date;
+  updatedAt?: Timestamp | Date;
 }
 
 export interface DashboardStats {

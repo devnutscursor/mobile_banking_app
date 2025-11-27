@@ -5,6 +5,7 @@ import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -78,6 +79,7 @@ public class OperatorActionsActivity extends AppCompatActivity {
         Spinner spinnerName = v.findViewById(R.id.spinnerActionName);
         // Remove manual type field; type comes from operator
         EditText etCode = v.findViewById(R.id.etActionCode);
+        CheckBox cbDisableUssd = v.findViewById(R.id.cbDisableUssd);
         
         // Setup action name spinner with Deposit/Withdrawal
         String[] actionNames = new String[]{"Deposit", "Withdrawal"};
@@ -95,6 +97,7 @@ public class OperatorActionsActivity extends AppCompatActivity {
                 spinnerName.setSelection(0); // Deposit
             }
             etCode.setText(existing.getActionCode());
+            cbDisableUssd.setChecked(existing.isDisableUssd());
         }
         new AlertDialog.Builder(this)
                 .setTitle(existing == null ? getString(R.string.add_action) : getString(R.string.edit_customer))
@@ -102,6 +105,7 @@ public class OperatorActionsActivity extends AppCompatActivity {
                 .setPositiveButton(R.string.save_action, (d,w) -> {
                     String name = (String) spinnerName.getSelectedItem();
                     String actionCode = etCode.getText().toString().trim();
+                    boolean disableUssd = cbDisableUssd.isChecked();
                     if (TextUtils.isEmpty(name) || TextUtils.isEmpty(actionCode)) {
                         Toast.makeText(this, R.string.required_fields_missing, Toast.LENGTH_SHORT).show(); return;
                     }
@@ -115,6 +119,7 @@ public class OperatorActionsActivity extends AppCompatActivity {
                         OperatorActionEntity a = existing != null ? existing : new OperatorActionEntity(UUID.randomUUID().toString(), operatorId, name, derivedType, null, null, uid);
                         a.setName(name); a.setType(derivedType); a.setAddedBy(uid);
                         a.setActionCode(actionCode);
+                        a.setDisableUssd(disableUssd);
                         a.setUpdatedAt(System.currentTimeMillis()); a.setNeedsSync(true);
                         db.operatorActionDao().insertAction(a);
                         runOnUiThread(() -> { load(); /* sync.syncOperatorActions(); */ });

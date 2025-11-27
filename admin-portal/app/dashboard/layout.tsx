@@ -29,6 +29,15 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
+    } else if (!loading && user && user.role !== 'admin') {
+      // Redirect to appropriate dashboard based on role
+      if (user.role === 'dealer') {
+        router.push('/dealer/dashboard');
+      } else if (user.role === 'agent') {
+        router.push('/agent/dashboard');
+      } else {
+        router.push('/login');
+      }
     }
   }, [user, loading, router]);
 
@@ -38,15 +47,6 @@ export default function DashboardLayout({
   };
 
   const menuItems: MenuProps['items'] = [
-    {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: 'Profile',
-      disabled: true,
-    },
-    {
-      type: 'divider',
-    },
     {
       key: 'logout',
       icon: <LogoutOutlined />,
@@ -73,7 +73,7 @@ export default function DashboardLayout({
     );
   }
 
-  if (!user) {
+  if (!user || user.role !== 'admin') {
     return null;
   }
 

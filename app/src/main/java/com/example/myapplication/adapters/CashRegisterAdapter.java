@@ -85,6 +85,10 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
             case "failure":
                 statusBackgroundRes = R.drawable.badge_failed;
                 break;
+            case "canceled":
+            case "cancelled":
+                statusBackgroundRes = R.drawable.badge_failed;
+                break;
             case "pending":
             case "processing":
             default:

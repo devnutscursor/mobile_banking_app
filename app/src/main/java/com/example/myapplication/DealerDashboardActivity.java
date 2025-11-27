@@ -47,7 +47,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         super.attachBaseContext(context);
     }
 
-    private TextView tvWelcome, tvUserInfo, tvStats;
+    private TextView tvWelcome, tvUserInfo, tvStats, tvLicenseExpiry;
     private View btnCustomers, btnCashRegister, btnTransactions, btnReports;
     private Button btnLogout;
     private ImageView btnMenu, btnSync;
@@ -63,7 +63,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
     private static String cachedActiveAgentsCount = "";
     private static String cachedTodayTransactionsCount = "";
     private static String cachedVirtualBalance = "";
-    private static String cachedCustomersCount = "";
+    private static String cachedCashBalance = "";
     private FirebaseFirestore firestore;
 
     @Override
@@ -99,6 +99,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         tvWelcome = findViewById(R.id.tvWelcome);
         tvUserInfo = findViewById(R.id.tvUserInfo);
         tvStats = findViewById(R.id.tvStats);
+        tvLicenseExpiry = findViewById(R.id.tvLicenseExpiry);
         btnCustomers = findViewById(R.id.btnCustomers);
         btnCashRegister = findViewById(R.id.btnCashRegister);
         btnTransactions = findViewById(R.id.btnTransactions);
@@ -179,9 +180,9 @@ public class DealerDashboardActivity extends AppCompatActivity {
             startActivity(intent);
         });
         
-        // Add Credits button
+        // Buy Credit button
         findViewById(R.id.btnBuyCredit).setOnClickListener(v -> {
-            Intent intent = new Intent(this, AddCreditsActivity.class);
+            Intent intent = new Intent(this, BuyCreditActivity.class);
             startActivity(intent);
         });
 
@@ -190,6 +191,24 @@ public class DealerDashboardActivity extends AppCompatActivity {
             android.content.Intent intent = new android.content.Intent(this, OperatorManagementActivity.class);
             startActivity(intent);
         });
+        
+        // Commission Configuration button
+        View btnCommissionConfigDealer = findViewById(R.id.btnCommissionConfig);
+        if (btnCommissionConfigDealer != null) {
+            btnCommissionConfigDealer.setOnClickListener(v -> {
+                Intent intent = new Intent(this, CommissionConfigurationActivity.class);
+                startActivity(intent);
+            });
+        }
+        
+        // Commission Reports button
+        View btnCommissionReportsDealer = findViewById(R.id.btnCommissionReports);
+        if (btnCommissionReportsDealer != null) {
+            btnCommissionReportsDealer.setOnClickListener(v -> {
+                Intent intent = new Intent(this, CommissionReportActivity.class);
+                startActivity(intent);
+            });
+        }
 
         btnLogout.setOnClickListener(v -> logout());
         
@@ -204,6 +223,8 @@ public class DealerDashboardActivity extends AppCompatActivity {
             tvUserInfo.setText("Dealer Account");
             // Load stats into cards from Firestore
             loadDealerCardStats();
+            // Load license expiry date
+            loadLicenseExpiry();
             Log.d("DealerDashboard", "Dealer dashboard loaded for: " + currentUser.getName());
         } else {
             // Fallback to AuthManager if needed
@@ -236,7 +257,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         TextView tvActiveAgentsCount = findViewById(R.id.tvActiveAgentsCount);
         TextView tvTodayTransactionsCount = findViewById(R.id.tvTodayTransactionsCount);
         TextView tvVirtualBalance = findViewById(R.id.tvVirtualBalance);
-        TextView tvCustomersCount = findViewById(R.id.tvCustomersCount);
+        TextView tvCashBalance = findViewById(R.id.tvCashBalance);
         
         if (!cachedActiveAgentsCount.isEmpty()) {
             tvActiveAgentsCount.setText(cachedActiveAgentsCount);
@@ -247,8 +268,8 @@ public class DealerDashboardActivity extends AppCompatActivity {
         if (!cachedVirtualBalance.isEmpty() && tvVirtualBalance != null) {
             tvVirtualBalance.setText(cachedVirtualBalance);
         }
-        if (!cachedCustomersCount.isEmpty()) {
-            tvCustomersCount.setText(cachedCustomersCount);
+        if (!cachedCashBalance.isEmpty() && tvCashBalance != null) {
+            tvCashBalance.setText(cachedCashBalance);
         }
         
         // Load agents count from local database first (offline-first approach)
@@ -274,37 +295,39 @@ public class DealerDashboardActivity extends AppCompatActivity {
             }
         }).start();
 
-        // Load customer count from local database first (offline-first approach)
+        // Load cash balance from local database first (offline-first approach)
         new Thread(() -> {
             try {
                 com.example.myapplication.database.AppDatabase database = 
                     com.example.myapplication.database.AppDatabase.getDatabase(this);
-                // New rule: count only customers created by this dealer account
-                int localCount = database.customerDao().getCustomerCountByUser(currentUser.getUid());
+                com.example.myapplication.database.entities.UserEntity localUser = database.userDao().getUserById(currentUser.getUid());
                 
-                runOnUiThread(() -> {
-                    String count = String.valueOf(localCount);
-                    tvCustomersCount.setText(count);
-                    cachedCustomersCount = count; // Cache the real data
-                });
-                
-                // Also sync with Firestore in background
-                FirebaseFirestore.getInstance().collection("customers")
-                        .whereEqualTo("createdBy", currentUser.getUid())
-                        .whereEqualTo("isActive", true)
-                        .get()
-                        .addOnSuccessListener(q -> {
-                            String firestoreCount = String.valueOf(q.size());
-                            // Only update if Firestore has more data (after sync)
-                            if (q.size() > localCount) {
-                                runOnUiThread(() -> {
-                                    tvCustomersCount.setText(firestoreCount);
-                                    cachedCustomersCount = firestoreCount;
-                                });
-                            }
-                        });
+                if (localUser != null) {
+                    double localCashBalance = localUser.getCashBalance();
+                    String display = String.format(java.util.Locale.getDefault(), "%.0f", localCashBalance);
+                    runOnUiThread(() -> {
+                        if (tvCashBalance != null) {
+                            tvCashBalance.setText(display);
+                        }
+                        cachedCashBalance = display;
+                    });
+                    android.util.Log.d("DealerDashboard", "Loaded cash balance from local DB: " + localCashBalance);
+                } else {
+                    runOnUiThread(() -> {
+                        if (tvCashBalance != null) {
+                            tvCashBalance.setText("0");
+                        }
+                        cachedCashBalance = "0";
+                    });
+                }
             } catch (Exception e) {
-                android.util.Log.e("DealerDashboard", "Error loading customer count", e);
+                android.util.Log.e("DealerDashboard", "Error loading cash balance", e);
+                runOnUiThread(() -> {
+                    if (tvCashBalance != null) {
+                        tvCashBalance.setText("0");
+                    }
+                    cachedCashBalance = "0";
+                });
             }
         }).start();
         
@@ -384,16 +407,88 @@ public class DealerDashboardActivity extends AppCompatActivity {
         // No-op now; locale is handled via attachBaseContext
     }
 
+    private void loadLicenseExpiry() {
+        if (currentUser == null || tvLicenseExpiry == null) {
+            return;
+        }
+        
+        // Try to get license from database first (more reliable)
+        com.example.myapplication.database.entities.LicenseEntity licenseEntity = 
+            sessionManager.getLicenseByUser(currentUser.getUid());
+        
+        if (licenseEntity != null && licenseEntity.getExpiryDate() > 0) {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.getDefault());
+            String expiryDateStr = sdf.format(new java.util.Date(licenseEntity.getExpiryDate()));
+            boolean isExpired = licenseEntity.isExpired();
+            
+            String displayText = "License Expires: " + expiryDateStr;
+            if (isExpired) {
+                displayText += " (Expired)";
+                tvLicenseExpiry.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.holo_red_light));
+            } else {
+                tvLicenseExpiry.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.white));
+            }
+            tvLicenseExpiry.setText(displayText);
+        } else {
+            // Fallback: try LicenseManager
+            com.example.myapplication.utils.LicenseManager licenseManager = 
+                com.example.myapplication.utils.LicenseManager.getInstance(this);
+            com.example.myapplication.entities.License license = licenseManager.getCurrentLicense();
+            
+            if (license != null && license.getExpiryDate() != null) {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.getDefault());
+                String expiryDateStr = sdf.format(license.getExpiryDate());
+                boolean isExpired = license.isExpired();
+                
+                String displayText = "License Expires: " + expiryDateStr;
+                if (isExpired) {
+                    displayText += " (Expired)";
+                    tvLicenseExpiry.setTextColor(getColor(android.R.color.holo_red_light));
+                } else {
+                    tvLicenseExpiry.setTextColor(getColor(android.R.color.white));
+                }
+                tvLicenseExpiry.setText(displayText);
+            } else {
+                tvLicenseExpiry.setText("");
+            }
+        }
+    }
+
     private void showUserDetailsDialog() {
         if (currentUser == null) {
             Toast.makeText(this, "User information not available", Toast.LENGTH_SHORT).show();
             return;
         }
 
+        // Try to get license from database first (more reliable)
+        com.example.myapplication.database.entities.LicenseEntity licenseEntity = 
+            sessionManager.getLicenseByUser(currentUser.getUid());
+        com.example.myapplication.entities.License license = null;
+        
+        if (licenseEntity != null) {
+            // Convert entity to License object
+            license = sessionManager.convertEntityToLicense(licenseEntity);
+        } else {
+            // Fallback: try LicenseManager
+            com.example.myapplication.utils.LicenseManager licenseManager = 
+                com.example.myapplication.utils.LicenseManager.getInstance(this);
+            license = licenseManager.getCurrentLicense();
+        }
+        
         String message = "Email: " + currentUser.getEmail() + "\n" +
                         "Role: " + currentUser.getRole() + "\n" +
-                        "Status: " + (currentUser.isActive() ? "Active" : "Inactive") + "\n" +
-                        "Created: " + (currentUser.getCreatedAt() > 0 ? new java.util.Date(currentUser.getCreatedAt()).toString() : "Unknown");
+                        "Status: " + (currentUser.isActive() ? "Active" : "Inactive") + "\n";
+        
+        if (license != null && license.getExpiryDate() != null) {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.getDefault());
+            String expiryDateStr = sdf.format(license.getExpiryDate());
+            boolean isExpired = license.isExpired();
+            message += "License Expiry: " + expiryDateStr + (isExpired ? " (Expired)" : "") + "\n";
+        } else {
+            message += "License Expiry: Not Available\n";
+        }
+        
+        message += "Created: " + (currentUser.getCreatedAt() > 0 ? new java.util.Date(currentUser.getCreatedAt()).toString() : "Unknown");
 
         new android.app.AlertDialog.Builder(this)
                 .setTitle("User Details")
@@ -410,9 +505,11 @@ public class DealerDashboardActivity extends AppCompatActivity {
         checkUserDisabledStatus();
         
         // Clear cached data to force fresh load
-        cachedCustomersCount = "";
-        // Refresh customer count when returning from Customer Management
+        cachedCashBalance = "";
+        // Refresh stats when returning
         loadDealerCardStats();
+        // Refresh license expiry date
+        loadLicenseExpiry();
         
         // Check for sync prompt on dashboard resume
         com.example.myapplication.utils.SyncPromptManager syncPromptManager = 

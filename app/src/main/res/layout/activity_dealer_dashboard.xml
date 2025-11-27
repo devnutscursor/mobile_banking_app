@@ -125,6 +125,16 @@
                         android:textColor="@color/white"
                         android:layout_marginTop="4dp" />
 
+                    <TextView
+                        android:id="@+id/tvLicenseExpiry"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="12sp"
+                        android:textColor="@color/white"
+                        android:layout_marginTop="4dp"
+                        android:alpha="0.9" />
+
                 </LinearLayout>
 
             </LinearLayout>
@@ -263,7 +273,7 @@
                         android:background="#E0E0E0"
                         android:layout_marginHorizontal="3dp" />
 
-                    <!-- Customers -->
+                    <!-- Cash Balance -->
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="64dp"
@@ -282,7 +292,7 @@
                             <ImageView
                                 android:layout_width="14dp"
                                 android:layout_height="14dp"
-                                android:src="@drawable/contacts_product_24"
+                                android:src="@drawable/currency_franc_24"
                                 app:tint="@color/primary_purple"
                                 android:layout_marginEnd="3dp" />
                             <TextView
@@ -295,10 +305,10 @@
 
                         <!-- Second Row: Value -->
                         <TextView
-                            android:id="@+id/tvCustomersCount"
+                            android:id="@+id/tvCashBalance"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="124"
+                            android:text="0"
                             android:textSize="16sp"
                             android:textColor="@color/black"
                             android:layout_marginTop="3dp"
@@ -308,7 +318,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Customers"
+                            android:text="Cash"
                             android:textSize="8sp"
                             android:textColor="@color/black"
                             android:alpha="0.9"
@@ -482,12 +492,12 @@
                         <ImageView
                             android:layout_width="20dp"
                             android:layout_height="20dp"
-                            android:src="@drawable/attach_money_24"
+                            android:src="@drawable/account_balance_wallet_24"
                             app:tint="@color/primary_purple" />
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/add_credits"
+                            android:text="@string/buy_credit"
                             android:textSize="11sp"
                             android:textColor="@color/black"
                             android:layout_marginTop="4dp" />
@@ -558,7 +568,68 @@
 
                 </LinearLayout>
 
-                <!-- Third Row removed: match agent layout (3 + 2). Logout below card. -->
+                <!-- Horizontal Divider -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0" />
+
+                <!-- Third Row of Actions (2 centered items) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <LinearLayout
+                        android:id="@+id/btnCommissionConfig"
+                        android:layout_width="0dp"
+                        android:layout_height="64dp"
+                        android:layout_weight="1"
+                        android:background="@android:color/transparent"
+                        android:orientation="vertical"
+                        android:gravity="center">
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_edit_note"
+                            app:tint="@color/primary_purple" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/commission_configuration"
+                            android:textSize="11sp"
+                            android:textColor="@color/black"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="match_parent"
+                        android:background="#E0E0E0" />
+                    <LinearLayout
+                        android:id="@+id/btnCommissionReports"
+                        android:layout_width="0dp"
+                        android:layout_height="64dp"
+                        android:layout_weight="1"
+                        android:background="@android:color/transparent"
+                        android:orientation="vertical"
+                        android:gravity="center">
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_dashboard"
+                            app:tint="@color/primary_purple" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/commission_reports"
+                            android:textSize="11sp"
+                            android:textColor="@color/black"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
+
+                </LinearLayout>
 
                 </LinearLayout>
 

@@ -108,7 +108,7 @@
                     android:orientation="horizontal"
                     android:layout_marginBottom="16dp">
 
-                    <!-- Registered Customers Card -->
+                    <!-- Cash Balance Card -->
                     <androidx.cardview.widget.CardView
                         android:layout_width="0dp"
                         android:layout_height="120dp"
@@ -125,19 +125,19 @@
                             android:padding="16dp">
 
                             <ImageView
-                                android:id="@+id/icCustomers"
+                                android:id="@+id/icCashBalance"
                                 android:layout_width="32dp"
                                 android:layout_height="32dp"
-                                android:src="@drawable/ic_users"
+                                android:src="@drawable/currency_franc_24"
                                 android:layout_alignParentTop="true"
                                 android:layout_alignParentEnd="true"
                                 android:alpha="0.3" />
 
                             <TextView
-                                android:id="@+id/tvCustomersCount"
+                                android:id="@+id/tvCashBalance"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="28"
+                                android:text="0"
                                 android:textSize="32sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_white"
@@ -147,11 +147,11 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="My Customers"
+                                android:text="Cash Balance"
                                 android:textSize="12sp"
                                 android:textColor="@color/text_white"
                                 android:alpha="0.9"
-                                android:layout_above="@id/tvCustomersCount"
+                                android:layout_above="@id/tvCashBalance"
                                 android:layout_marginBottom="4dp" />
 
                         </RelativeLayout>
@@ -463,7 +463,7 @@
                             <ImageView
                                 android:layout_width="32dp"
                                 android:layout_height="32dp"
-                                android:src="@drawable/ic_wallet"
+                                android:src="@drawable/account_balance_wallet_24"
                                 android:tint="@color/primary_orange"
                                 android:layout_marginEnd="12dp" />
 
@@ -553,6 +553,86 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/my_reports"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary"
+                            android:fontFamily="sans-serif-medium" />
+
+                    </LinearLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <!-- Commission Configuration -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/btnCommissionConfig"
+                    android:layout_width="match_parent"
+                    android:layout_height="80dp"
+                    android:layout_marginBottom="12dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="4dp"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@color/background_card"
+                        android:padding="20dp">
+
+                        <ImageView
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_edit_note"
+                            android:tint="@color/primary_orange"
+                            android:layout_marginEnd="16dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/commission_configuration"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary"
+                            android:fontFamily="sans-serif-medium" />
+
+                    </LinearLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <!-- Commission Reports -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/btnCommissionReports"
+                    android:layout_width="match_parent"
+                    android:layout_height="80dp"
+                    android:layout_marginBottom="24dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="4dp"
+                    android:foreground="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@color/background_card"
+                        android:padding="20dp">
+
+                        <ImageView
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_dashboard"
+                            android:tint="@color/primary_orange"
+                            android:layout_marginEnd="16dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/commission_reports"
                             android:textSize="16sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary"

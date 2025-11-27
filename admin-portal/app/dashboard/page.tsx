@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { User, Transaction, DashboardStats } from '@/lib/types';
-import { Card, Row, Col, Statistic, Tabs, Spin, Space, Typography } from 'antd';
+import { User, Transaction, DashboardStats, Customer, License, Operator, OperatorAction, Commission } from '@/lib/types';
+import { Card, Row, Col, Statistic, Tabs, Spin, Space, Typography, Button, App } from 'antd';
 import {
   UserOutlined,
   TeamOutlined,
@@ -14,6 +14,7 @@ import {
   RiseOutlined,
   CheckCircleOutlined,
   ShopOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import { colors } from '@/lib/theme';
 import AntdProvider from '@/components/AntdProvider';
@@ -23,10 +24,13 @@ import LicensesTab from '@/components/LicensesTab';
 import TransactionsTab from '@/components/TransactionsTab';
 import CustomersTab from '@/components/CustomersTab';
 import OperatorsTab from '@/components/OperatorsTab';
+import { exportTransactionsToExcel, exportCustomersToExcel, exportCommissionsToExcel, exportOperatorsToExcel, exportOperatorActionsToExcel, exportLicensesToExcel, exportUsersToExcel } from '@/lib/exportUtils';
+import { format } from 'date-fns';
 
 const { Title } = Typography;
 
 export default function DashboardPage() {
+  const { message } = App.useApp();
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
@@ -39,6 +43,7 @@ export default function DashboardPage() {
     activeLicenses: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -65,9 +70,19 @@ export default function DashboardPage() {
         return createdAt >= oneWeekAgo;
       }).length;
 
-      const totalRevenue = transactions
-        .filter(t => t.status === 'successful')
-        .reduce((sum, t) => sum + t.amount, 0);
+      // Calculate total commissions for agents and dealers
+      // Using commissionAmount (base commission without tax) from Firestore commissions collection
+      const commissionsSnapshot = await getDocs(collection(db, 'commissions'));
+      const commissions = commissionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
+      
+      // Get all agent and dealer IDs
+      const agentAndDealerIds = [...agents.map(a => a.uid), ...dealers.map(d => d.uid)];
+      
+      // Sum up commission amounts (without tax) for agents and dealers
+      // commissionAmount = base commission earned (before tax)
+      const totalAgentsDealersCommission = commissions
+        .filter(c => agentAndDealerIds.includes(c.userId))
+        .reduce((sum, c) => sum + (c.commissionAmount || 0), 0);
 
       const licensesSnapshot = await getDocs(collection(db, 'licenses'));
       const activeLicenses = licensesSnapshot.docs.filter(doc => doc.data().isActive).length;
@@ -77,7 +92,7 @@ export default function DashboardPage() {
         totalDealers: dealers.length,
         totalAgents: agents.length,
         totalTransactions: transactions.length,
-        totalRevenue,
+        totalRevenue: totalAgentsDealersCommission, // Store total commissions in totalRevenue field
         weeklyTransactions,
         activeUsers: activeUsers.length,
         activeLicenses,
@@ -86,6 +101,85 @@ export default function DashboardPage() {
       console.error('Error loading stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportAll = async () => {
+    try {
+      setExporting(true);
+      message.loading({ content: 'Loading all data for export...', key: 'export', duration: 0 });
+
+      // Load all data
+      const [transactionsSnapshot, customersSnapshot, commissionsSnapshot, operatorsSnapshot, actionsSnapshot, licensesSnapshot, usersSnapshot] = await Promise.all([
+        getDocs(collection(db, 'transactions')),
+        getDocs(collection(db, 'customers')),
+        getDocs(collection(db, 'commissions')),
+        getDocs(collection(db, 'operators')),
+        getDocs(collection(db, 'operator_actions')),
+        getDocs(collection(db, 'licenses')),
+        getDocs(collection(db, 'users')),
+      ]);
+
+      const transactions = transactionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Transaction));
+      const customers = customersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Customer));
+      const commissions = commissionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
+      const operators = operatorsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Operator));
+      const operatorActions = actionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as OperatorAction));
+      const licenses = licensesSnapshot.docs.map(doc => ({ ...doc.data(), licenseKey: doc.id } as License));
+      const users = usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+
+      const dealers = users.filter(u => u.role === 'dealer');
+      const agents = users.filter(u => u.role === 'agent');
+
+      // Create maps for relationships
+      const usersMap: { [key: string]: User } = {};
+      users.forEach(u => { usersMap[u.uid] = u; });
+
+      const operatorsMap: { [key: string]: Operator } = {};
+      operators.forEach(op => { operatorsMap[op.id || ''] = op; });
+
+      const actionsMap: { [key: string]: OperatorAction } = {};
+      operatorActions.forEach(action => { actionsMap[action.id || ''] = action; });
+
+      const customersMap: { [key: string]: Customer } = {};
+      customers.forEach(c => { customersMap[c.id || ''] = c; });
+
+      message.loading({ content: 'Generating Excel files...', key: 'export' });
+
+      const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
+
+      // Export each category separately
+      if (transactions.length > 0) {
+        exportTransactionsToExcel(transactions, usersMap, customersMap, operatorsMap, actionsMap, `admin_transactions_${timestamp}.xlsx`);
+      }
+      if (customers.length > 0) {
+        exportCustomersToExcel(customers, usersMap, `admin_customers_${timestamp}.xlsx`);
+      }
+      if (commissions.length > 0) {
+        exportCommissionsToExcel(commissions, `admin_commissions_${timestamp}.xlsx`);
+      }
+      if (operators.length > 0) {
+        exportOperatorsToExcel(operators, usersMap, `admin_operators_${timestamp}.xlsx`);
+      }
+      if (operatorActions.length > 0) {
+        exportOperatorActionsToExcel(operatorActions, operatorsMap, usersMap, `admin_operator_actions_${timestamp}.xlsx`);
+      }
+      if (licenses.length > 0) {
+        exportLicensesToExcel(licenses, usersMap, `admin_licenses_${timestamp}.xlsx`);
+      }
+      if (dealers.length > 0) {
+        exportUsersToExcel(dealers, `admin_dealers_${timestamp}.xlsx`);
+      }
+      if (agents.length > 0) {
+        exportUsersToExcel(agents, `admin_agents_${timestamp}.xlsx`);
+      }
+
+      message.success({ content: 'All data exported successfully!', key: 'export', duration: 3 });
+    } catch (error) {
+      console.error('Export error:', error);
+      message.error({ content: 'Failed to export data. Please try again.', key: 'export', duration: 3 });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -98,14 +192,14 @@ export default function DashboardPage() {
       color: colors.rich_black[800],
     },
     {
-      title: 'Dealers',
-      value: stats.totalDealers,
-      icon: <ShopOutlined />,
+      title: 'Total Agents/Dealers Commission',
+      value: `$${stats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: <DollarOutlined />,
       gradient: `linear-gradient(135deg, ${colors.air_force_blue[600]}, ${colors.midnight_green[700]})`,
       color: colors.air_force_blue[800],
     },
     {
-      title: 'Agents',
+      title: 'Total Agents',
       value: stats.totalAgents,
       icon: <TeamOutlined />,
       gradient: `linear-gradient(135deg, ${colors.midnight_green[700]}, ${colors.air_force_blue[700]})`,
@@ -131,13 +225,6 @@ export default function DashboardPage() {
       icon: <RiseOutlined />,
       gradient: `linear-gradient(135deg, ${colors.air_force_blue[600]}, ${colors.midnight_green[700]})`,
       color: colors.air_force_blue[800],
-    },
-    {
-      title: 'Total Revenue',
-      value: `$${stats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      icon: <DollarOutlined />,
-      gradient: `linear-gradient(135deg, ${colors.midnight_green[700]}, ${colors.air_force_blue[700]})`,
-      color: colors.midnight_green[800],
     },
     {
       title: 'Active Licenses',
@@ -225,13 +312,33 @@ export default function DashboardPage() {
     <AntdProvider>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* Page Title */}
-        <div>
-          <Title level={2} style={{ color: colors.beige[500], marginBottom: 8 }}>
-            Dashboard
-          </Title>
-          <Typography.Text style={{ color: colors.ash_gray[500], fontSize: 16 }}>
-            Welcome to your management portal
-          </Typography.Text>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+          <div>
+            <Title level={2} style={{ color: colors.beige[500], marginBottom: 8 }}>
+              Dashboard
+            </Title>
+            <Typography.Text style={{ color: colors.ash_gray[500], fontSize: 16 }}>
+              Welcome to your management portal
+            </Typography.Text>
+          </div>
+          {activeTab === 'overview' && (
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              loading={exporting}
+              onClick={handleExportAll}
+              size="large"
+              style={{
+                background: `linear-gradient(135deg, ${colors.midnight_green[600]}, ${colors.air_force_blue[600]})`,
+                border: 'none',
+                height: 48,
+                paddingLeft: 24,
+                paddingRight: 24,
+              }}
+            >
+              Export All Data
+            </Button>
+          )}
         </div>
 
       {/* Tabs */}

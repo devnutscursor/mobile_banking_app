@@ -4,11 +4,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Customer, User } from '@/lib/types';
-import { Card, Input, Space, Table, Typography, Select, DatePicker, Row, Col, Skeleton } from 'antd';
-import { SearchOutlined, FilterOutlined } from '@ant-design/icons';
+import { Card, Input, Space, Table, Typography, Select, DatePicker, Row, Col, Skeleton, Button } from 'antd';
+import { SearchOutlined, FilterOutlined, DownloadOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import dayjs from 'dayjs';
+import { exportCustomersToExcel } from '@/lib/exportUtils';
 
 const { RangePicker } = DatePicker;
 
@@ -41,7 +42,29 @@ export default function CustomersTab() {
       title: 'DOB',
       dataIndex: 'dateOfBirth',
       key: 'dob',
-      render: (d: any) => d ? format(d instanceof Timestamp ? d.toDate() : new Date(d), 'PP') : 'N/A',
+      render: (d: any) => {
+        if (!d) return 'N/A';
+        try {
+          let date: Date;
+          if (d instanceof Timestamp) {
+            date = d.toDate();
+          } else if (typeof d === 'string' || typeof d === 'number') {
+            date = new Date(d);
+          } else {
+            return 'N/A';
+          }
+          
+          // Check if date is valid
+          if (isNaN(date.getTime())) {
+            return d.toString(); // Return raw value if date is invalid
+          }
+          
+          return format(date, 'PP');
+        } catch (error) {
+          console.error('[CustomersTab] Error formatting date:', error, 'Value:', d);
+          return d?.toString() || 'N/A';
+        }
+      },
     },
     {
       title: 'Added By',
@@ -163,7 +186,7 @@ export default function CustomersTab() {
                 suffixIcon={<FilterOutlined />}
               />
             </Col>
-            <Col xs={24} sm={24} md={12} lg={10}>
+            <Col xs={24} sm={24} md={12} lg={8}>
               <RangePicker
                 style={{ width: '100%' }}
                 value={dateRange}

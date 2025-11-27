@@ -36,6 +36,18 @@
     <string name="buy_virtual_credit">Buy Virtual Credit</string>
     <string name="buy_credit">Buy Credit</string>
     <string name="buy_credit_info">Contact your dealer to purchase additional credits for your account.</string>
+    <string name="current_balances">Current Balances</string>
+    <string name="operator_balance">Operator Balance</string>
+    <string name="cash_balance">Cash Balance</string>
+    <string name="purchase_credit">Purchase Credit</string>
+    <string name="purchase_credit_description">Increase operator balance. Cash balance will be decreased unless checkbox is checked.</string>
+    <string name="purchase_cash">Purchase Cash</string>
+    <string name="purchase_cash_description">Increase cash balance. Operator balance will be decreased unless checkbox is checked.</string>
+    <string name="purchase_credit_without_deducting_cash">Purchase Credit without Deducting Cash Balance (Add new funds)</string>
+    <string name="purchase_cash_without_deducting_operator">Purchase Cash without Deducting Operator Balance (Add new funds)</string>
+    <string name="insufficient_cash_balance">Insufficient cash balance</string>
+    <string name="credit_purchased_successfully">Credit purchased successfully</string>
+    <string name="cash_purchased_successfully">Cash purchased successfully</string>
     <string name="add_credits">Add Credits</string>
     <string name="process_transactions">Process Transactions</string>
     <string name="my_reports">My Reports</string>
@@ -134,9 +146,24 @@
     <string name="manual_entry">Manual Entry</string>
     <string name="scanned_data">Scanned Data</string>
     <string name="full_name">Full Name</string>
+    <string name="document_type">Document Type</string>
     <string name="date_of_birth">Date of Birth</string>
     <string name="national_id">National ID</string>
     <string name="issue_date">Issue Date</string>
+    <string name="document_type_cni">CNI</string>
+    <string name="document_type_passport">PASSPORT</string>
+    <string name="document_type_cni_aes">CNI AES</string>
+    <string name="document_type_cni_cedeao">CNI CEDEAO</string>
+    <string name="document_type_passport_etranger">PASSPORT ETRANGER</string>
+    <string name="document_type_carte_consulaire">CARTE CONSULAIRE</string>
+    <string-array name="document_types">
+        <item>@string/document_type_cni</item>
+        <item>@string/document_type_passport</item>
+        <item>@string/document_type_cni_aes</item>
+        <item>@string/document_type_cni_cedeao</item>
+        <item>@string/document_type_passport_etranger</item>
+        <item>@string/document_type_carte_consulaire</item>
+    </string-array>
     <string name="expiry_date">Expiry Date</string>
     <string name="phone_number">Phone Number</string>
     <string name="address">Address</string>
@@ -148,8 +175,9 @@
     <string name="customer_deleted">Customer deleted successfully</string>
     <string name="scan_barcode_instruction">Position the barcode within the frame to scan</string>
     <string name="barcode_scan_failed">Failed to scan barcode. Please try again or use manual entry.</string>
+    <string name="barcode_no_data">Barcode detected but no readable data found. Please try again or use manual entry.</string>
     <string name="barcode_data_extracted">Barcode data extracted successfully</string>
-    <string name="invalid_date_format">Invalid date format. Please use YYYY-MM-DD</string>
+    <string name="invalid_date_format">Invalid date format. Please use DD-MM-YYYY for Date of Birth</string>
     <string name="customer_already_exists">Customer with this National ID already exists</string>
     <string name="required_fields_missing">Please fill all required fields</string>
     <string name="invalid_phone_number">Invalid phone number format</string>
@@ -201,6 +229,7 @@
     <string name="type_form_action">Form</string>
     <string name="ussd_template">USSD Template</string>
     <string name="required_fields">Required Fields (JSON)</string>
+    <string name="disable_ussd">Disable USSD (for verification-only actions)</string>
     <string name="save_action">Save Action</string>
     <string name="delete_action">Delete Action</string>
     <string name="ussd_preview">USSD Preview</string>
@@ -214,6 +243,8 @@
     <string name="select_customer">Select Customer</string>
     <string name="enter_amount">Enter Amount</string>
     <string name="amount">Amount</string>
+    <string name="note_optional">Note (Optional)</string>
+    <string name="transaction_note_hint">Add a comment for this transaction...</string>
     <string name="transaction_type">Transaction Type</string>
     <string name="deposit">Deposit</string>
     <string name="withdrawal">Withdrawal</string>
@@ -245,8 +276,25 @@
     <string-array name="transaction_statuses">
         <item>pending</item>
         <item>successful</item>
-        <item>failed</item>
+        <item>canceled</item>
     </string-array>
+    <string name="cancel_transaction">Cancel Transaction</string>
+    <string name="transaction_canceled">Transaction canceled successfully</string>
+    <string name="cancel_transaction_confirmation">Are you sure you want to cancel this transaction? The balance will be reversed.</string>
+    <string name="search_transactions">Search transactions...</string>
+    <string name="adjust_balance">Adjust Balance</string>
+    <string name="adjust_operator_balance">Adjust Operator Balance</string>
+    <string name="adjust_cash_balance">Adjust Cash Balance</string>
+    <string name="adjustment_reason">Reason for adjustment</string>
+    <string name="adjustment_amount">Adjustment Amount</string>
+    <string name="balance_adjusted_successfully">Balance adjusted successfully</string>
+    <string name="balance_adjustment_history">Balance Adjustment History</string>
+    <string name="select_balance_type">Select Balance Type</string>
+    <string name="apply_adjustment">Apply Adjustment</string>
+    <string name="positive_increase_negative_decrease">Positive = increase, Negative = decrease</string>
+    <string name="balance_before">Before</string>
+    <string name="balance_after">After</string>
+    <string name="confirm_adjustment">Are you sure you want to apply this adjustment?</string>
     
     
     <!-- Cash Register -->
@@ -289,4 +337,42 @@
     <string name="syncing_operator_actions">Syncing operator actions...</string>
     <string name="data_synced_successfully">Data synced successfully!</string>
     <string name="sync_failed_error">Sync failed: %1$s</string>
+    
+    <!-- Commission System -->
+    <string name="commission_configuration">Commission Configuration</string>
+    <string name="commission_reports">Commission Reports</string>
+    <string name="commission_rate">Commission Rate (%)</string>
+    <string name="tax_rate">Tax Rate (%)</string>
+    <string name="commission_rate_with_tax">Commission Rate with Tax (%)</string>
+    <string name="set_commission_rate">Set Commission Rate</string>
+    <string name="commission_rate_saved">Commission rate saved successfully</string>
+    <string name="enter_commission_rate">Enter commission rate (e.g., 0.4)</string>
+    <string name="enter_tax_rate">Enter tax rate (e.g., 15)</string>
+    <string name="select_operator_for_commission">Select Operator</string>
+    <string name="transaction_types">Transaction Types</string>
+    <string name="deposit_and_withdrawal">Deposit &amp; Withdrawal</string>
+    <string name="daily_commission">Daily Commission</string>
+    <string name="monthly_commission">Monthly Commission</string>
+    <string name="yearly_commission">Yearly Commission</string>
+    <string name="total_commission">Total Commission</string>
+    <string name="commission_without_tax">Commission (Without Tax)</string>
+    <string name="tax_amount">Tax Amount</string>
+    <string name="commission_with_tax">Commission (With Tax)</string>
+    <string name="select_period">Select Period</string>
+    <string name="select_month">Select Month</string>
+    <string name="select_year">Select Year</string>
+    <string name="no_commission_data">No commission data available</string>
+    <string name="commission_calculated">Commission calculated: %1$s</string>
+    <string name="commission_summary">Commission Summary</string>
+    <string name="save">Save</string>
+    <string name="add_commission_rate">Add Commission Rate</string>
+    <string name="edit_commission_rate">Edit Commission Rate</string>
+    <string name="please_select_operator">Please select an operator</string>
+    <string name="please_enter_commission_rate">Please enter commission rate</string>
+    <string name="please_enter_tax_rate">Please enter tax rate</string>
+    <string name="select_at_least_one_transaction_type">Please select at least one transaction type</string>
+    <string name="commission_rate_range_error">Commission rate must be between 0 and 100</string>
+    <string name="tax_rate_range_error">Tax rate must be between 0 and 100</string>
+    <string name="please_enter_valid_numbers">Please enter valid numbers</string>
+    <string name="generate_report">Generate Report</string>
 </resources>

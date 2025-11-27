@@ -151,7 +151,8 @@ export const theme: ThemeConfig = {
     },
     Modal: {
       contentBg: colors.midnight_green[400],
-      headerBg: colors.midnight_green[300],
+      headerBg: 'transparent',
+      titleFontSize: 16,
     },
     Tag: {
       defaultBg: colors.air_force_blue[300],

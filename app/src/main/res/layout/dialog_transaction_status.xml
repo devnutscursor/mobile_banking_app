@@ -223,6 +223,18 @@
         android:textColor="@color/white"
         android:dropDownSelector="@drawable/spinner_dropdown_selector" />
 
+    <!-- Cancel Transaction Button (only show if not already canceled) -->
+    <Button
+        android:id="@+id/btnCancelTransaction"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="@string/cancel_transaction"
+        android:textColor="@color/white"
+        android:background="@drawable/badge_failed"
+        android:layout_marginBottom="12dp"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
     <!-- Buttons -->
     <LinearLayout
         android:layout_width="match_parent"

@@ -9,6 +9,9 @@ import com.example.myapplication.database.entities.OperatorActionEntity;
 import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.TransactionEntity;
 import com.example.myapplication.database.entities.UserEntity;
+import com.example.myapplication.database.entities.BalanceAdjustmentEntity;
+import com.example.myapplication.database.entities.CommissionRateEntity;
+import com.example.myapplication.database.entities.CommissionEntity;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
@@ -55,7 +58,7 @@ public class DataSyncService {
                 Log.d(TAG, "Starting comprehensive sync for user: " + userId);
                 
                 AtomicInteger progress = new AtomicInteger(0);
-                final int totalSteps = 6; // All data types + all users credits
+                final int totalSteps = 10; // All data types + all users credits + balance adjustments + commission rates + commissions + license expiry check
                 
                 // Step 1: Sync user data
                 if (callback != null) {
@@ -93,6 +96,30 @@ public class DataSyncService {
                 }
                 syncAllUsersCredits();
                 
+                // Step 7: Sync balance adjustments
+                if (callback != null) {
+                    callback.onSyncProgress("Syncing balance adjustments...", progress.incrementAndGet(), totalSteps);
+                }
+                syncBalanceAdjustments(userId);
+                
+                // Step 8: Sync commission rates
+                if (callback != null) {
+                    callback.onSyncProgress("Syncing commission rates...", progress.incrementAndGet(), totalSteps);
+                }
+                syncCommissionRates(userId);
+                
+                // Step 9: Sync commissions
+                if (callback != null) {
+                    callback.onSyncProgress("Syncing commissions...", progress.incrementAndGet(), totalSteps);
+                }
+                syncCommissions(userId);
+                
+                // Step 10: Validate license expiry after sync
+                if (callback != null) {
+                    callback.onSyncProgress("Validating license...", progress.incrementAndGet(), totalSteps);
+                }
+                checkLicenseExpiry(userId);
+                
                 Log.d(TAG, "Comprehensive sync completed successfully for user: " + userId);
                 if (callback != null) {
                     callback.onSyncComplete(true, "Sync completed successfully");
@@ -105,6 +132,49 @@ public class DataSyncService {
                 }
             }
         }).start();
+    }
+    
+    /**
+     * Check if license has expired after sync and logout user if expired
+     */
+    private void checkLicenseExpiry(String userId) {
+        try {
+            com.example.myapplication.database.AppDatabase database = 
+                com.example.myapplication.database.AppDatabase.getDatabase(context);
+            com.example.myapplication.database.entities.LicenseEntity license = 
+                database.licenseDao().getLicenseByUserId(userId);
+            
+            if (license != null && license.isExpired()) {
+                Log.w(TAG, "License expired for user: " + userId + " - logging out");
+                // Logout user on main thread
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                    try {
+                        // Clear session and license
+                        com.example.myapplication.utils.SessionManager sessionManager = 
+                            new com.example.myapplication.utils.SessionManager(context);
+                        sessionManager.fullLogout();
+                        
+                        com.example.myapplication.utils.LicenseManager.getInstance(context).clearLicense();
+                        
+                        // Show message and navigate to login
+                        android.widget.Toast.makeText(context, 
+                            "Your license has expired. Please contact support.", 
+                            android.widget.Toast.LENGTH_LONG).show();
+                        
+                        android.content.Intent intent = new android.content.Intent(context, 
+                            com.example.myapplication.LoginActivity.class);
+                        intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | 
+                                      android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        context.startActivity(intent);
+                        
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error during license expiry logout", e);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking license expiry", e);
+        }
     }
     
     /**
@@ -130,6 +200,7 @@ public class DataSyncService {
                 
                 Map<String, Object> userData = new HashMap<>();
                 userData.put("virtualCredit", localUser.getVirtualCredit());
+                userData.put("cashBalance", localUser.getCashBalance());
                 userData.put("name", localUser.getName());
                 userData.put("email", localUser.getEmail());
                 userData.put("phone", localUser.getPhone());
@@ -238,6 +309,12 @@ public class DataSyncService {
                                     String email = documentSnapshot.getString("email");
                                     if (email != null) {
                                         localUserEntity.setEmail(email);
+                                    }
+                                    
+                                    // Sync cash balance (no timestamp check needed)
+                                    Double cashBalance = documentSnapshot.getDouble("cashBalance");
+                                    if (cashBalance != null) {
+                                        localUserEntity.setCashBalance(cashBalance);
                                     }
                                     
                                     localUserEntity.setUpdatedAt(firestoreUpdatedAt);
@@ -786,6 +863,7 @@ public class DataSyncService {
                 actionData.put("type", action.getType());
                 actionData.put("actionCode", action.getActionCode());
                 actionData.put("isActive", action.isActive());
+                actionData.put("disableUssd", action.isDisableUssd());
                 actionData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(action.getCreatedAt())));
                 actionData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(action.getUpdatedAt())));
                 
@@ -835,6 +913,7 @@ public class DataSyncService {
                                 newAction.setType(doc.getString("type"));
                                 newAction.setActionCode(doc.getString("actionCode"));
                                 newAction.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
+                                newAction.setDisableUssd(doc.getBoolean("disableUssd") != null ? doc.getBoolean("disableUssd") : false);
                                 // Robust timestamp parsing for createdAt/updatedAt
                                 Long aCreatedAt = null;
                                 Long aUpdatedAt = null;
@@ -1420,6 +1499,411 @@ public class DataSyncService {
         }
         
         Log.d(TAG, "Bidirectional transaction sync completed for user: " + userId);
+    }
+    
+    /**
+     * Sync balance adjustments (bidirectional)
+     */
+    private void syncBalanceAdjustments(String userId) throws Exception {
+        Log.d(TAG, "=== STARTING BALANCE ADJUSTMENT SYNC for user: " + userId + " ===");
+        
+        // Push local adjustments to Firestore
+        List<BalanceAdjustmentEntity> localAdjustments = database.balanceAdjustmentDao().getNeedingSync();
+        Log.d(TAG, "Found " + localAdjustments.size() + " local adjustments needing sync");
+        
+        for (BalanceAdjustmentEntity adjustment : localAdjustments) {
+            try {
+                Map<String, Object> adjustmentData = new HashMap<>();
+                adjustmentData.put("id", adjustment.getId());
+                adjustmentData.put("userId", adjustment.getUserId());
+                adjustmentData.put("adjustmentType", adjustment.getAdjustmentType());
+                adjustmentData.put("amount", adjustment.getAmount());
+                adjustmentData.put("balanceBefore", adjustment.getBalanceBefore());
+                adjustmentData.put("balanceAfter", adjustment.getBalanceAfter());
+                adjustmentData.put("reason", adjustment.getReason());
+                adjustmentData.put("adjustedBy", adjustment.getAdjustedBy());
+                adjustmentData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(adjustment.getCreatedAt())));
+                adjustmentData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(adjustment.getUpdatedAt())));
+                
+                firestore.collection("balance_adjustments").document(adjustment.getId())
+                        .set(adjustmentData)
+                        .addOnSuccessListener(aVoid -> {
+                            new Thread(() -> {
+                                adjustment.setNeedsSync(false);
+                                adjustment.setLastSyncAt(System.currentTimeMillis());
+                                database.balanceAdjustmentDao().updateAdjustment(adjustment);
+                                Log.d(TAG, "Balance adjustment synced to Firestore: " + adjustment.getId());
+                            }).start();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to sync balance adjustment to Firestore: " + adjustment.getId(), e);
+                        });
+            } catch (Exception e) {
+                Log.e(TAG, "Error preparing balance adjustment data for sync: " + adjustment.getId(), e);
+            }
+        }
+        
+        // Pull balance adjustments from Firestore
+        CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] error = {null};
+        
+        firestore.collection("balance_adjustments")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        Log.d(TAG, "Found " + queryDocumentSnapshots.size() + " balance adjustments in Firestore for user: " + userId);
+                        int pulledCount = 0;
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String adjustmentId = doc.getId();
+                            BalanceAdjustmentEntity localAdjustment = database.balanceAdjustmentDao().getAdjustmentById(adjustmentId);
+                            
+                            if (localAdjustment == null) {
+                                // New adjustment from Firestore - add to local database
+                                BalanceAdjustmentEntity newAdjustment = new BalanceAdjustmentEntity();
+                                newAdjustment.setId(adjustmentId);
+                                newAdjustment.setUserId(doc.getString("userId"));
+                                newAdjustment.setAdjustmentType(doc.getString("adjustmentType"));
+                                
+                                Double amount = doc.getDouble("amount");
+                                if (amount != null) {
+                                    newAdjustment.setAmount(amount);
+                                }
+                                
+                                Double balanceBefore = doc.getDouble("balanceBefore");
+                                if (balanceBefore != null) {
+                                    newAdjustment.setBalanceBefore(balanceBefore);
+                                }
+                                
+                                Double balanceAfter = doc.getDouble("balanceAfter");
+                                if (balanceAfter != null) {
+                                    newAdjustment.setBalanceAfter(balanceAfter);
+                                }
+                                
+                                newAdjustment.setReason(doc.getString("reason"));
+                                newAdjustment.setAdjustedBy(doc.getString("adjustedBy"));
+                                
+                                // Robust timestamp parsing
+                                Long aCreatedAt = null;
+                                Long aUpdatedAt = null;
+                                try {
+                                    Object ts = doc.get("createdAt");
+                                    if (ts instanceof com.google.firebase.Timestamp) {
+                                        aCreatedAt = ((com.google.firebase.Timestamp) ts).toDate().getTime();
+                                    } else if (ts instanceof Long) {
+                                        aCreatedAt = (Long) ts;
+                                    } else if (ts instanceof java.util.Date) {
+                                        aCreatedAt = ((java.util.Date) ts).getTime();
+                                    } else if (ts instanceof Number) {
+                                        aCreatedAt = ((Number) ts).longValue();
+                                    }
+                                } catch (Exception ignore) {}
+                                try {
+                                    Object ts = doc.get("updatedAt");
+                                    if (ts instanceof com.google.firebase.Timestamp) {
+                                        aUpdatedAt = ((com.google.firebase.Timestamp) ts).toDate().getTime();
+                                    } else if (ts instanceof Long) {
+                                        aUpdatedAt = (Long) ts;
+                                    } else if (ts instanceof java.util.Date) {
+                                        aUpdatedAt = ((java.util.Date) ts).getTime();
+                                    } else if (ts instanceof Number) {
+                                        aUpdatedAt = ((Number) ts).longValue();
+                                    }
+                                } catch (Exception ignore) {}
+                                
+                                newAdjustment.setCreatedAt(aCreatedAt != null ? aCreatedAt : System.currentTimeMillis());
+                                newAdjustment.setUpdatedAt(aUpdatedAt != null ? aUpdatedAt : System.currentTimeMillis());
+                                newAdjustment.setNeedsSync(false);
+                                newAdjustment.setLastSyncAt(System.currentTimeMillis());
+                                
+                                database.balanceAdjustmentDao().insertAdjustment(newAdjustment);
+                                Log.d(TAG, "New balance adjustment synced from Firestore: " + adjustmentId);
+                                pulledCount++;
+                            } else {
+                                Log.d(TAG, "Balance adjustment already exists locally: " + adjustmentId);
+                            }
+                        }
+                        Log.d(TAG, "Pulled " + pulledCount + " new balance adjustments from Firestore");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error processing Firestore balance adjustments", e);
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to read balance adjustments from Firestore", e);
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "=== BALANCE ADJUSTMENT SYNC COMPLETED for user: " + userId + " ===");
+    }
+    
+    /**
+     * Sync commission rates (bidirectional)
+     */
+    private void syncCommissionRates(String userId) throws Exception {
+        Log.d(TAG, "=== STARTING COMMISSION RATE SYNC for user: " + userId + " ===");
+        
+        // Push local commission rates to Firestore
+        List<CommissionRateEntity> localRates = database.commissionRateDao().getCommissionRatesNeedingSync();
+        Log.d(TAG, "Found " + localRates.size() + " local commission rates needing sync");
+        
+        for (CommissionRateEntity rate : localRates) {
+            try {
+                Map<String, Object> rateData = new HashMap<>();
+                rateData.put("id", rate.getId());
+                rateData.put("userId", rate.getUserId());
+                rateData.put("userRole", rate.getUserRole());
+                rateData.put("operatorId", rate.getOperatorId());
+                rateData.put("operatorName", rate.getOperatorName());
+                rateData.put("commissionRate", rate.getCommissionRate());
+                rateData.put("taxRate", rate.getTaxRate());
+                rateData.put("commissionRateWithTax", rate.getCommissionRateWithTax());
+                rateData.put("transactionTypes", rate.getTransactionTypes());
+                rateData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(rate.getCreatedAt())));
+                rateData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(rate.getUpdatedAt())));
+                
+                firestore.collection("commission_rates").document(rate.getId())
+                        .set(rateData)
+                        .addOnSuccessListener(aVoid -> {
+                            new Thread(() -> {
+                                rate.setNeedsSync(false);
+                                rate.setLastSyncAt(System.currentTimeMillis());
+                                database.commissionRateDao().updateCommissionRate(rate);
+                                Log.d(TAG, "Commission rate synced to Firestore: " + rate.getId());
+                            }).start();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to sync commission rate to Firestore: " + rate.getId(), e);
+                        });
+            } catch (Exception e) {
+                Log.e(TAG, "Error preparing commission rate data for sync: " + rate.getId(), e);
+            }
+        }
+        
+        // Pull commission rates from Firestore
+        CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] error = {null};
+        
+        firestore.collection("commission_rates")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        Log.d(TAG, "Found " + queryDocumentSnapshots.size() + " commission rates in Firestore for user: " + userId);
+                        int pulledCount = 0;
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String rateId = doc.getId();
+                            CommissionRateEntity localRate = database.commissionRateDao().getCommissionRateById(rateId);
+                            
+                            if (localRate == null) {
+                                CommissionRateEntity newRate = new CommissionRateEntity();
+                                newRate.setId(rateId);
+                                newRate.setUserId(doc.getString("userId"));
+                                newRate.setUserRole(doc.getString("userRole"));
+                                newRate.setOperatorId(doc.getString("operatorId"));
+                                newRate.setOperatorName(doc.getString("operatorName"));
+                                
+                                Double commissionRate = doc.getDouble("commissionRate");
+                                if (commissionRate != null) newRate.setCommissionRate(commissionRate);
+                                
+                                Double taxRate = doc.getDouble("taxRate");
+                                if (taxRate != null) newRate.setTaxRate(taxRate);
+                                
+                                newRate.setTransactionTypes(doc.getString("transactionTypes"));
+                                
+                                // Timestamp parsing
+                                Long createdAt = parseTimestamp(doc.get("createdAt"));
+                                Long updatedAt = parseTimestamp(doc.get("updatedAt"));
+                                newRate.setCreatedAt(createdAt != null ? createdAt : System.currentTimeMillis());
+                                newRate.setUpdatedAt(updatedAt != null ? updatedAt : System.currentTimeMillis());
+                                newRate.setNeedsSync(false);
+                                newRate.setLastSyncAt(System.currentTimeMillis());
+                                
+                                database.commissionRateDao().insertCommissionRate(newRate);
+                                Log.d(TAG, "New commission rate synced from Firestore: " + rateId);
+                                pulledCount++;
+                            }
+                        }
+                        Log.d(TAG, "Pulled " + pulledCount + " new commission rates from Firestore");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error processing Firestore commission rates", e);
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to read commission rates from Firestore", e);
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "=== COMMISSION RATE SYNC COMPLETED for user: " + userId + " ===");
+    }
+    
+    /**
+     * Sync commissions (bidirectional)
+     */
+    private void syncCommissions(String userId) throws Exception {
+        Log.d(TAG, "=== STARTING COMMISSION SYNC for user: " + userId + " ===");
+        
+        // Push local commissions to Firestore
+        List<CommissionEntity> localCommissions = database.commissionDao().getCommissionsNeedingSync();
+        Log.d(TAG, "Found " + localCommissions.size() + " local commissions needing sync");
+        
+        for (CommissionEntity commission : localCommissions) {
+            try {
+                Map<String, Object> commData = new HashMap<>();
+                commData.put("id", commission.getId());
+                commData.put("transactionId", commission.getTransactionId());
+                commData.put("transactionType", commission.getTransactionType());
+                commData.put("transactionAmount", commission.getTransactionAmount());
+                commData.put("userId", commission.getUserId());
+                commData.put("userName", commission.getUserName());
+                commData.put("userRole", commission.getUserRole());
+                commData.put("operatorId", commission.getOperatorId());
+                commData.put("operatorName", commission.getOperatorName());
+                commData.put("commissionRate", commission.getCommissionRate());
+                commData.put("taxRate", commission.getTaxRate());
+                commData.put("commissionAmount", commission.getCommissionAmount());
+                commData.put("taxAmount", commission.getTaxAmount());
+                commData.put("totalCommission", commission.getTotalCommission());
+                commData.put("year", commission.getYear());
+                commData.put("month", commission.getMonth());
+                commData.put("day", commission.getDay());
+                commData.put("commissionDate", new com.google.firebase.Timestamp(new java.util.Date(commission.getCommissionDate())));
+                commData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(commission.getCreatedAt())));
+                commData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(commission.getUpdatedAt())));
+                
+                firestore.collection("commissions").document(commission.getId())
+                        .set(commData)
+                        .addOnSuccessListener(aVoid -> {
+                            new Thread(() -> {
+                                commission.setNeedsSync(false);
+                                commission.setLastSyncAt(System.currentTimeMillis());
+                                database.commissionDao().updateCommission(commission);
+                                Log.d(TAG, "Commission synced to Firestore: " + commission.getId());
+                            }).start();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to sync commission to Firestore: " + commission.getId(), e);
+                        });
+            } catch (Exception e) {
+                Log.e(TAG, "Error preparing commission data for sync: " + commission.getId(), e);
+            }
+        }
+        
+        // Pull commissions from Firestore
+        CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] error = {null};
+        
+        firestore.collection("commissions")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        Log.d(TAG, "Found " + queryDocumentSnapshots.size() + " commissions in Firestore for user: " + userId);
+                        int pulledCount = 0;
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String commId = doc.getId();
+                            CommissionEntity localComm = database.commissionDao().getCommissionById(commId);
+                            
+                            if (localComm == null) {
+                                CommissionEntity newComm = new CommissionEntity();
+                                newComm.setId(commId);
+                                newComm.setTransactionId(doc.getString("transactionId"));
+                                newComm.setTransactionType(doc.getString("transactionType"));
+                                
+                                Double transactionAmount = doc.getDouble("transactionAmount");
+                                if (transactionAmount != null) newComm.setTransactionAmount(transactionAmount);
+                                
+                                newComm.setUserId(doc.getString("userId"));
+                                newComm.setUserName(doc.getString("userName"));
+                                newComm.setUserRole(doc.getString("userRole"));
+                                newComm.setOperatorId(doc.getString("operatorId"));
+                                newComm.setOperatorName(doc.getString("operatorName"));
+                                
+                                Double commissionRate = doc.getDouble("commissionRate");
+                                if (commissionRate != null) newComm.setCommissionRate(commissionRate);
+                                
+                                Double taxRate = doc.getDouble("taxRate");
+                                if (taxRate != null) newComm.setTaxRate(taxRate);
+                                
+                                Double commissionAmount = doc.getDouble("commissionAmount");
+                                if (commissionAmount != null) newComm.setCommissionAmount(commissionAmount);
+                                
+                                Double taxAmount = doc.getDouble("taxAmount");
+                                if (taxAmount != null) newComm.setTaxAmount(taxAmount);
+                                
+                                Double totalCommission = doc.getDouble("totalCommission");
+                                if (totalCommission != null) newComm.setTotalCommission(totalCommission);
+                                
+                                Long commissionDate = parseTimestamp(doc.get("commissionDate"));
+                                if (commissionDate != null) newComm.setCommissionDate(commissionDate);
+                                
+                                Long createdAt = parseTimestamp(doc.get("createdAt"));
+                                Long updatedAt = parseTimestamp(doc.get("updatedAt"));
+                                newComm.setCreatedAt(createdAt != null ? createdAt : System.currentTimeMillis());
+                                newComm.setUpdatedAt(updatedAt != null ? updatedAt : System.currentTimeMillis());
+                                newComm.setNeedsSync(false);
+                                newComm.setLastSyncAt(System.currentTimeMillis());
+                                
+                                database.commissionDao().insertCommission(newComm);
+                                Log.d(TAG, "New commission synced from Firestore: " + commId);
+                                pulledCount++;
+                            }
+                        }
+                        Log.d(TAG, "Pulled " + pulledCount + " new commissions from Firestore");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error processing Firestore commissions", e);
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to read commissions from Firestore", e);
+                    error[0] = e;
+                    latch.countDown();
+                });
+        
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        Log.d(TAG, "=== COMMISSION SYNC COMPLETED for user: " + userId + " ===");
+    }
+    
+    /**
+     * Helper method to parse Firestore timestamps
+     */
+    private Long parseTimestamp(Object ts) {
+        try {
+            if (ts instanceof com.google.firebase.Timestamp) {
+                return ((com.google.firebase.Timestamp) ts).toDate().getTime();
+            } else if (ts instanceof Long) {
+                return (Long) ts;
+            } else if (ts instanceof java.util.Date) {
+                return ((java.util.Date) ts).getTime();
+            } else if (ts instanceof Number) {
+                return ((Number) ts).longValue();
+            }
+        } catch (Exception ignore) {}
+        return null;
     }
     
     /**

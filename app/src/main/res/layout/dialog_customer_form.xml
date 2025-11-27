@@ -35,30 +35,27 @@
 
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Date of Birth -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:layout_width="match_parent"
+        <!-- Document Type -->
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="@string/document_type"
+            android:textSize="13sp"
+            android:textColor="@color/primary_purple"
+            android:layout_marginBottom="8dp" />
+
+        <Spinner
+            android:id="@+id/spinnerDocumentType"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:background="@drawable/spinner_outline_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="40dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
             android:layout_marginBottom="16dp"
-            android:hint="@string/date_of_birth"
-            app:boxBackgroundMode="outline"
-            app:boxCornerRadiusTopStart="8dp"
-            app:boxCornerRadiusTopEnd="8dp"
-            app:boxCornerRadiusBottomStart="8dp"
-            app:boxCornerRadiusBottomEnd="8dp"
-            app:placeholderText="YYYY-MM-DD"
-            app:boxStrokeColor="@color/primary_purple"
-            app:hintTextColor="@color/primary_purple">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etDateOfBirth"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="date"
-                android:textColor="@android:color/black"
-                android:textColorHint="@color/text_on_light_glass" />
-
-        </com.google.android.material.textfield.TextInputLayout>
+            android:popupBackground="@drawable/spinner_dropdown_background"
+            android:textColor="@color/black" />
 
         <!-- National ID -->
         <com.google.android.material.textfield.TextInputLayout
@@ -129,6 +126,32 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="date"
+                android:textColor="@android:color/black"
+                android:textColorHint="@color/text_on_light_glass" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Date of Birth -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="@string/date_of_birth"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusTopStart="8dp"
+            app:boxCornerRadiusTopEnd="8dp"
+            app:boxCornerRadiusBottomStart="8dp"
+            app:boxCornerRadiusBottomEnd="8dp"
+            app:placeholderText="DD-MM-YYYY"
+            app:boxStrokeColor="@color/primary_purple"
+            app:hintTextColor="@color/primary_purple">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etDateOfBirth"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:maxLength="10"
                 android:textColor="@android:color/black"
                 android:textColorHint="@color/text_on_light_glass" />
 

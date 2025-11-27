@@ -523,6 +523,7 @@ public class FirstLoginSyncService {
                                 newAction.setCreatedAt(getTimestampAsMillis(doc, "createdAt"));
                                 newAction.setUpdatedAt(getTimestampAsMillis(doc, "updatedAt"));
                                 newAction.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
+                                newAction.setDisableUssd(doc.getBoolean("disableUssd") != null ? doc.getBoolean("disableUssd") : false);
                                 newAction.setNeedsSync(false);
                                 newAction.setLastSyncAt(System.currentTimeMillis());
 
@@ -566,6 +567,7 @@ public class FirstLoginSyncService {
                                 newAction.setCreatedAt(getTimestampAsMillis(doc, "createdAt"));
                                 newAction.setUpdatedAt(getTimestampAsMillis(doc, "updatedAt"));
                                 newAction.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
+                                newAction.setDisableUssd(doc.getBoolean("disableUssd") != null ? doc.getBoolean("disableUssd") : false);
                                 newAction.setNeedsSync(false);
                                 newAction.setLastSyncAt(System.currentTimeMillis());
 
@@ -719,6 +721,7 @@ public class FirstLoginSyncService {
                             Double virtualCredit = documentSnapshot.getDouble("virtualCredit");
                             Double totalCreditUsed = documentSnapshot.getDouble("totalCreditUsed");
                             Double totalCreditEarned = documentSnapshot.getDouble("totalCreditEarned");
+                            Double cashBalance = documentSnapshot.getDouble("cashBalance");
                             
                             // Create or update user entity
                             com.example.myapplication.database.entities.UserEntity userEntity = 
@@ -748,6 +751,9 @@ public class FirstLoginSyncService {
                             }
                             if (totalCreditEarned != null) {
                                 userEntity.setTotalCreditEarned(totalCreditEarned);
+                            }
+                            if (cashBalance != null) {
+                                userEntity.setCashBalance(cashBalance);
                             }
                             
                             userEntity.setUpdatedAt(System.currentTimeMillis());
@@ -803,6 +809,7 @@ public class FirstLoginSyncService {
                             Double virtualCredit = doc.getDouble("virtualCredit");
                             Double totalCreditUsed = doc.getDouble("totalCreditUsed");
                             Double totalCreditEarned = doc.getDouble("totalCreditEarned");
+                            Double cashBalance = doc.getDouble("cashBalance");
                             
                             // Create or update agent entity
                             com.example.myapplication.database.entities.UserEntity agentEntity = 
@@ -831,6 +838,9 @@ public class FirstLoginSyncService {
                             }
                             if (totalCreditEarned != null) {
                                 agentEntity.setTotalCreditEarned(totalCreditEarned);
+                            }
+                            if (cashBalance != null) {
+                                agentEntity.setCashBalance(cashBalance);
                             }
                             
                             agentEntity.setUpdatedAt(System.currentTimeMillis());

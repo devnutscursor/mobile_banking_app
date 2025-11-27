@@ -229,6 +229,26 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
         
+        // CRITICAL: Check license expiry for offline login
+        com.example.myapplication.database.entities.LicenseEntity licenseEntity = 
+            sessionManager.getLicenseByUser(userEntity.getUid());
+        if (licenseEntity != null) {
+            if (licenseEntity.isExpired()) {
+                showError("Your license has expired. Please contact support.");
+                btnLogin.setEnabled(true);
+                return;
+            }
+            if (!licenseEntity.isValid()) {
+                showError("License is invalid or inactive. Please contact support.");
+                btnLogin.setEnabled(true);
+                return;
+            }
+        } else {
+            showError("No license found for this user. Please contact support.");
+            btnLogin.setEnabled(true);
+            return;
+        }
+        
         // Start offline session for this specific user
         if (sessionManager.startOfflineSessionForUser(userEntity)) {
             showSuccess(getString(R.string.login_successful));

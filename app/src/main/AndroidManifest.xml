@@ -62,6 +62,15 @@
         <activity
             android:name=".BuyCreditActivity"
             android:exported="false" />
+        <activity
+            android:name=".BalanceAdjustmentActivity"
+            android:exported="false" />
+        <activity
+            android:name=".CommissionConfigurationActivity"
+            android:exported="false" />
+        <activity
+            android:name=".CommissionReportActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

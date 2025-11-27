@@ -1,0 +1,35 @@
+Subject: Barcode Scanner for ID Cards - Need Your Confirmation
+
+Dear [Client Name],
+
+We need your guidance on the barcode scanner implementation for ID card scanning.
+
+The scanner works perfectly for test barcodes and digital PDF417 codes. The limitation is specifically with physical ID card chip scanning.
+
+
+TECHNICAL ANALYSIS:
+We've tested both ML Kit and ZXing. Both can scan PDF417 barcodes in general, but neither is reliably reading the barcodes from physical identity cards. This is a common limitation of free/open-source scanning libraries when dealing with real-world ID documents.
+
+QUESTIONS FOR YOU:
+
+1. CONFIRMATION NEEDED: Can you please check if there are any non-official mobile apps (non-government apps) that can successfully scan the PDF417 barcode directly from physical ID card chips? This will help us understand if this is technically feasible with standard solutions.
+
+2. COMMERCIAL SDK OPTIONS: There are professional paid SDKs specifically designed for ID document scanning (Scandit SDK, PDF417.mobi SDK) that might solve this issue. Should we proceed with evaluating these paid solutions?
+
+3. ALTERNATIVE: We can continue with the current free solution (ML Kit/ZXing) but users may need to manually enter ID information when scanning fails.
+
+RECOMMENDATION:
+For a banking app where ID verification is critical, we recommend exploring commercial SDK options (Scandit or PDF417.mobi). However, we need:
+- Your confirmation that scanning physical ID cards is possible (via other apps)
+- Budget approval for paid SDK licensing
+- Priority on this feature vs. manual entry fallback
+
+Please let us know how you'd like to proceed.
+
+Best regards,
+[Your Team]
+
+---
+
+ 
+

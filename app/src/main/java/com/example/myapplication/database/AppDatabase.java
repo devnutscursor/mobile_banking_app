@@ -19,13 +19,20 @@ import com.example.myapplication.database.entities.CustomerEntity;
 import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.OperatorActionEntity;
 import com.example.myapplication.database.entities.TransactionEntity;
+import com.example.myapplication.database.entities.BalanceAdjustmentEntity;
+import com.example.myapplication.database.entities.CommissionRateEntity;
+import com.example.myapplication.database.entities.CommissionEntity;
 import com.example.myapplication.database.dao.OperatorDao;
 import com.example.myapplication.database.dao.OperatorActionDao;
+import com.example.myapplication.database.dao.BalanceAdjustmentDao;
+import com.example.myapplication.database.dao.CommissionRateDao;
+import com.example.myapplication.database.dao.CommissionDao;
 
 @Database(
     entities = {UserEntity.class, LicenseEntity.class, SessionEntity.class, CredentialEntity.class, CustomerEntity.class,
-            OperatorEntity.class, OperatorActionEntity.class, TransactionEntity.class},
-    version = 10,
+            OperatorEntity.class, OperatorActionEntity.class, TransactionEntity.class, BalanceAdjustmentEntity.class,
+            CommissionRateEntity.class, CommissionEntity.class},
+    version = 17,
     exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -41,6 +48,9 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract OperatorDao operatorDao();
     public abstract OperatorActionDao operatorActionDao();
     public abstract TransactionDao transactionDao();
+    public abstract BalanceAdjustmentDao balanceAdjustmentDao();
+    public abstract CommissionRateDao commissionRateDao();
+    public abstract CommissionDao commissionDao();
     
     public static AppDatabase getDatabase(Context context) {
         if (INSTANCE == null) {

@@ -187,6 +187,7 @@ public class SyncManager {
                     data.put("createdAt", a.getCreatedAt());
                     data.put("updatedAt", a.getUpdatedAt());
                     data.put("isActive", a.isActive());
+                    data.put("disableUssd", a.isDisableUssd());
                     data.put("lastSyncAt", System.currentTimeMillis());
                     batch.set(firestore.collection("operator_actions").document(id), data);
                 }

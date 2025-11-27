@@ -2,12 +2,16 @@ package com.example.myapplication;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -21,6 +25,7 @@ import com.example.myapplication.adapters.CashRegisterAdapter;
 import com.example.myapplication.database.AppDatabase;
 import com.example.myapplication.database.entities.TransactionEntity;
 import com.example.myapplication.database.entities.UserEntity;
+import com.example.myapplication.utils.CommissionCalculator;
 import com.example.myapplication.utils.LanguageManager;
 import com.example.myapplication.utils.SessionManager;
 import com.google.firebase.firestore.FieldValue;
@@ -56,11 +61,13 @@ public class CashRegisterActivity extends AppCompatActivity {
     private CashRegisterAdapter adapter;
     private TextView tvEmpty;
     private ImageView btnBack;
+    private EditText etSearchTransactions;
     
     private AppDatabase database;
     private SessionManager sessionManager;
     private FirebaseFirestore firestore;
     private String activeUserId;
+    private java.util.List<TransactionEntity> allTransactions = new java.util.ArrayList<>();
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,6 +89,7 @@ public class CashRegisterActivity extends AppCompatActivity {
         // Initialize views
         recyclerView = findViewById(R.id.recyclerViewTransactions);
         tvEmpty = findViewById(R.id.tvEmpty);
+        etSearchTransactions = findViewById(R.id.etSearchTransactions);
         
         // Header
         TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
@@ -92,6 +100,27 @@ public class CashRegisterActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         adapter = new CashRegisterAdapter(this, transaction -> showTransactionDetailsDialog(transaction));
         recyclerView.setAdapter(adapter);
+        
+        // Setup search
+        etSearchTransactions.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                filterTransactions(s.toString());
+            }
+            
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+        
+        // Setup adjust balance button
+        Button btnAdjustBalance = findViewById(R.id.btnAdjustBalance);
+        btnAdjustBalance.setOnClickListener(v -> {
+            Intent intent = new Intent(this, BalanceAdjustmentActivity.class);
+            startActivity(intent);
+        });
         
         // Load transactions
         loadPendingTransactions();
@@ -111,15 +140,10 @@ public class CashRegisterActivity extends AppCompatActivity {
                 List<TransactionEntity> transactions = database.transactionDao()
                         .getTransactionsByUser(activeUserId);
                 
+                allTransactions = transactions;
+                
                 runOnUiThread(() -> {
-                    if (transactions.isEmpty()) {
-                        recyclerView.setVisibility(View.GONE);
-                        tvEmpty.setVisibility(View.VISIBLE);
-                    } else {
-                        recyclerView.setVisibility(View.VISIBLE);
-                        tvEmpty.setVisibility(View.GONE);
-                        adapter.setTransactions(transactions);
-                    }
+                    filterTransactions(etSearchTransactions != null ? etSearchTransactions.getText().toString() : "");
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading transactions", e);
@@ -128,6 +152,45 @@ public class CashRegisterActivity extends AppCompatActivity {
                 });
             }
         }).start();
+    }
+    
+    private void filterTransactions(String searchQuery) {
+        if (allTransactions == null) {
+            return;
+        }
+        
+        List<TransactionEntity> filtered = new java.util.ArrayList<>();
+        
+        if (searchQuery == null || searchQuery.trim().isEmpty()) {
+            filtered.addAll(allTransactions);
+        } else {
+            String query = searchQuery.toLowerCase().trim();
+            for (TransactionEntity transaction : allTransactions) {
+                // Search in customer name, customer phone, operator name, action name, transaction ID
+                boolean matches = 
+                    (transaction.getCustomerName() != null && transaction.getCustomerName().toLowerCase().contains(query)) ||
+                    (transaction.getCustomerPhone() != null && transaction.getCustomerPhone().toLowerCase().contains(query)) ||
+                    (transaction.getOperatorName() != null && transaction.getOperatorName().toLowerCase().contains(query)) ||
+                    (transaction.getActionName() != null && transaction.getActionName().toLowerCase().contains(query)) ||
+                    (transaction.getId() != null && transaction.getId().toLowerCase().contains(query)) ||
+                    (transaction.getTransactionType() != null && transaction.getTransactionType().toLowerCase().contains(query)) ||
+                    (transaction.getStatus() != null && transaction.getStatus().toLowerCase().contains(query)) ||
+                    String.valueOf(transaction.getAmount()).contains(query);
+                
+                if (matches) {
+                    filtered.add(transaction);
+                }
+            }
+        }
+        
+        if (filtered.isEmpty()) {
+            recyclerView.setVisibility(View.GONE);
+            tvEmpty.setVisibility(View.VISIBLE);
+        } else {
+            recyclerView.setVisibility(View.VISIBLE);
+            tvEmpty.setVisibility(View.GONE);
+            adapter.setTransactions(filtered);
+        }
     }
     
     private void showTransactionDetailsDialog(TransactionEntity transaction) {
@@ -146,6 +209,7 @@ public class CashRegisterActivity extends AppCompatActivity {
         Spinner spinnerStatus = dialogView.findViewById(R.id.spinnerStatus);
         Button btnUpdateStatus = dialogView.findViewById(R.id.btnUpdateStatus);
         Button btnCancel = dialogView.findViewById(R.id.btnCancel);
+        Button btnCancelTransaction = dialogView.findViewById(R.id.btnCancelTransaction);
         
         // Populate transaction details
         tvTransactionCode.setText(transaction.getId().substring(0, 8).toUpperCase());
@@ -183,6 +247,13 @@ public class CashRegisterActivity extends AppCompatActivity {
             spinnerStatus.setSelection(currentStatusIndex);
         }
         
+        // Show cancel transaction button only if transaction is not already canceled
+        if (!"canceled".equalsIgnoreCase(transaction.getStatus())) {
+            btnCancelTransaction.setVisibility(View.VISIBLE);
+        } else {
+            btnCancelTransaction.setVisibility(View.GONE);
+        }
+        
         AlertDialog dialog = builder.create();
         
         // Ensure cancel button uses white outlined style (avoid theme tinting)
@@ -199,7 +270,20 @@ public class CashRegisterActivity extends AppCompatActivity {
             dialog.dismiss();
         });
         
-        // Handle cancel button
+        // Handle cancel transaction button
+        btnCancelTransaction.setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.cancel_transaction))
+                    .setMessage(getString(R.string.cancel_transaction_confirmation))
+                    .setPositiveButton(android.R.string.yes, (d, w) -> {
+                        cancelTransaction(transaction);
+                        dialog.dismiss();
+                    })
+                    .setNegativeButton(android.R.string.no, null)
+                    .show();
+        });
+        
+        // Handle cancel button (close dialog)
         btnCancel.setOnClickListener(v -> dialog.dismiss());
         
         dialog.show();
@@ -215,6 +299,7 @@ public class CashRegisterActivity extends AppCompatActivity {
                 // Handle credit updates based on status changes
                 if (!oldStatus.equals(newStatus)) {
                     handleCreditUpdate(transaction, oldStatus, newStatus);
+                    reconcileCommission(transaction, oldStatus, newStatus);
                 }
                 
                 // Update in local database
@@ -272,25 +357,23 @@ public class CashRegisterActivity extends AppCompatActivity {
                     Log.d(TAG, "✓ Deposit successful: -" + amount + " from credit");
                 }
             }
-            // From successful to failed (reverse the successful transaction)
-            else if (newStatus.equalsIgnoreCase("failed") && oldStatus.equals("successful")) {
-                Log.d(TAG, "✓ Status: successful -> failed (REVERSING)");
-                if (transactionType.contains("withdrawal")) {
-                    creditChange = -amount; // Reverse: subtract credit
-                    Log.d(TAG, "✓ Withdrawal failed: -" + amount + " from credit (reversing)");
-                } else if (transactionType.contains("deposit")) {
-                    creditChange = amount; // Reverse: add credit back
-                    Log.d(TAG, "✓ Deposit failed: +" + amount + " to credit (reversing)");
+            // From any status to canceled (reverse the transaction)
+            else if (newStatus.equalsIgnoreCase("canceled") && !oldStatus.equalsIgnoreCase("canceled")) {
+                Log.d(TAG, "✓ Status: " + oldStatus + " -> canceled (REVERSING)");
+                // Only reverse if transaction was previously successful
+                if (oldStatus.equalsIgnoreCase("successful") || oldStatus.equalsIgnoreCase("success")) {
+                    if (transactionType.contains("withdrawal")) {
+                        creditChange = -amount; // Reverse: subtract credit (return to operator balance)
+                        Log.d(TAG, "✓ Withdrawal canceled: -" + amount + " from credit (reversing)");
+                    } else if (transactionType.contains("deposit")) {
+                        creditChange = amount; // Reverse: add credit back (return to operator balance)
+                        Log.d(TAG, "✓ Deposit canceled: +" + amount + " to credit (reversing)");
+                    }
                 }
             }
-            // From pending/processing to failed (no credit change needed)
-            else if (newStatus.equalsIgnoreCase("failed") && (oldStatus.equals("pending") || oldStatus.equals("processing"))) {
-                Log.d(TAG, "✓ Status: pending/processing -> failed (no credit change)");
-                return;
-            }
-            // From failed to successful (apply the transaction)
-            else if (newStatus.equals("successful") && oldStatus.equalsIgnoreCase("failed")) {
-                Log.d(TAG, "✓ Status: failed -> successful (APPLYING)");
+            // From canceled to successful (apply the transaction)
+            else if (newStatus.equalsIgnoreCase("successful") && oldStatus.equalsIgnoreCase("canceled")) {
+                Log.d(TAG, "✓ Status: canceled -> successful (APPLYING)");
                 if (transactionType.contains("withdrawal")) {
                     creditChange = amount; // Add credit for successful withdrawal
                     Log.d(TAG, "✓ Withdrawal successful: +" + amount + " to credit");
@@ -343,6 +426,33 @@ public class CashRegisterActivity extends AppCompatActivity {
                 Toast.makeText(this, "Error updating credit: " + e.getMessage(), Toast.LENGTH_LONG).show();
             });
         }
+    }
+    
+    private void reconcileCommission(TransactionEntity transaction, String oldStatus, String newStatus) {
+        try {
+            CommissionCalculator calculator = new CommissionCalculator(database);
+            UserEntity user = database.userDao().getUserById(activeUserId);
+            if (user == null) {
+                Log.w(TAG, "User not found for commission reconciliation");
+                return;
+            }
+            
+            boolean newIsSuccessful = isSuccessfulStatus(newStatus);
+            boolean oldWasSuccessful = isSuccessfulStatus(oldStatus);
+            
+            if (newIsSuccessful) {
+                calculator.calculateCommission(transaction, user);
+            } else if (oldWasSuccessful || "canceled".equalsIgnoreCase(newStatus)) {
+                calculator.removeCommissionForTransaction(transaction.getId());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error reconciling commission for transaction " + transaction.getId(), e);
+        }
+    }
+    
+    private boolean isSuccessfulStatus(String status) {
+        return status != null && 
+                ("successful".equalsIgnoreCase(status) || "completed".equalsIgnoreCase(status));
     }
     
     private void notifyCreditChange(double newCredit) {
@@ -429,6 +539,40 @@ public class CashRegisterActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.e(TAG, "Error syncing to Firestore", e);
         }
+    }
+    
+    private void cancelTransaction(TransactionEntity transaction) {
+        new Thread(() -> {
+            try {
+                String oldStatus = transaction.getStatus();
+                transaction.setStatus("canceled");
+                transaction.setUpdatedAt(System.currentTimeMillis());
+                transaction.setNotes((transaction.getNotes() != null ? transaction.getNotes() + "\n" : "") + 
+                        "Canceled at " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new java.util.Date()));
+                
+                // Handle balance reversal
+                if (!oldStatus.equals("canceled")) {
+                    handleCreditUpdate(transaction, oldStatus, "canceled");
+                    reconcileCommission(transaction, oldStatus, "canceled");
+                }
+                
+                // Update in local database
+                database.transactionDao().updateTransaction(transaction);
+                
+                // Sync to Firestore
+                syncTransactionToFirestore(transaction);
+                
+                runOnUiThread(() -> {
+                    Toast.makeText(this, getString(R.string.transaction_canceled), Toast.LENGTH_SHORT).show();
+                    loadPendingTransactions();
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error canceling transaction", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Error canceling transaction: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        }).start();
     }
     
     private void updateCreditInFirestore(String userId, double newCredit) {

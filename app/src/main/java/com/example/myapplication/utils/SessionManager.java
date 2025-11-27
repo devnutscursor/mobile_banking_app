@@ -95,20 +95,26 @@ public class SessionManager {
      * Get current user's license from local database
      */
     public LicenseEntity getCurrentLicense() {
-        if (!isLoggedIn() || currentSession.getLicenseKey() == null) {
+        if (!isLoggedIn() || currentSession.getLicenseKey() == null || currentSession.getUserId() == null) {
             return null;
         }
-        return database.licenseDao().getLicenseByKey(currentSession.getLicenseKey());
+        return database.licenseDao().getLicenseByKeyForUser(
+                currentSession.getLicenseKey(),
+                currentSession.getUserId()
+        );
     }
     
     /**
      * Get license data from local database (ignore login status - for offline access)
      */
     public LicenseEntity getLicenseFromSession() {
-        if (currentSession == null || currentSession.getLicenseKey() == null) {
+        if (currentSession == null || currentSession.getLicenseKey() == null || currentSession.getUserId() == null) {
             return null;
         }
-        return database.licenseDao().getLicenseByKey(currentSession.getLicenseKey());
+        return database.licenseDao().getLicenseByKeyForUser(
+                currentSession.getLicenseKey(),
+                currentSession.getUserId()
+        );
     }
     
     /**
@@ -131,7 +137,7 @@ public class SessionManager {
         
         // Get user data directly from database (ignore current session login status)
         UserEntity user = database.userDao().getUserById(userId);
-        LicenseEntity license = database.licenseDao().getLicenseByKey(licenseKey);
+        LicenseEntity license = database.licenseDao().getLicenseByKeyForUser(licenseKey, userId);
         
         if (user == null || license == null) {
             Log.d(TAG, "User or license not found in local database");
@@ -164,7 +170,13 @@ public class SessionManager {
         database.userDao().insertUser(userEntity);
         
         // Save/update license in local database
-        LicenseEntity licenseEntity = convertLicenseToEntity(license);
+        // IMPORTANT: Delete any existing license for this user first
+        // This ensures we don't have stale records and prevents conflicts
+        // Note: We delete by userId, not licenseKey, to preserve other users' licenses
+        database.licenseDao().deleteLicenseByUserId(user.getUid());
+        
+        // Now insert the new license for this user
+        LicenseEntity licenseEntity = convertLicenseToEntity(license, user.getUid());
         database.licenseDao().insertLicense(licenseEntity);
         
         // Update session
@@ -225,8 +237,17 @@ public class SessionManager {
         
         // Get license for this user
         LicenseEntity licenseEntity = getLicenseByUser(userEntity.getUid());
-        if (licenseEntity == null || !licenseEntity.isActive() || !licenseEntity.isValid()) {
-            Log.d(TAG, "No valid license found for user: " + userEntity.getEmail());
+        if (licenseEntity == null) {
+            Log.d(TAG, "No license found for user: " + userEntity.getEmail());
+            return false;
+        }
+        // Check license expiry explicitly
+        if (licenseEntity.isExpired()) {
+            Log.d(TAG, "License expired for user: " + userEntity.getEmail());
+            return false;
+        }
+        if (!licenseEntity.isActive() || !licenseEntity.isValid()) {
+            Log.d(TAG, "License invalid or inactive for user: " + userEntity.getEmail());
             return false;
         }
         
@@ -318,13 +339,16 @@ public class SessionManager {
         return entity;
     }
     
-    private LicenseEntity convertLicenseToEntity(License license) {
+    private LicenseEntity convertLicenseToEntity(License license, String userId) {
         LicenseEntity entity = new LicenseEntity();
         entity.setLicenseKey(license.getLicenseKey());
-        entity.setAssignedToUserId(license.getAssignedToUserId());
+        // Always bind the local record to the currently authenticated user
+        entity.setAssignedToUserId(userId);
         entity.setIssueDate(license.getIssueDate() != null ? license.getIssueDate().getTime() : System.currentTimeMillis());
         entity.setExpiryDate(license.getExpiryDate() != null ? license.getExpiryDate().getTime() : 0);
         entity.setActive(license.isActive());
+        entity.setMaxAgentCount(license.getMaxAgentCount());
+        entity.setLicenseType(license.getLicenseType());
         entity.setLastSyncAt(System.currentTimeMillis());
         return entity;
     }
@@ -354,6 +378,8 @@ public class SessionManager {
         license.setIssueDate(new Date(entity.getIssueDate()));
         license.setExpiryDate(entity.getExpiryDate() > 0 ? new Date(entity.getExpiryDate()) : null);
         license.setActive(entity.isActive());
+        license.setMaxAgentCount(entity.getMaxAgentCount());
+        license.setLicenseType(entity.getLicenseType());
         return license;
     }
     

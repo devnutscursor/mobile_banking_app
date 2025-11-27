@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_primary">
+
+    <!-- Header -->
+    <include layout="@layout/standard_header" />
+
+    <!-- Main Content -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/headerLayout"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Add Button -->
+            <Button
+                android:id="@+id/btnAddCommissionRate"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="@string/set_commission_rate"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:background="@drawable/gradient_primary"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Commission Rates List -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerViewCommissionRates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</RelativeLayout>
+
+
+
+
+
+

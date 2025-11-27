@@ -57,7 +57,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
         await updateDoc(agentRef, {
           name: values.name,
           phone: values.phone,
-          dealerId: editingAgent?.dealerId ?? values.dealerId,
+          dealerId: values.dealerId || null,
           virtualCredit: values.virtualCredit,
           disabled: values.disabled ?? false,
           updatedAt: Timestamp.now(),
@@ -72,7 +72,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           name: values.name,
           phone: values.phone,
           role: 'agent',
-          dealerId: values.dealerId,
+          dealerId: values.dealerId || null,
           active: false, // New users start as not active
           disabled: values.disabled ?? false,
           virtualCredit: values.virtualCredit,
@@ -104,7 +104,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
       form.setFieldsValue({
         name: agent.name,
         phone: agent.phone || '',
-        dealerId: agent.dealerId || '',
+        dealerId: agent.dealerId || undefined,
         virtualCredit: Number((agent as any).virtualCredit) || 0,
         disabled: (agent as any).disabled || false,
       });
@@ -118,14 +118,14 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           form.setFieldsValue({
             name: editingAgent.name,
             phone: editingAgent.phone || '',
-            dealerId: editingAgent.dealerId || '',
+            dealerId: editingAgent.dealerId || undefined,
             virtualCredit: Number((editingAgent as any).virtualCredit) || 0,
             disabled: (editingAgent as any).disabled || false,
           });
         }, 0);
       } else {
         form.resetFields();
-        form.setFieldsValue({ virtualCredit: 0, disabled: false });
+          form.setFieldsValue({ virtualCredit: 0, disabled: false, dealerId: null });
       }
     }
   }, [isModalOpen, editingAgent, form]);
@@ -268,11 +268,13 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           <Form.Item name="phone" label="Phone">
             <Input prefix={<PhoneOutlined />} placeholder="+1234567890" />
           </Form.Item>
-          {!editingAgent && (
-            <Form.Item name="dealerId" label="Assign to Dealer" rules={[{ required: true }]}> 
-              <Select placeholder="Select a dealer" options={dealers.map(d => ({ label: `${d.name} (${d.email})`, value: d.uid }))} />
-            </Form.Item>
-          )}
+          <Form.Item name="dealerId" label="Assign to Dealer (Optional)"> 
+            <Select 
+              placeholder="Select a dealer (leave empty for independent agent)" 
+              allowClear
+              options={dealers.map(d => ({ label: `${d.name} (${d.email})`, value: d.uid }))} 
+            />
+          </Form.Item>
           <Form.Item name="virtualCredit" label="Virtual Credit" rules={[{ type: 'number', min: 0 }]}> 
             <InputNumber addonBefore="$" style={{ width: '100%' }} />
           </Form.Item>

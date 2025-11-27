@@ -127,6 +127,74 @@
     <string name="update_status_button">Mettre à Jour Statut</string>
     <string name="status_updated">Statut de la transaction mis à jour</string>
     <string name="error_updating_status">Erreur lors de la mise à jour du statut</string>
+    <string name="search_transactions">Rechercher des transactions...</string>
+    <string name="cancel_transaction">Annuler la Transaction</string>
+    <string name="transaction_canceled">Transaction annulée avec succès</string>
+    <string name="cancel_transaction_confirmation">Êtes-vous sûr de vouloir annuler cette transaction ? Le solde sera inversé.</string>
+    
+    <!-- Balance Adjustments -->
+    <string name="adjust_balance">Ajuster le Solde</string>
+    <string name="adjust_operator_balance">Ajuster le Solde Opérateur</string>
+    <string name="adjust_cash_balance">Ajuster le Solde Espèces</string>
+    <string name="adjustment_reason">Raison de l\'ajustement</string>
+    <string name="adjustment_amount">Montant de l\'ajustement</string>
+    <string name="balance_adjusted_successfully">Solde ajusté avec succès</string>
+    <string name="balance_adjustment_history">Historique des Ajustements de Solde</string>
+    <string name="select_balance_type">Sélectionner le Type de Solde</string>
+    <string name="apply_adjustment">Appliquer l\'Ajustement</string>
+    <string name="positive_increase_negative_decrease">Positif = augmentation, Négatif = diminution</string>
+    <string name="confirm_adjustment">Êtes-vous sûr de vouloir appliquer cet ajustement ?</string>
+    <string name="insufficient_cash_balance">Solde d\'espèces insuffisant</string>
+    
+    <!-- Purchase Cash/Credit -->
+    <string name="purchase_credit">Acheter Crédit</string>
+    <string name="purchase_credit_description">Augmenter le solde opérateur. Le solde espèces sera diminué sauf si la case est cochée.</string>
+    <string name="purchase_cash">Acheter Espèces</string>
+    <string name="purchase_cash_description">Augmenter le solde espèces. Le solde opérateur sera diminué sauf si la case est cochée.</string>
+    <string name="purchase_credit_without_deducting_cash">Acheter Crédit sans Déduire le Solde Espèces (Ajouter de nouveaux fonds)</string>
+    <string name="purchase_cash_without_deducting_operator">Acheter Espèces sans Déduire le Solde Opérateur (Ajouter de nouveaux fonds)</string>
+    
+    <!-- Commission -->
+    <string name="commission_configuration">Configuration Commission</string>
+    <string name="commission_reports">Rapports Commission</string>
+    <string name="commission_rate">Taux de Commission (%)</string>
+    <string name="tax_rate">Taux de Taxe (%)</string>
+    <string name="commission_rate_with_tax">Taux de Commission avec Taxe (%)</string>
+    <string name="set_commission_rate">Définir le Taux de Commission</string>
+    <string name="commission_rate_saved">Taux de commission enregistré avec succès</string>
+    <string name="enter_commission_rate">Entrer le taux de commission (ex: 0.4)</string>
+    <string name="enter_tax_rate">Entrer le taux de taxe (ex: 15)</string>
+    <string name="select_operator_for_commission">Sélectionner Opérateur</string>
+    <string name="transaction_types">Types de Transaction</string>
+    <string name="deposit">Dépôt</string>
+    <string name="withdrawal">Retrait</string>
+    <string name="daily_commission">Commission Quotidienne</string>
+    <string name="monthly_commission">Commission Mensuelle</string>
+    <string name="yearly_commission">Commission Annuelle</string>
+    <string name="total_commission">Commission Totale</string>
+    <string name="commission_without_tax">Commission (Sans Taxe)</string>
+    <string name="tax_amount">Montant de la Taxe</string>
+    <string name="commission_with_tax">Commission (Avec Taxe)</string>
+    <string name="select_period">Sélectionner Période</string>
+    <string name="select_month">Sélectionner Mois</string>
+    <string name="select_year">Sélectionner Année</string>
+    <string name="no_commission_data">Aucune donnée de commission disponible</string>
+    <string name="commission_calculated">Commission calculée : %1$s</string>
+    <string name="commission_summary">Résumé Commission</string>
+    <string name="card_commission_earned">Commission Gagnée</string>
+    <string name="save">Enregistrer</string>
+    <string name="add_commission_rate">Ajouter Taux de Commission</string>
+    <string name="edit_commission_rate">Modifier Taux de Commission</string>
+    <string name="please_select_operator">Veuillez sélectionner un opérateur</string>
+    <string name="please_enter_commission_rate">Veuillez entrer le taux de commission</string>
+    <string name="please_enter_tax_rate">Veuillez entrer le taux de taxe</string>
+    <string name="select_at_least_one_transaction_type">Veuillez sélectionner au moins un type de transaction</string>
+    <string name="commission_rate_range_error">Le taux de commission doit être entre 0 et 100</string>
+    <string name="tax_rate_range_error">Le taux de taxe doit être entre 0 et 100</string>
+    <string name="please_enter_valid_numbers">Veuillez entrer des nombres valides</string>
+    <string name="generate_report">Générer Rapport</string>
+    <string name="cash_balance">Solde Espèces</string>
+    <string name="barcode_no_data">Code-barres détecté mais aucune donnée lisible trouvée. Veuillez réessayer ou utiliser la saisie manuelle.</string>
     
     <!-- Sync Messages -->
     <string name="internet_required">Internet Requis</string>
@@ -147,6 +215,21 @@
     <string name="customer_saved">Client enregistré avec succès</string>
     <string name="customer_updated">Client mis à jour avec succès</string>
     <string name="customer_deleted">Client supprimé avec succès</string>
+    <string name="document_type">Type de Document</string>
+    <string name="document_type_cni">CNI</string>
+    <string name="document_type_passport">PASSEPORT</string>
+    <string name="document_type_cni_aes">CNI AES</string>
+    <string name="document_type_cni_cedeao">CNI CEDEAO</string>
+    <string name="document_type_passport_etranger">PASSEPORT ÉTRANGER</string>
+    <string name="document_type_carte_consulaire">CARTE CONSULAIRE</string>
+    <string-array name="document_types">
+        <item>@string/document_type_cni</item>
+        <item>@string/document_type_passport</item>
+        <item>@string/document_type_cni_aes</item>
+        <item>@string/document_type_cni_cedeao</item>
+        <item>@string/document_type_passport_etranger</item>
+        <item>@string/document_type_carte_consulaire</item>
+    </string-array>
     
     <!-- Operator Management -->
     <string name="operator_management">Gestion des Opérateurs</string>
@@ -182,7 +265,7 @@
     <string-array name="transaction_statuses">
         <item>en_attente</item>
         <item>réussi</item>
-        <item>échoué</item>
+        <item>annulé</item>
     </string-array>
     
     <!-- First Login Sync -->

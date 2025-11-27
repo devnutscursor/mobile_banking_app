@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, query, orderBy, limit, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Transaction, User, Customer, Operator, OperatorAction } from '@/lib/types';
-import { Card, Select, Space, Table, Tag, Typography, Input, DatePicker, InputNumber, Row, Col, Skeleton } from 'antd';
-import { CheckCircleTwoTone, CloseCircleTwoTone, ClockCircleTwoTone, SearchOutlined, FilterOutlined } from '@ant-design/icons';
+import { Card, Select, Space, Table, Tag, Typography, Input, DatePicker, InputNumber, Row, Col, Skeleton, Button } from 'antd';
+import { CheckCircleTwoTone, CloseCircleTwoTone, ClockCircleTwoTone, SearchOutlined, FilterOutlined, DownloadOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import dayjs from 'dayjs';
+import { exportTransactionsToExcel } from '@/lib/exportUtils';
 
 const { RangePicker } = DatePicker;
 

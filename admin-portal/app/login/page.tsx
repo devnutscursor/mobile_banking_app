@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
 import { Form, Input, Button, Card, Typography, message, Space } from 'antd';
@@ -12,23 +12,37 @@ const { Title, Text } = Typography;
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
+
+  // Redirect after successful login based on user role
+  useEffect(() => {
+    if (user) {
+      messageApi.success('Login successful! Redirecting...');
+      setTimeout(() => {
+        if (user.role === 'admin') {
+          router.push('/dashboard');
+        } else if (user.role === 'dealer') {
+          router.push('/dealer/dashboard');
+        } else if (user.role === 'agent') {
+          router.push('/agent/dashboard');
+        } else {
+          router.push('/dashboard');
+        }
+      }, 300);
+    }
+  }, [user, router, messageApi]);
 
   const onFinish = async (values: { email: string; password: string }) => {
     setLoading(true);
 
     try {
       await signIn(values.email, values.password);
-      messageApi.success('Login successful! Redirecting...');
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 500);
+      // User state will update via useEffect, which will handle redirect
     } catch (err) {
       const error = err as Error;
       messageApi.error(error.message || 'Failed to sign in. Please check your credentials.');
-    } finally {
       setLoading(false);
     }
   };
@@ -173,7 +187,7 @@ export default function LoginPage() {
             {/* Footer */}
             <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${colors.air_force_blue[300]}40` }}>
               <Text style={{ color: colors.air_force_blue[600], fontSize: 12 }}>
-                🔒 Admin access only • Secured with Firebase Auth
+                🔒 Secured with Firebase Auth • Admin, Dealer & Agent Access
               </Text>
             </div>
           </Space>

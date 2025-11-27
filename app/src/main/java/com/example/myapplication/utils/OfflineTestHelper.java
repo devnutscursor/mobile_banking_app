@@ -63,7 +63,7 @@ public class OfflineTestHelper {
         
         // Test data retrieval
         UserEntity retrievedUser = db.userDao().getUserById("test-user-123");
-        LicenseEntity retrievedLicense = db.licenseDao().getLicenseByKey("TEST-LICENSE-123");
+        LicenseEntity retrievedLicense = db.licenseDao().getLicenseByKeyForUser("TEST-LICENSE-123", "test-user-123");
         SessionEntity retrievedSession = db.sessionDao().getSessionById("test_session");
         
         Log.d(TAG, "Retrieved user: " + (retrievedUser != null ? retrievedUser.getEmail() : "null"));

@@ -17,23 +17,23 @@ public interface LicenseDao {
     @Update
     void updateLicense(LicenseEntity license);
     
-    @Query("SELECT * FROM licenses WHERE licenseKey = :licenseKey LIMIT 1")
-    LicenseEntity getLicenseByKey(String licenseKey);
+    @Query("SELECT * FROM licenses WHERE licenseKey = :licenseKey AND assignedToUserId = :userId LIMIT 1")
+    LicenseEntity getLicenseByKeyForUser(String licenseKey, String userId);
     
     @Query("SELECT * FROM licenses WHERE assignedToUserId = :userId LIMIT 1")
     LicenseEntity getLicenseByUserId(String userId);
     
-    @Query("UPDATE licenses SET assignedToUserId = :userId, isActive = :active, lastSyncAt = :syncTime WHERE licenseKey = :licenseKey")
-    void assignLicenseToUser(String licenseKey, String userId, boolean active, long syncTime);
-    
-    @Query("UPDATE licenses SET lastSyncAt = :syncTime WHERE licenseKey = :licenseKey")
-    void updateLastSync(String licenseKey, long syncTime);
+    @Query("UPDATE licenses SET lastSyncAt = :syncTime WHERE licenseKey = :licenseKey AND assignedToUserId = :userId")
+    void updateLastSync(String licenseKey, String userId, long syncTime);
     
     @Query("SELECT * FROM licenses WHERE lastSyncAt < :threshold")
     LicenseEntity[] getLicensesNeedingSync(long threshold);
     
     @Query("DELETE FROM licenses WHERE licenseKey = :licenseKey")
     void deleteLicense(String licenseKey);
+    
+    @Query("DELETE FROM licenses WHERE assignedToUserId = :userId")
+    void deleteLicenseByUserId(String userId);
     
     @Query("DELETE FROM licenses")
     void deleteAllLicenses();

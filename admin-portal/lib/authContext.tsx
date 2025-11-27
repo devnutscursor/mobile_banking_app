@@ -30,12 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data() as User;
-          // Only allow admin users
-          if (userData.role === 'admin') {
+          // Allow admin, dealer, and agent users
+          if (userData.role === 'admin' || userData.role === 'dealer' || userData.role === 'agent') {
             setUser(userData);
             setFirebaseUser(firebaseUser);
           } else {
-            // Not an admin, sign out
+            // Invalid role, sign out
             await firebaseSignOut(auth);
             setUser(null);
             setFirebaseUser(null);
@@ -63,9 +63,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     
     const userData = userDoc.data() as User;
-    if (userData.role !== 'admin') {
+    // Allow admin, dealer, and agent roles
+    if (userData.role !== 'admin' && userData.role !== 'dealer' && userData.role !== 'agent') {
       await firebaseSignOut(auth);
-      throw new Error('Access denied. Admin privileges required.');
+      throw new Error('Access denied. Invalid user role.');
+    }
+    
+    // Check if user is active/disabled
+    if (userData.disabled || !userData.active) {
+      await firebaseSignOut(auth);
+      throw new Error('Your account has been disabled. Please contact support.');
     }
   };
 

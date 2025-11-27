@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, updateDoc, doc, setDoc, Timestamp } from 'firebase/firestore';
-import { Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, App, Skeleton } from 'antd';
+import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, App, Skeleton } from 'antd';
 import dayjs from 'dayjs';
 import { PlusOutlined, EditOutlined, KeyOutlined, CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons';
 import { db } from '@/lib/firebase';
 import { License, User } from '@/lib/types';
-import { format, addYears } from 'date-fns';
+import { format, addYears, addMonths } from 'date-fns';
 import { colors } from '@/lib/theme';
 
 interface LicensesTabProps {
@@ -55,19 +55,32 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
       const baseIssueDate: Date = editingLicense
         ? (editingLicense.issueDate instanceof Timestamp ? editingLicense.issueDate.toDate() : new Date(editingLicense.issueDate))
         : (values.issueDate.toDate ? values.issueDate.toDate() : values.issueDate);
-      const expiryDate = addYears(baseIssueDate, values.expiryYears);
+      
+      // Calculate expiry date based on license type
+      const licenseType = values.licenseType || 'annual';
+      let expiryDate: Date;
+      if (licenseType === 'monthly') {
+        expiryDate = addMonths(baseIssueDate, values.expiryMonths || 1);
+      } else {
+        expiryDate = addYears(baseIssueDate, values.expiryYears || 1);
+      }
+      
       const licenseData = editingLicense ? {
         licenseKey: editingLicense.licenseKey,
         assignedToUserId: editingLicense.assignedToUserId,
         issueDate: Timestamp.fromDate(baseIssueDate),
         expiryDate: Timestamp.fromDate(expiryDate),
         isActive: editingLicense.isActive,
+        maxAgentCount: values.maxAgentCount || null,
+        licenseType: licenseType,
       } : {
         licenseKey: values.licenseKey,
         assignedToUserId: null,
         issueDate: Timestamp.fromDate(baseIssueDate),
         expiryDate: Timestamp.fromDate(expiryDate),
         isActive: values.isActive ?? true,
+        maxAgentCount: values.maxAgentCount || null,
+        licenseType: licenseType,
       };
 
       if (editingLicense) {
@@ -107,19 +120,33 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
           ? editingLicense.expiryDate.toDate() 
           : new Date(editingLicense.expiryDate);
         
-        const yearsDiff = Math.round((expiryDate.getTime() - issueDate.getTime()) / (1000 * 60 * 60 * 24 * 365));
+        const licenseType = editingLicense.licenseType || 'annual';
+        let expiryValue: number;
+        if (licenseType === 'monthly') {
+          const monthsDiff = Math.round((expiryDate.getTime() - issueDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+          expiryValue = monthsDiff;
+        } else {
+          const yearsDiff = Math.round((expiryDate.getTime() - issueDate.getTime()) / (1000 * 60 * 60 * 24 * 365));
+          expiryValue = yearsDiff;
+        }
 
         form.setFieldsValue({
           licenseKey: editingLicense.licenseKey,
           issueDate: dayjs(issueDate),
-          expiryYears: yearsDiff,
+          licenseType: licenseType,
+          expiryYears: licenseType === 'annual' ? expiryValue : 1,
+          expiryMonths: licenseType === 'monthly' ? expiryValue : 1,
+          maxAgentCount: editingLicense.maxAgentCount || null,
           isActive: editingLicense.isActive,
         });
       }, 100);
     } else if (isModalOpen && !editingLicense) {
       form.resetFields();
       form.setFieldsValue({ 
+        licenseType: 'annual',
         expiryYears: 1,
+        expiryMonths: 1,
+        maxAgentCount: null,
         isActive: true 
       });
     }
@@ -153,10 +180,26 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
       title: 'Assigned To',
       dataIndex: 'assignedToUserId',
       key: 'user',
-      render: (userId: string) => {
-        if (!userId) return <Tag color="default">Not Assigned</Tag>;
-        const u = users.find((x) => x.uid === userId);
-        return u ? `${u.name} (${u.role})` : 'Unknown';
+      render: (userIdOrArray: string | string[] | null) => {
+        if (!userIdOrArray) return <Tag color="default">Not Assigned</Tag>;
+        
+        // Handle both array (new) and single string (legacy) formats
+        const userIds = Array.isArray(userIdOrArray) ? userIdOrArray : [userIdOrArray];
+        
+        if (userIds.length === 0) return <Tag color="default">Not Assigned</Tag>;
+        
+        return (
+          <Space wrap>
+            {userIds.map((userId, index) => {
+              const u = users.find((x) => x.uid === userId);
+              return (
+                <Tag key={index} color="blue">
+                  {u ? `${u.name} (${u.role})` : userId || 'Unknown'}
+                </Tag>
+              );
+            })}
+          </Space>
+        );
       },
     },
     {
@@ -178,6 +221,25 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
           </Tag>
         );
       },
+    },
+    {
+      title: 'Type',
+      dataIndex: 'licenseType',
+      key: 'licenseType',
+      render: (type: string) => {
+        if (!type) return <Tag color="default">Annual</Tag>;
+        return type === 'monthly' ? (
+          <Tag color="blue">Monthly</Tag>
+        ) : (
+          <Tag color="green">Annual</Tag>
+        );
+      },
+    },
+    {
+      title: 'Max Users',
+      dataIndex: 'maxAgentCount',
+      key: 'maxAgentCount',
+      render: (count: number) => count ? count : <Typography.Text type="secondary">Unlimited</Typography.Text>,
     },
     {
       title: 'Status',
@@ -236,8 +298,38 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
               <DatePicker style={{ width: '100%' }} />
             </Form.Item>
           )}
-          <Form.Item name="expiryYears" label="Validity (Years)" rules={[{ required: true }]}> 
-            <Select options={[1,2,3,4,5,6,7,8,9,10].map(n => ({ label: `${n}`, value: n }))} />
+          <Form.Item name="licenseType" label="License Type" rules={[{ required: true }]}> 
+            <Select options={[
+              { label: 'Annual', value: 'annual' },
+              { label: 'Monthly', value: 'monthly' }
+            ]} />
+          </Form.Item>
+          <Form.Item 
+            noStyle 
+            shouldUpdate={(prevValues, currentValues) => prevValues.licenseType !== currentValues.licenseType}
+          >
+            {({ getFieldValue }) => {
+              const licenseType = getFieldValue('licenseType') || 'annual';
+              if (licenseType === 'monthly') {
+                return (
+                  <Form.Item name="expiryMonths" label="Validity (Months)" rules={[{ required: true }]}> 
+                    <Select options={[1,2,3,4,5,6,7,8,9,10,11,12].map(n => ({ label: `${n}`, value: n }))} />
+                  </Form.Item>
+                );
+              }
+              return (
+                <Form.Item name="expiryYears" label="Validity (Years)" rules={[{ required: true }]}> 
+                  <Select options={[1,2,3,4,5,6,7,8,9,10].map(n => ({ label: `${n}`, value: n }))} />
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
+          <Form.Item
+            name="maxAgentCount"
+            label="Maximum User Count"
+            help="Leave empty for unlimited users. If you are creating a license for a dealer, set this to dealer + agents (for example, dealer + 3 agents = 4)."
+          > 
+            <InputNumber placeholder="e.g., 5" min={0} style={{ width: '100%' }} />
           </Form.Item>
           {/* Status editing removed as per requirements */}
         </Form>

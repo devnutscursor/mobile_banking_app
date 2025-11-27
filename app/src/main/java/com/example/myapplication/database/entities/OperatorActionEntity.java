@@ -30,6 +30,7 @@ public class OperatorActionEntity {
     private long lastSyncAt;
     private boolean isActive;
     private boolean needsSync;
+    private boolean disableUssd; // If true, USSD dialer will not be launched (for verification-only actions)
 
     public OperatorActionEntity() {}
 
@@ -50,6 +51,7 @@ public class OperatorActionEntity {
         this.lastSyncAt = 0L;
         this.isActive = true;
         this.needsSync = true;
+        this.disableUssd = false; // Default to false (USSD enabled)
     }
 
     @NonNull
@@ -91,6 +93,9 @@ public class OperatorActionEntity {
 
     public boolean isNeedsSync() { return needsSync; }
     public void setNeedsSync(boolean needsSync) { this.needsSync = needsSync; }
+
+    public boolean isDisableUssd() { return disableUssd; }
+    public void setDisableUssd(boolean disableUssd) { this.disableUssd = disableUssd; }
 }
 
 

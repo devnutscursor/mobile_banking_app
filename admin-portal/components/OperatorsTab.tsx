@@ -204,10 +204,14 @@ export default function OperatorsTab() {
         render: (code: string) => <Typography.Text code>{code}</Typography.Text>,
       },
       {
-        title: 'USSD Template',
-        dataIndex: 'ussdTemplate',
-        key: 'ussdTemplate',
-        render: (template: string) => <Typography.Text type="secondary" style={{ fontSize: 12 }}>{template}</Typography.Text>,
+        title: 'USSD Disabled',
+        dataIndex: 'disableUssd',
+        key: 'disableUssd',
+        render: (disableUssd: boolean) => (
+          <Tag color={disableUssd ? 'warning' : 'success'}>
+            {disableUssd ? 'Yes' : 'No'}
+          </Tag>
+        ),
       },
       {
         title: 'Status',

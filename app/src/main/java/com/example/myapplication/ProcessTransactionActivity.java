@@ -15,7 +15,9 @@ import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.text.TextUtils;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.myapplication.database.AppDatabase;
@@ -26,6 +28,7 @@ import com.example.myapplication.database.entities.TransactionEntity;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.LanguageManager;
 import com.example.myapplication.utils.SessionManager;
+import com.example.myapplication.utils.CommissionCalculator;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -45,7 +48,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
     // UI Elements
     private Spinner spinnerOperator, spinnerAction, spinnerCustomer;
-    private EditText etAmount;
+    private EditText etAmount, etNote;
     private TextView tvAvailableCredit;
     private Button btnExecuteTransaction;
 
@@ -139,6 +142,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         spinnerAction = findViewById(R.id.spinnerAction);
         spinnerCustomer = findViewById(R.id.spinnerCustomer);
         etAmount = findViewById(R.id.etAmount);
+        etNote = findViewById(R.id.etNote);
         tvAvailableCredit = findViewById(R.id.tvAvailableCredit);
         btnExecuteTransaction = findViewById(R.id.btnExecuteTransaction);
         
@@ -190,8 +194,16 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         spinnerCustomer.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (position >= 0 && position < customers.size()) {
-                    selectedCustomer = customers.get(position);
+                // Position 0 is "Add Customer" option
+                if (position == 0) {
+                    // Open customer form dialog
+                    showAddCustomerDialog();
+                    // Reset spinner to first customer (if available) or back to "Add Customer"
+                    if (!customers.isEmpty()) {
+                        spinnerCustomer.setSelection(1); // Select first actual customer
+                    }
+                } else if (position > 0 && position <= customers.size()) {
+                    selectedCustomer = customers.get(position - 1); // -1 because of "Add Customer" option
                 } else {
                     selectedCustomer = null;
                 }
@@ -499,6 +511,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     private void updateCustomerSpinner() {
         List<String> customerNames = new ArrayList<>();
         
+        // Add "Add Customer" option at the beginning
+        customerNames.add("+ " + getString(R.string.add_customer));
+        
         for (CustomerEntity customer : customers) {
             String name = customer.getFullName();
             if (name == null || name.trim().isEmpty()) {
@@ -518,7 +533,12 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             public View getView(int position, View convertView, ViewGroup parent) {
                 View view = super.getView(position, convertView, parent);
                 TextView textView = (TextView) view.findViewById(android.R.id.text1);
-                textView.setTextColor(getResources().getColor(R.color.text_primary));
+                if (position == 0) {
+                    // "Add Customer" option - use primary orange color
+                    textView.setTextColor(getResources().getColor(R.color.primary_orange, null));
+                } else {
+                    textView.setTextColor(getResources().getColor(R.color.text_primary, null));
+                }
                 return view;
             }
             
@@ -526,16 +546,225 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             public View getDropDownView(int position, View convertView, ViewGroup parent) {
                 View view = super.getDropDownView(position, convertView, parent);
                 TextView textView = (TextView) view.findViewById(android.R.id.text1);
-                textView.setTextColor(getResources().getColor(R.color.text_primary));
+                if (position == 0) {
+                    // "Add Customer" option - use primary orange color
+                    textView.setTextColor(getResources().getColor(R.color.primary_orange, null));
+                } else {
+                    textView.setTextColor(getResources().getColor(R.color.text_primary, null));
+                }
                 return view;
             }
         };
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCustomer.setAdapter(adapter);
-        if (!customerNames.isEmpty()) {
-            spinnerCustomer.setSelection(0);
+        
+        // Store the current listener
+        AdapterView.OnItemSelectedListener currentListener = spinnerCustomer.getOnItemSelectedListener();
+        
+        // Temporarily remove listener to prevent triggering on initial setup
+        spinnerCustomer.setOnItemSelectedListener(null);
+        
+        if (!customers.isEmpty()) {
+            // Clear any touch listener that might have been set when there were no customers
+            spinnerCustomer.setOnTouchListener(null);
+            spinnerCustomer.setSelection(1, false); // Select first actual customer (skip "Add Customer") - false = don't trigger listener
             selectedCustomer = customers.get(0);
+        } else {
+            spinnerCustomer.setSelection(0, false); // Select "Add Customer" if no customers - false = don't trigger listener
+            selectedCustomer = null;
+            
+            // When no customers, intercept touch to open dialog immediately instead of showing dropdown
+            spinnerCustomer.setOnTouchListener((v, event) -> {
+                if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
+                    // If no customers, directly open add customer dialog without showing dropdown
+                    if (customers.isEmpty()) {
+                        showAddCustomerDialog();
+                        return true; // Consume the event to prevent dropdown from opening
+                    }
+                }
+                return false; // Let the spinner handle the event normally
+            });
         }
+        
+        // Re-attach the listener after setting selection
+        spinnerCustomer.setOnItemSelectedListener(currentListener);
+    }
+    
+    private void showAddCustomerDialog() {
+        // Use CustomerManagementActivity's customer form dialog logic
+        // We'll create a simplified version here
+        CustomerEntity newCustomer = new CustomerEntity();
+        
+        // Inflate and show customer form dialog
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        android.view.View dialogView = getLayoutInflater().inflate(R.layout.dialog_customer_form, null);
+        builder.setView(dialogView);
+        
+        // Initialize form fields
+        EditText etFullName = dialogView.findViewById(R.id.etFullName);
+        Spinner spinnerDocumentType = dialogView.findViewById(R.id.spinnerDocumentType);
+        EditText etDateOfBirth = dialogView.findViewById(R.id.etDateOfBirth);
+        EditText etNationalId = dialogView.findViewById(R.id.etNationalId);
+        EditText etIssueDate = dialogView.findViewById(R.id.etIssueDate);
+        EditText etExpiryDate = dialogView.findViewById(R.id.etExpiryDate);
+        EditText etPhoneNumber = dialogView.findViewById(R.id.etPhoneNumber);
+        EditText etAddress = dialogView.findViewById(R.id.etAddress);
+        EditText etEmail = dialogView.findViewById(R.id.etEmail);
+        
+        // Setup document type spinner (same as CustomerManagementActivity)
+        String[] documentTypes = getResources().getStringArray(R.array.document_types);
+        android.widget.ArrayAdapter<String> styledAdapter = new android.widget.ArrayAdapter<String>(this, 
+                android.R.layout.simple_spinner_item, documentTypes) {
+            @Override
+            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                TextView view = (TextView) super.getView(position, convertView, parent);
+                view.setTextColor(getResources().getColor(R.color.black, null));
+                return view;
+            }
+            
+            @Override
+            public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
+                TextView view = (TextView) super.getDropDownView(position, convertView, parent);
+                view.setTextColor(getResources().getColor(R.color.primary_orange, null));
+                return view;
+            }
+        };
+        styledAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerDocumentType.setAdapter(styledAdapter);
+        
+        // Setup date of birth auto-formatting - we need to copy the method from CustomerManagementActivity
+        // For now, we'll use a simplified version
+        setupDateOfBirthFormatting(etDateOfBirth);
+        
+        builder.setTitle(getString(R.string.add_customer))
+                .setPositiveButton(getString(R.string.save_customer), null)
+                .setNegativeButton(getString(android.R.string.cancel), null);
+        
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(dlg -> {
+            android.widget.Button btnSave = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            btnSave.setOnClickListener(v -> {
+                // Validate and save customer
+                if (validateAndSaveCustomer(newCustomer, etFullName, etDateOfBirth, 
+                        spinnerDocumentType, documentTypes, etNationalId, etIssueDate, etExpiryDate, 
+                        etPhoneNumber, etAddress, etEmail)) {
+                    dialog.dismiss();
+                    // Reload customers and select the new one
+                    loadCustomers();
+                }
+            });
+        });
+        dialog.show();
+    }
+    
+    // Copy date formatting method from CustomerManagementActivity
+    private void setupDateOfBirthFormatting(EditText etDateOfBirth) {
+        etDateOfBirth.addTextChangedListener(new android.text.TextWatcher() {
+            private boolean isFormatting = false;
+            
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (isFormatting) return;
+                isFormatting = true;
+                
+                String input = s.toString().replaceAll("[^\\d]", "");
+                StringBuilder formatted = new StringBuilder();
+                
+                for (int i = 0; i < input.length() && i < 8; i++) {
+                    if (i == 2 || i == 4) {
+                        formatted.append("-");
+                    }
+                    formatted.append(input.charAt(i));
+                }
+                
+                int cursorPos = formatted.length();
+                if (cursorPos > 10) cursorPos = 10;
+                
+                etDateOfBirth.setText(formatted.toString());
+                etDateOfBirth.setSelection(Math.min(cursorPos, formatted.length()));
+                
+                isFormatting = false;
+            }
+            
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+    }
+    
+    private boolean validateAndSaveCustomer(CustomerEntity customer, EditText etFullName, EditText etDateOfBirth,
+            Spinner spinnerDocumentType, String[] documentTypes, EditText etNationalId, EditText etIssueDate,
+            EditText etExpiryDate, EditText etPhoneNumber, EditText etAddress, EditText etEmail) {
+        // Basic validation
+        if (TextUtils.isEmpty(etFullName.getText())) {
+            etFullName.setError(getString(R.string.required_fields_missing));
+            return false;
+        }
+        if (TextUtils.isEmpty(etDateOfBirth.getText())) {
+            etDateOfBirth.setError(getString(R.string.required_fields_missing));
+            return false;
+        }
+        if (TextUtils.isEmpty(etNationalId.getText())) {
+            etNationalId.setError(getString(R.string.required_fields_missing));
+            return false;
+        }
+        
+        // Save customer in background thread
+        new Thread(() -> {
+            try {
+                // Check if customer with same National ID already exists
+                CustomerEntity existingCustomer = database.customerDao().getCustomerByNationalId(etNationalId.getText().toString());
+                if (existingCustomer != null) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, getString(R.string.customer_already_exists), Toast.LENGTH_SHORT).show();
+                    });
+                    return;
+                }
+                
+                // Set customer data
+                customer.setId(etNationalId.getText().toString());
+                if (currentUserEntity != null) {
+                    customer.setCreatedBy(currentUserEntity.getUid());
+                }
+                customer.setCreatedAt(System.currentTimeMillis());
+                customer.setFullName(etFullName.getText().toString());
+                
+                String selectedDocType = spinnerDocumentType.getSelectedItemPosition() >= 0 ? 
+                        documentTypes[spinnerDocumentType.getSelectedItemPosition()] : null;
+                customer.setDocumentType(selectedDocType);
+                
+                String dobText = etDateOfBirth.getText().toString().trim();
+                customer.setDateOfBirth(dobText);
+                
+                customer.setNationalIdNumber(etNationalId.getText().toString());
+                customer.setIssueDate(etIssueDate.getText().toString());
+                customer.setExpiryDate(etExpiryDate.getText().toString());
+                customer.setPhoneNumber(etPhoneNumber.getText().toString());
+                customer.setAddress(etAddress.getText().toString());
+                customer.setEmail(etEmail.getText().toString());
+                customer.setActive(true);
+                customer.setNeedsSync(true);
+                customer.setUpdatedAt(System.currentTimeMillis());
+                
+                // Save to database
+                database.customerDao().insertCustomer(customer);
+                
+                runOnUiThread(() -> {
+                    Toast.makeText(this, getString(R.string.customer_saved), Toast.LENGTH_SHORT).show();
+                });
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving customer", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, getString(R.string.transaction_failed) + ": " + e.getMessage(), 
+                            Toast.LENGTH_LONG).show();
+                });
+            }
+        }).start();
+        
+        return true;
     }
 
     private void executeTransaction() {
@@ -563,8 +792,13 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         }
 
         // Determine if USSD or Non-USSD
-        boolean isUssd = "USSD".equals(selectedOperator.getType());
+        // Check if operator is USSD type AND action doesn't have USSD disabled
+        boolean isUssd = "USSD".equals(selectedOperator.getType()) && 
+                        (selectedAction != null && !selectedAction.isDisableUssd());
         Log.d(TAG, "Transaction type: " + (isUssd ? "USSD" : "NON_USSD"));
+        if (selectedAction != null) {
+            Log.d(TAG, "Action disableUssd flag: " + selectedAction.isDisableUssd());
+        }
 
         if (isUssd) {
             executeUssdTransaction(amount);
@@ -727,6 +961,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         }
         transaction.setCreditAfter(creditAfter);
         
+        // Set note if provided
+        if (etNote != null && etNote.getText() != null) {
+            String note = etNote.getText().toString().trim();
+            if (!note.isEmpty()) {
+                transaction.setNotes(note);
+            }
+        }
+        
         return transaction;
     }
 
@@ -821,6 +1063,13 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 database.transactionDao().insertTransaction(transaction);
                 
                 Log.d(TAG, "Transaction saved locally: " + transaction.getId());
+                
+                // Calculate commission if transaction is successful
+                if (("successful".equals(transaction.getStatus()) || "completed".equals(transaction.getStatus())) 
+                        && currentUserEntity != null) {
+                    CommissionCalculator calculator = new CommissionCalculator(database);
+                    calculator.calculateCommission(transaction, currentUserEntity);
+                }
                 
                 // Try to sync to Firestore in background (don't block on this)
                 syncTransactionToFirestoreInBackground(transaction);
