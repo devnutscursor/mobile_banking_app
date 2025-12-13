@@ -23,6 +23,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.myapplication.adapters.CashRegisterAdapter;
 import com.example.myapplication.database.AppDatabase;
+import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.TransactionEntity;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.CommissionCalculator;
@@ -113,13 +114,6 @@ public class CashRegisterActivity extends AppCompatActivity {
             
             @Override
             public void afterTextChanged(Editable s) {}
-        });
-        
-        // Setup adjust balance button
-        Button btnAdjustBalance = findViewById(R.id.btnAdjustBalance);
-        btnAdjustBalance.setOnClickListener(v -> {
-            Intent intent = new Intent(this, BalanceAdjustmentActivity.class);
-            startActivity(intent);
         });
         
         // Load transactions
@@ -333,81 +327,173 @@ public class CashRegisterActivity extends AppCompatActivity {
             }
             
             double currentCredit = user.getVirtualCredit();
+            double currentCashBalance = user.getCashBalance();
             double amount = transaction.getAmount();
             String transactionType = transaction.getTransactionType().toLowerCase();
             
-            Log.d(TAG, "=== CREDIT UPDATE DEBUG ===");
+            Log.d(TAG, "=== BALANCE UPDATE DEBUG ===");
             Log.d(TAG, "Transaction ID: " + transaction.getId());
             Log.d(TAG, "Transaction Type: " + transactionType);
             Log.d(TAG, "Transaction Amount: " + amount);
             Log.d(TAG, "Status Change: " + oldStatus + " -> " + newStatus);
             Log.d(TAG, "Current Credit: " + currentCredit);
+            Log.d(TAG, "Current Cash Balance: " + currentCashBalance);
             
-            // Calculate credit change based on status transition
+            // Calculate credit and cash balance changes based on status transition
             double creditChange = 0;
+            double cashBalanceChange = 0;
             
-            // From pending/processing to successful
-            if (newStatus.equals("successful") && (oldStatus.equals("pending") || oldStatus.equals("processing"))) {
+            // IMPORTANT: Check canceled -> successful FIRST, before checking pending -> successful
+            // From canceled to successful (apply the transaction - re-apply after cancellation)
+            if (newStatus.equalsIgnoreCase("successful") && oldStatus.equalsIgnoreCase("canceled")) {
+                Log.d(TAG, "✓ Status: canceled -> successful (APPLYING TRANSACTION)");
+                if (transactionType.contains("withdrawal")) {
+                    creditChange = amount; // Add credit for successful withdrawal
+                    cashBalanceChange = -amount; // Decrease cash (agent gives cash to customer)
+                    Log.d(TAG, "✓ Withdrawal successful: +" + amount + " to credit, -" + amount + " to cash");
+                } else if (transactionType.contains("deposit")) {
+                    creditChange = -amount; // Subtract credit for successful deposit
+                    cashBalanceChange = amount; // Increase cash (customer gives cash to agent)
+                    Log.d(TAG, "✓ Deposit successful: -" + amount + " from credit, +" + amount + " to cash");
+                } else if (transactionType.contains("transfer")) {
+                    // Transfer: debit amount + fees from credit, add total to cash
+                    OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                    if (operator != null) {
+                        double transferRate = operator.getTransferRate();
+                        double transferFee = amount * (transferRate / 100.0);
+                        double totalAmount = amount + transferFee;
+                        creditChange = -totalAmount; // Debit total amount (base + fees)
+                        cashBalanceChange = totalAmount; // Increase cash by total (base + fees)
+                        Log.d(TAG, "✓ Transfer successful: -" + totalAmount + " from credit (base: " + amount + ", fee: " + transferFee + "), +" + totalAmount + " to cash");
+                    } else {
+                        // Fallback: treat as deposit
+                        creditChange = -amount;
+                        cashBalanceChange = amount;
+                        Log.d(TAG, "✓ Transfer successful (operator not found, treating as deposit): -" + amount + " from credit, +" + amount + " to cash");
+                    }
+                }
+            }
+            // From pending/processing to successful (apply the transaction)
+            else if (newStatus.equalsIgnoreCase("successful") && (oldStatus.equalsIgnoreCase("pending") || oldStatus.equalsIgnoreCase("processing"))) {
                 Log.d(TAG, "✓ Status: pending/processing -> successful");
                 if (transactionType.contains("withdrawal")) {
                     creditChange = amount; // Add credit for successful withdrawal
-                    Log.d(TAG, "✓ Withdrawal successful: +" + amount + " to credit");
+                    cashBalanceChange = -amount; // Decrease cash (agent gives cash to customer)
+                    Log.d(TAG, "✓ Withdrawal successful: +" + amount + " to credit, -" + amount + " to cash");
                 } else if (transactionType.contains("deposit")) {
                     creditChange = -amount; // Subtract credit for successful deposit
-                    Log.d(TAG, "✓ Deposit successful: -" + amount + " from credit");
+                    cashBalanceChange = amount; // Increase cash (customer gives cash to agent)
+                    Log.d(TAG, "✓ Deposit successful: -" + amount + " from credit, +" + amount + " to cash");
+                } else if (transactionType.contains("transfer")) {
+                    // Transfer: debit amount + fees from credit, add total to cash
+                    OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                    if (operator != null) {
+                        double transferRate = operator.getTransferRate();
+                        double transferFee = amount * (transferRate / 100.0);
+                        double totalAmount = amount + transferFee;
+                        creditChange = -totalAmount; // Debit total amount (base + fees)
+                        cashBalanceChange = totalAmount; // Increase cash by total (base + fees)
+                        Log.d(TAG, "✓ Transfer successful: -" + totalAmount + " from credit (base: " + amount + ", fee: " + transferFee + "), +" + totalAmount + " to cash");
+                    } else {
+                        // Fallback: treat as deposit
+                        creditChange = -amount;
+                        cashBalanceChange = amount;
+                        Log.d(TAG, "✓ Transfer successful (operator not found, treating as deposit): -" + amount + " from credit, +" + amount + " to cash");
+                    }
                 }
             }
-            // From any status to canceled (reverse the transaction)
+            // From successful to canceled (reverse the transaction, return balance)
             else if (newStatus.equalsIgnoreCase("canceled") && !oldStatus.equalsIgnoreCase("canceled")) {
                 Log.d(TAG, "✓ Status: " + oldStatus + " -> canceled (REVERSING)");
                 // Only reverse if transaction was previously successful
                 if (oldStatus.equalsIgnoreCase("successful") || oldStatus.equalsIgnoreCase("success")) {
                     if (transactionType.contains("withdrawal")) {
                         creditChange = -amount; // Reverse: subtract credit (return to operator balance)
-                        Log.d(TAG, "✓ Withdrawal canceled: -" + amount + " from credit (reversing)");
+                        cashBalanceChange = amount; // Reverse: increase cash (return cash to agent)
+                        Log.d(TAG, "✓ Withdrawal canceled: -" + amount + " from credit, +" + amount + " to cash (reversing)");
                     } else if (transactionType.contains("deposit")) {
                         creditChange = amount; // Reverse: add credit back (return to operator balance)
-                        Log.d(TAG, "✓ Deposit canceled: +" + amount + " to credit (reversing)");
+                        cashBalanceChange = -amount; // Reverse: decrease cash (return cash to customer)
+                        Log.d(TAG, "✓ Deposit canceled: +" + amount + " to credit, -" + amount + " from cash (reversing)");
+                    } else if (transactionType.contains("transfer")) {
+                        // Transfer: reverse total amount (base + fees)
+                        OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                        if (operator != null) {
+                            double transferRate = operator.getTransferRate();
+                            double transferFee = amount * (transferRate / 100.0);
+                            double totalAmount = amount + transferFee;
+                            creditChange = totalAmount; // Reverse: add total back to credit
+                            cashBalanceChange = -totalAmount; // Reverse: decrease cash by total
+                            Log.d(TAG, "✓ Transfer canceled: +" + totalAmount + " to credit (base: " + amount + ", fee: " + transferFee + "), -" + totalAmount + " from cash (reversing)");
+                        } else {
+                            creditChange = amount;
+                            cashBalanceChange = -amount;
+                            Log.d(TAG, "✓ Transfer canceled (operator not found, treating as deposit): +" + amount + " to credit, -" + amount + " from cash (reversing)");
+                        }
                     }
                 }
             }
-            // From canceled to successful (apply the transaction)
-            else if (newStatus.equalsIgnoreCase("successful") && oldStatus.equalsIgnoreCase("canceled")) {
-                Log.d(TAG, "✓ Status: canceled -> successful (APPLYING)");
+            // From successful to pending (reverse the transaction, return balance)
+            else if (newStatus.equalsIgnoreCase("pending") && (oldStatus.equalsIgnoreCase("successful") || oldStatus.equalsIgnoreCase("success"))) {
+                Log.d(TAG, "✓ Status: successful -> pending (REVERSING)");
                 if (transactionType.contains("withdrawal")) {
-                    creditChange = amount; // Add credit for successful withdrawal
-                    Log.d(TAG, "✓ Withdrawal successful: +" + amount + " to credit");
+                    creditChange = -amount; // Reverse: subtract credit (return to operator balance)
+                    cashBalanceChange = amount; // Reverse: increase cash (return cash to agent)
+                    Log.d(TAG, "✓ Withdrawal set to pending: -" + amount + " from credit, +" + amount + " to cash (reversing)");
                 } else if (transactionType.contains("deposit")) {
-                    creditChange = -amount; // Subtract credit for successful deposit
-                    Log.d(TAG, "✓ Deposit successful: -" + amount + " from credit");
+                    creditChange = amount; // Reverse: add credit back (return to operator balance)
+                    cashBalanceChange = -amount; // Reverse: decrease cash (return cash to customer)
+                    Log.d(TAG, "✓ Deposit set to pending: +" + amount + " to credit, -" + amount + " from cash (reversing)");
+                } else if (transactionType.contains("transfer")) {
+                    // Transfer: reverse total amount (base + fees)
+                    OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                    if (operator != null) {
+                        double transferRate = operator.getTransferRate();
+                        double transferFee = amount * (transferRate / 100.0);
+                        double totalAmount = amount + transferFee;
+                        creditChange = totalAmount; // Reverse: add total back to credit
+                        cashBalanceChange = -totalAmount; // Reverse: decrease cash by total
+                        Log.d(TAG, "✓ Transfer set to pending: +" + totalAmount + " to credit (base: " + amount + ", fee: " + transferFee + "), -" + totalAmount + " from cash (reversing)");
+                    } else {
+                        creditChange = amount;
+                        cashBalanceChange = -amount;
+                        Log.d(TAG, "✓ Transfer set to pending (operator not found, treating as deposit): +" + amount + " to credit, -" + amount + " from cash (reversing)");
+                    }
                 }
             }
             else {
-                Log.d(TAG, "✗ No credit change for status transition: " + oldStatus + " -> " + newStatus);
+                Log.d(TAG, "✗ No balance change for status transition: " + oldStatus + " -> " + newStatus);
             }
             
-            // Apply the credit change
-            if (creditChange != 0) {
+            // Apply the credit and cash balance changes
+            if (creditChange != 0 || cashBalanceChange != 0) {
                 final double finalCreditChange = creditChange;
+                final double finalCashBalanceChange = cashBalanceChange;
                 final double newCredit = currentCredit + creditChange;
+                final double newCashBalance = currentCashBalance + cashBalanceChange;
                 
-                Log.d(TAG, "=== APPLYING CREDIT CHANGE ===");
+                Log.d(TAG, "=== APPLYING BALANCE CHANGES ===");
                 Log.d(TAG, "Credit Change: " + finalCreditChange);
                 Log.d(TAG, "Old Credit: " + currentCredit);
                 Log.d(TAG, "New Credit: " + newCredit);
+                Log.d(TAG, "Cash Balance Change: " + finalCashBalanceChange);
+                Log.d(TAG, "Old Cash Balance: " + currentCashBalance);
+                Log.d(TAG, "New Cash Balance: " + newCashBalance);
                 
-                // Update user credit with timestamp
+                // Update user credit and cash balance with timestamp
                 user.setVirtualCredit(newCredit);
+                user.setCashBalance(newCashBalance);
                 user.setCreditUpdatedAt(System.currentTimeMillis());
                 database.userDao().updateUser(user);
                 
-                // Sync credit to Firestore with timestamp
-                updateCreditInFirestore(activeUserId, newCredit);
+                // Sync credit and cash balance to Firestore with timestamp
+                updateCreditInFirestore(activeUserId, newCredit, newCashBalance);
                 
                 // Show success message on UI thread
                 runOnUiThread(() -> {
                     String message = String.format(Locale.getDefault(), 
-                        "Credit updated: %+.0f. New balance: %.0f", finalCreditChange, newCredit);
+                        "Credit: %+.0f (%.0f), Cash: %+.0f (%.0f", 
+                        finalCreditChange, newCredit, finalCashBalanceChange, newCashBalance);
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show();
                     Log.d(TAG, "✓ Toast shown: " + message);
                 });
@@ -415,9 +501,9 @@ public class CashRegisterActivity extends AppCompatActivity {
                 // Notify other activities about credit change
                 notifyCreditChange(newCredit);
                 
-                Log.d(TAG, "=== CREDIT UPDATE COMPLETED ===");
+                Log.d(TAG, "=== BALANCE UPDATE COMPLETED ===");
             } else {
-                Log.d(TAG, "✗ No credit change needed for status transition: " + oldStatus + " -> " + newStatus);
+                Log.d(TAG, "✗ No balance change needed for status transition: " + oldStatus + " -> " + newStatus);
             }
             
         } catch (Exception e) {
@@ -442,7 +528,8 @@ public class CashRegisterActivity extends AppCompatActivity {
             
             if (newIsSuccessful) {
                 calculator.calculateCommission(transaction, user);
-            } else if (oldWasSuccessful || "canceled".equalsIgnoreCase(newStatus)) {
+            } else if (oldWasSuccessful) {
+                // Remove commission if transaction was successful but is now not successful (canceled or pending)
                 calculator.removeCommissionForTransaction(transaction.getId());
             }
         } catch (Exception e) {
@@ -576,15 +663,26 @@ public class CashRegisterActivity extends AppCompatActivity {
     }
     
     private void updateCreditInFirestore(String userId, double newCredit) {
+        updateCreditInFirestore(userId, newCredit, null);
+    }
+    
+    private void updateCreditInFirestore(String userId, double newCredit, Double newCashBalance) {
         try {
             Map<String, Object> updates = new HashMap<>();
             updates.put("virtualCredit", newCredit);
+            if (newCashBalance != null) {
+                updates.put("cashBalance", newCashBalance);
+            }
             updates.put("lastUpdated", FieldValue.serverTimestamp());
             
             firestore.collection("users").document(userId)
                     .update(updates)
                     .addOnSuccessListener(aVoid -> {
+                        if (newCashBalance != null) {
+                            Log.d(TAG, "Credit and cash balance synced to Firestore: Credit=" + newCredit + ", Cash=" + newCashBalance);
+                        } else {
                         Log.d(TAG, "Credit synced to Firestore: " + newCredit);
+                        }
                     })
                     .addOnFailureListener(e -> {
                         Log.e(TAG, "Failed to sync credit to Firestore", e);

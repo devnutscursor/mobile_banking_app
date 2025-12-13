@@ -38,11 +38,12 @@ import com.example.myapplication.utils.LanguageManager;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.SyncManager;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.mlkit.vision.barcode.BarcodeScanner;
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
-import com.google.mlkit.vision.barcode.BarcodeScanning;
-import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import com.example.myapplication.utils.MRZParser;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -65,12 +66,22 @@ public class CustomerManagementActivity extends AppCompatActivity {
     private CustomerAdapter customerAdapter;
     private android.view.View cameraPreviewCard;
     
-    // Camera and Barcode Scanning
+    // Camera and MRZ Scanning
     private PreviewView previewView;
-    private BarcodeScanner barcodeScanner;
+    private TextRecognizer textRecognizer;
     private Camera camera;
     private ProcessCameraProvider cameraProvider;
     private boolean isScanning = false;
+    
+    // Frame buffering for better MRZ detection
+    private java.util.List<String> mrzFrameBuffer = new java.util.ArrayList<>();
+    private static final int FRAME_BUFFER_SIZE = 5; // Process every 5th frame to reduce load
+    private static final int MIN_CONSISTENT_DETECTIONS = 2; // Require MRZ detected in 2+ frames
+    private int frameCounter = 0;
+    private long lastProcessTime = 0;
+    private static final long MIN_PROCESS_INTERVAL_MS = 500; // Process at most every 500ms
+    private static final long MIN_SCANNING_DURATION_MS = 5000; // Wait at least 5 seconds before processing
+    private long scanningStartTime = 0; // Track when scanning started
     
     // Database and Session
     private AppDatabase database;
@@ -197,23 +208,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
             Log.d(TAG, "Created fallback user to prevent crash");
         }
         
-        // Initialize barcode scanner
-        // Focus on PDF417 for ID cards, but enable all formats as fallback
-        BarcodeScannerOptions options = new BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(
-                        Barcode.FORMAT_PDF417,  // Primary format for ID cards
-                        Barcode.FORMAT_CODE_128,
-                        Barcode.FORMAT_CODE_39,
-                        Barcode.FORMAT_CODE_93,
-                        Barcode.FORMAT_DATA_MATRIX,
-                        Barcode.FORMAT_QR_CODE,
-                        Barcode.FORMAT_AZTEC
-                )
-                // Don't enable all potential barcodes - it might cause false positives
-                // .enableAllPotentialBarcodes()
-                .build();
-        barcodeScanner = BarcodeScanning.getClient(options);
-        Log.d(TAG, "Barcode scanner initialized with PDF417 as primary format");
+        // Initialize MRZ text recognizer (offline)
+        textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        Log.d(TAG, "MRZ text recognizer initialized");
         
         // Removed sync prompt from Customer Management - only show on dashboards
         
@@ -294,16 +291,33 @@ public class CustomerManagementActivity extends AppCompatActivity {
             return;
         }
         
+        // Reset frame buffer and counters
+        mrzFrameBuffer.clear();
+        frameCounter = 0;
+        lastProcessTime = 0;
+        scanningStartTime = System.currentTimeMillis(); // Record when scanning started
+        
         isScanning = true;
         cameraPreviewCard.setVisibility(View.VISIBLE);
         previewView.setVisibility(View.VISIBLE);
         startCamera();
+        
+        // Show message to user to focus and position document
+        Toast.makeText(this, "Please focus and position the MRZ zone clearly. Scanning will start in 5 seconds...", Toast.LENGTH_LONG).show();
+        
+        // Show message to user to focus and position document
+        Toast.makeText(this, "Please focus and position the MRZ zone clearly. Scanning will start in 5 seconds...", Toast.LENGTH_LONG).show();
     }
     
     private void stopBarcodeScanning() {
         isScanning = false;
         cameraPreviewCard.setVisibility(View.GONE);
         previewView.setVisibility(View.GONE);
+        // Reset frame buffer and timing
+        mrzFrameBuffer.clear();
+        frameCounter = 0;
+        lastProcessTime = 0;
+        scanningStartTime = 0;
         try {
             if (cameraProvider != null) {
                 cameraProvider.unbindAll();
@@ -369,303 +383,245 @@ public class CustomerManagementActivity extends AppCompatActivity {
         if (!isScanning) { image.close(); return; }
         if (image.getImage() == null) { image.close(); return; }
         
+        // Throttle processing to avoid overwhelming the system
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastProcessTime < MIN_PROCESS_INTERVAL_MS) {
+            image.close();
+            return;
+        }
+        
+        // Process every Nth frame to reduce load and allow time for stabilization
+        frameCounter++;
+        if (frameCounter % FRAME_BUFFER_SIZE != 0) {
+            image.close();
+            return;
+        }
+        
+        lastProcessTime = currentTime;
+        
         // Get rotation and image dimensions for better debugging
         int rotationDegrees = image.getImageInfo().getRotationDegrees();
         int imageWidth = image.getWidth();
         int imageHeight = image.getHeight();
         
-        Log.d(TAG, "Analyzing image: " + imageWidth + "x" + imageHeight + 
+        Log.d(TAG, "Analyzing image for MRZ (frame #" + frameCounter + "): " + imageWidth + "x" + imageHeight + 
               ", rotation: " + rotationDegrees + "°");
         
         InputImage inputImage = InputImage.fromMediaImage(image.getImage(), rotationDegrees);
         
-        barcodeScanner.process(inputImage)
-                .addOnSuccessListener(barcodes -> {
-                    if (!barcodes.isEmpty() && isScanning) {
-                        isScanning = false;
-                        Barcode barcode = barcodes.get(0);
+        textRecognizer.process(inputImage)
+                .addOnSuccessListener(text -> {
+                    if (text != null && isScanning) {
+                        // Extract MRZ lines from recognized text
+                        String mrzText = extractMRZText(text);
                         
-                        // Comprehensive logging for debugging PDF417 issues
-                        Log.d(TAG, "========== BARCODE DETECTED ==========");
-                        Log.d(TAG, "Format: " + barcode.getFormat());
-                        Log.d(TAG, "Format Name: " + getBarcodeFormatName(barcode.getFormat()));
-                        
-                        String rawValue = barcode.getRawValue();
-                        String displayValue = barcode.getDisplayValue();
-                        byte[] rawBytes = barcode.getRawBytes();
-                        
-                        Log.d(TAG, "RawValue: " + (rawValue != null ? rawValue : "NULL"));
-                        Log.d(TAG, "RawValue Length: " + (rawValue != null ? rawValue.length() : 0));
-                        Log.d(TAG, "DisplayValue: " + (displayValue != null ? displayValue : "NULL"));
-                        Log.d(TAG, "DisplayValue Length: " + (displayValue != null ? displayValue.length() : 0));
-                        Log.d(TAG, "RawBytes: " + (rawBytes != null ? rawBytes.length + " bytes" : "NULL"));
-                        
-                        // Log bounding box for debugging
-                        if (barcode.getBoundingBox() != null) {
-                            Log.d(TAG, "BoundingBox: " + barcode.getBoundingBox().toString());
-                        }
-                        
-                        // Try multiple methods to extract data
-                        String extractedData = null;
-                        
-                        // Method 1: Try rawValue first
-                        if (rawValue != null && !rawValue.trim().isEmpty()) {
-                            extractedData = rawValue;
-                            Log.d(TAG, "Using rawValue for extraction");
-                        }
-                        // Method 2: Try displayValue
-                        else if (displayValue != null && !displayValue.trim().isEmpty()) {
-                            extractedData = displayValue;
-                            Log.d(TAG, "Using displayValue for extraction");
-                        }
-                        // Method 3: Try to convert rawBytes to string with multiple encodings
-                        else if (rawBytes != null && rawBytes.length > 0) {
-                            String[] encodings = {"UTF-8", "ISO-8859-1", "Windows-1252", "US-ASCII"};
-                            for (String encoding : encodings) {
-                                try {
-                                    String testData = new String(rawBytes, encoding);
-                                    // Check if this encoding produces readable text (not too many garbled chars)
-                                    long readableChars = testData.chars().filter(c -> 
-                                        (c >= 32 && c <= 126) || c == 10 || c == 13).count();
-                                    if (readableChars > testData.length() * 0.7) { // At least 70% readable
-                                        extractedData = testData;
-                                        Log.d(TAG, "Using rawBytes converted with encoding: " + encoding);
-                                        break;
-                                    }
-                                } catch (Exception e) {
-                                    Log.w(TAG, "Failed to convert rawBytes with " + encoding, e);
-                                }
-                            }
-                            // If no good encoding found, use UTF-8 as fallback
-                            if (extractedData == null) {
-                                try {
-                                    extractedData = new String(rawBytes, "UTF-8");
-                                    Log.d(TAG, "Using UTF-8 as fallback encoding");
-                                } catch (Exception e) {
-                                    Log.e(TAG, "Failed to convert rawBytes with any encoding", e);
-                                }
-                            }
-                        }
-                        
-                        // Process the extracted data
-                        if (extractedData != null && !extractedData.trim().isEmpty()) {
-                            Log.d(TAG, "Successfully extracted data: " + extractedData.substring(0, Math.min(100, extractedData.length())));
-                            // Remove debug Toast - data will be shown in dialog
-                            // Toast.makeText(this, "Data extracted: " + extractedData.substring(0, Math.min(50, extractedData.length())) + "...", Toast.LENGTH_LONG).show();
-                            processBarcodeData(extractedData);
-                        } else {
-                            // No data could be extracted
-                            Log.e(TAG, "========== FAILED TO EXTRACT DATA ==========");
-                            Log.e(TAG, "Barcode was detected but no readable data found!");
-                            Log.e(TAG, "This might be due to:");
-                            Log.e(TAG, "1. Encrypted/encoded PDF417 barcode");
-                            Log.e(TAG, "2. Poor image quality");
-                            Log.e(TAG, "3. ML Kit limitation with this specific barcode format");
+                        if (mrzText != null && !mrzText.trim().isEmpty()) {
+                            // Check if minimum scanning duration has elapsed
+                            long elapsedTime = System.currentTimeMillis() - scanningStartTime;
+                            boolean minDurationElapsed = elapsedTime >= MIN_SCANNING_DURATION_MS;
                             
-                            String errorMsg = getString(R.string.barcode_no_data) + "\nFormat: " + getBarcodeFormatName(barcode.getFormat());
-                            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
-                            
-                            // Don't stop scanning - let user try again
-                            isScanning = true;
-                            return;
-                        }
-                        
-                        // Stop camera
-                        if (camera != null) {
-                            try {
-                                camera.getCameraControl().setZoomRatio(1.0f);
-                            } catch (Exception e) {
-                                Log.w(TAG, "Error resetting zoom", e);
+                            if (!minDurationElapsed) {
+                                // Still within the 5-second focus period - don't process yet, just log
+                                long remainingTime = (MIN_SCANNING_DURATION_MS - elapsedTime + 999) / 1000; // Round up
+                                Log.d(TAG, "MRZ detected in frame #" + frameCounter + " but waiting " + remainingTime + " more second(s) for focusing...");
+                                // Continue scanning, don't process yet
+                                return;
                             }
-                        }
-                        stopBarcodeScanning();
-                    } else if (isScanning) {
-                        // Log when scanning but no barcode found (for debugging)
-                        Log.v(TAG, "Scanning... No barcode detected yet. Image: " + 
+                            
+                            // Add to frame buffer for consistency checking
+                            mrzFrameBuffer.add(mrzText);
+                            Log.d(TAG, "MRZ detected in frame #" + frameCounter + " (buffer size: " + mrzFrameBuffer.size() + ", elapsed: " + (elapsedTime / 1000) + "s)");
+                            
+                            // Require consistent detection across multiple frames to avoid false positives
+                            if (mrzFrameBuffer.size() >= MIN_CONSISTENT_DETECTIONS) {
+                                // Use the most recent detection (clearest image)
+                                String finalMrzText = mrzFrameBuffer.get(mrzFrameBuffer.size() - 1);
+                                Log.d(TAG, "========== MRZ TEXT CONFIRMED (detected " + mrzFrameBuffer.size() + " times after " + (elapsedTime / 1000) + "s) ==========");
+                                Log.d(TAG, "MRZ Text:\n" + finalMrzText);
+                                
+                                isScanning = false;
+                                mrzFrameBuffer.clear();
+                                processMRZData(finalMrzText);
+                                
+                                // Stop camera
+                                stopBarcodeScanning();
+                            } else {
+                                // Continue scanning to get more consistent detections
+                                Log.d(TAG, "MRZ detected but need " + (MIN_CONSISTENT_DETECTIONS - mrzFrameBuffer.size()) + " more consistent detections");
+                            }
+                        } else if (isScanning) {
+                            // Reset buffer if MRZ not detected in this frame
+                            if (mrzFrameBuffer.size() > 0) {
+                                Log.d(TAG, "MRZ lost in frame #" + frameCounter + ", resetting buffer");
+                                mrzFrameBuffer.clear();
+                            }
+                            // Continue scanning - MRZ not found yet
+                            Log.v(TAG, "Scanning... MRZ not detected yet. Image: " + 
                               imageWidth + "x" + imageHeight);
+                        }
                     }
                 })
                 .addOnFailureListener(e -> {
-                    // Enhanced error logging for debugging PDF417 scanning issues
-                    Log.e(TAG, "Barcode scanning failed", e);
+                    Log.e(TAG, "MRZ text recognition failed", e);
                     Log.e(TAG, "Error details - Image size: " + imageWidth + "x" + imageHeight + 
                           ", Rotation: " + rotationDegrees + "°, Error: " + e.getMessage());
                     if (e.getCause() != null) {
                         Log.e(TAG, "Error cause: " + e.getCause().getMessage());
                     }
+                    // Reset buffer on error
+                    mrzFrameBuffer.clear();
                 })
                 .addOnCompleteListener(result -> image.close());
     }
     
-    private void processBarcodeData(String rawData) {
-        // Parse PDF417 data (this is a simplified parser - real implementation would be more complex)
-        try {
-            Log.d(TAG, "RAW BARCODE DATA:\n" + rawData);
-            // Print raw first for debugging
-            Log.d(TAG, "RAW:" + rawData);
-
-            // Clean the data - remove or replace garbled characters
-            String cleanedData = rawData.replaceAll("[\\uFFFD\\u0000-\\u001F]", " "); // Replace replacement chars and control chars
-            cleanedData = cleanedData.replaceAll("\\s+", " "); // Normalize whitespace
-            
-            // Support both DMV-like and key:value formats
-            String[] lines = cleanedData.split("[\n\r]+");
-            CustomerEntity customer = new CustomerEntity();
-            
-            // Method 1: Try DMV/AAMVA format (DCS, DCT, DBB, etc.)
-            for (String line : lines) {
-                line = line.trim();
-                if (line.isEmpty()) continue;
+    /**
+     * Extract MRZ lines from recognized text
+     * Looks for lines that match MRZ format (long lines with letters, numbers, and <)
+     */
+    private String extractMRZText(Text text) {
+        if (text == null) {
+            Log.w(TAG, "Text recognition returned null");
+            return null;
+        }
+        
+        // Debug: log all recognized text
+        String allText = text.getText();
+        Log.d(TAG, "========== RECOGNIZED TEXT ==========");
+        Log.d(TAG, "Full text: " + allText);
+        Log.d(TAG, "Text blocks count: " + text.getTextBlocks().size());
+        
+        java.util.List<String> mrzLines = new java.util.ArrayList<>();
+        
+        // Get all text blocks and lines
+        for (Text.TextBlock block : text.getTextBlocks()) {
+            Log.d(TAG, "TextBlock: " + block.getText());
+            for (Text.Line line : block.getLines()) {
+                String lineText = line.getText().trim();
+                String originalLine = lineText;
+                Log.d(TAG, "Line: [" + lineText + "]");
                 
-                if (line.contains("DCS")) { // Last name
-                    customer.setFullName(line.substring(3).trim());
-                } else if (line.contains("DCT")) { // First name
-                    String firstName = line.substring(3).trim();
-                    String fullName = (customer.getFullName() != null ? customer.getFullName() + " " : "") + firstName;
-                    customer.setFullName(fullName);
-                } else if (line.contains("DBB")) { // Date of birth
-                    String dob = line.substring(3).trim();
-                    customer.setDateOfBirth(formatDate(dob));
-                } else if (line.contains("DAJ")) { // Issue date
-                    String issueDate = line.substring(3).trim();
-                    customer.setIssueDate(formatDateYYYYMMDD(issueDate));
-                } else if (line.contains("DBA")) { // Expiry date
-                    String expiryDate = line.substring(3).trim();
-                    customer.setExpiryDate(formatDateYYYYMMDD(expiryDate));
-                } else if (line.contains("DAG")) { // National ID
-                    customer.setNationalIdNumber(line.substring(3).trim());
-                } else if (line.contains(":")) { // key:value fallbacks
-                    String[] parts = line.split(":", 2);
-                    if (parts.length == 2) {
-                        String key = parts[0].trim().toLowerCase();
-                        String value = parts[1].trim();
-                        switch (key) {
-                            case "name":
-                                customer.setFullName(value);
-                                break;
-                            case "dob":
-                            case "dateofbirth":
-                                customer.setDateOfBirth(formatDate(value.replace("-", "")));
-                                break;
-                            case "id":
-                            case "nationalid":
-                            case "national_id":
-                                customer.setNationalIdNumber(value);
-                                break;
-                            case "issue":
-                            case "issuedate":
-                                customer.setIssueDate(formatDateYYYYMMDD(value.replace("-", "")));
-                                break;
-                            case "expiry":
-                            case "expirydate":
-                                customer.setExpiryDate(formatDateYYYYMMDD(value.replace("-", "")));
-                                break;
-                        }
-                    }
-                }
-            }
-            
-            // Method 2: Pattern-based extraction (for unstructured data like ID cards)
-            // Extract ID - look for "ID" followed by numbers/letters
-            if (customer.getNationalIdNumber() == null || customer.getNationalIdNumber().isEmpty()) {
-                java.util.regex.Pattern idPattern = java.util.regex.Pattern.compile("ID\\s*([A-Z0-9]{10,})", java.util.regex.Pattern.CASE_INSENSITIVE);
-                java.util.regex.Matcher idMatcher = idPattern.matcher(cleanedData);
-                if (idMatcher.find()) {
-                    customer.setNationalIdNumber(idMatcher.group(1));
-                    Log.d(TAG, "Extracted ID using pattern: " + idMatcher.group(1));
-                }
-            }
-            
-            // Extract names - look for sequences of capital letters (likely names like "FETIEMA KASSOUM")
-            if (customer.getFullName() == null || customer.getFullName().isEmpty()) {
-                java.util.regex.Pattern namePattern = java.util.regex.Pattern.compile("([A-Z]{3,}(?:\\s+[A-Z]{3,}){1,3})");
-                java.util.regex.Matcher nameMatcher = namePattern.matcher(cleanedData);
-                java.util.ArrayList<String> names = new java.util.ArrayList<>();
-                while (nameMatcher.find()) {
-                    String name = nameMatcher.group(1);
-                    // Filter out common non-name patterns (country codes, etc.)
-                    if (!name.matches("(BFA|SXM|HT|FO|AN|ID|DOB|EXP|ISS|DFN).*")) {
-                        names.add(name);
-                    }
-                }
-                if (!names.isEmpty()) {
-                    // Use the longest name as it's likely the full name
-                    String fullName = names.stream()
-                            .max((a, b) -> Integer.compare(a.length(), b.length()))
-                            .orElse("");
-                    if (fullName.length() > 5) { // Minimum reasonable name length
-                        customer.setFullName(fullName);
-                        Log.d(TAG, "Extracted name using pattern: " + fullName);
-                    }
-                }
-            }
-            
-            // Extract dates - look for date patterns (YYYYMMDD, YYMMDD, etc.) with validation
-            if (customer.getDateOfBirth() == null || customer.getDateOfBirth().isEmpty()) {
-                java.util.ArrayList<String> validDates = new java.util.ArrayList<>();
+                // Convert to uppercase for processing
+                lineText = lineText.toUpperCase();
                 
-                // Try 6-digit dates first (YYMMDD) - more common in ID cards
-                java.util.regex.Pattern datePattern6 = java.util.regex.Pattern.compile("(\\d{6})");
-                java.util.regex.Matcher dateMatcher6 = datePattern6.matcher(cleanedData);
+                // Handle common OCR mistakes for < character:
+                // < might be recognized as: |, /, \, etc.
+                // DO NOT replace I or 1 globally as they are legitimate MRZ characters:
+                // - I can be part of document type (e.g., "I<" at start)
+                // - 1 can be part of dates or document numbers
+                // Date OCR errors will be handled separately in MRZParser.cleanDateString()
+                String normalized = lineText
+                    .replaceAll("\\|+", "<")    // | (pipe) might be <
+                    .replaceAll("[/\\\\]+", "<")  // / or \ might be <
+                    .replaceAll("\\s+", "");     // Remove all spaces
                 
-                while (dateMatcher6.find()) {
-                    String dateStr = dateMatcher6.group(1);
-                    try {
-                        int year = Integer.parseInt(dateStr.substring(0, 2));
-                        int month = Integer.parseInt(dateStr.substring(2, 4));
-                        int day = Integer.parseInt(dateStr.substring(4, 6));
+                // More conservative: check if line has MRZ characteristics
+                // MRZ lines are long (30+ chars) and contain mix of letters/numbers
+                // They may or may not have < characters (OCR might miss them)
+                
+                // Check if line is long enough
+                if (normalized.length() >= 28) { // Slightly lower threshold (28 instead of 30)
+                    // Check if it contains mostly alphanumeric (and possibly <)
+                    long alphanumericCount = normalized.chars()
+                        .filter(c -> (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '<')
+                        .count();
+                    
+                    // If at least 90% is alphanumeric or <, it's likely MRZ
+                    double alphanumericRatio = (double) alphanumericCount / normalized.length();
+                    
+                    if (alphanumericRatio >= 0.85) {
+                        // Check if line looks like MRZ format
+                        // TD1 lines are exactly 30 chars, but OCR might not be perfect
+                        // Look for pattern: starts with document type (I, P, A, C) or country code
+                        boolean looksLikeMRZ = false;
                         
-                        // Validate: month (1-12) and day (1-31)
-                        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                            // Prefer years 20-99 (1920-1999) or 00-30 (2000-2030)
-                            if ((year >= 20 && year <= 99) || (year >= 0 && year <= 30)) {
-                                validDates.add(dateStr);
-                                Log.d(TAG, "Found valid 6-digit date: " + dateStr);
+                        // Check if starts with document type indicators
+                        if (normalized.length() > 2) {
+                            char firstChar = normalized.charAt(0);
+                            // TD1/TD2/TD3 typically start with P, I, A, C, or have country code at pos 2-4
+                            if (firstChar == 'P' || firstChar == 'I' || firstChar == 'A' || firstChar == 'C') {
+                                looksLikeMRZ = true;
+                            } else if (normalized.length() > 5) {
+                                // Check if positions 2-4 might be country code (3 uppercase letters)
+                                String possibleCountry = normalized.substring(2, Math.min(5, normalized.length()));
+                                if (possibleCountry.matches("[A-Z]{3}")) {
+                                    looksLikeMRZ = true;
+                                }
                             }
                         }
-                    } catch (Exception e) {
-                        Log.w(TAG, "Error validating 6-digit date: " + dateStr, e);
-                    }
-                }
-                
-                // Try 8-digit dates (YYYYMMDD) with validation
-                java.util.regex.Pattern datePattern8 = java.util.regex.Pattern.compile("(\\d{8})");
-                java.util.regex.Matcher dateMatcher8 = datePattern8.matcher(cleanedData);
-                
-                while (dateMatcher8.find()) {
-                    String dateStr = dateMatcher8.group(1);
-                    try {
-                        int year = Integer.parseInt(dateStr.substring(0, 4));
-                        int month = Integer.parseInt(dateStr.substring(4, 6));
-                        int day = Integer.parseInt(dateStr.substring(6, 8));
                         
-                        // Validate: year should be reasonable (1900-2100)
-                        if (year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-                            validDates.add(dateStr);
-                            Log.d(TAG, "Found valid 8-digit date: " + dateStr);
+                        // Also check if line has pattern of dates (YYMMDD)
+                        if (normalized.matches(".*\\d{6}.*")) {
+                            looksLikeMRZ = true;
                         }
-                    } catch (Exception e) {
-                        Log.w(TAG, "Error validating 8-digit date: " + dateStr, e);
+                        
+                        if (looksLikeMRZ || alphanumericRatio >= 0.95) {
+                            mrzLines.add(normalized);
+                            Log.d(TAG, "Found potential MRZ line: " + normalized.substring(0, Math.min(44, normalized.length())));
+                            Log.d(TAG, "Original line was: " + originalLine);
+                        }
                     }
-                }
-                
-                // Use the first valid date found (usually DOB appears first in ID cards)
-                if (!validDates.isEmpty()) {
-                    String dateStr = validDates.get(0);
-                    customer.setDateOfBirth(formatDate(dateStr));
-                    Log.d(TAG, "Extracted DOB using pattern: " + dateStr + " -> " + customer.getDateOfBirth());
-                } else {
-                    Log.d(TAG, "No valid dates found in barcode data");
                 }
             }
+        }
+        
+        Log.d(TAG, "Total MRZ lines found: " + mrzLines.size());
+        for (int i = 0; i < mrzLines.size(); i++) {
+            Log.d(TAG, "MRZ Line " + (i + 1) + ": " + mrzLines.get(i));
+        }
+        
+        // For TD1 format, we need 3 lines, but accept 2+ lines to be more flexible
+        if (mrzLines.size() >= 2) {
+            // Join lines with newline
+            String result = String.join("\n", mrzLines);
+            Log.d(TAG, "Returning MRZ text with " + mrzLines.size() + " lines");
+            return result;
+        }
+        
+        Log.w(TAG, "Not enough MRZ lines found (found " + mrzLines.size() + ", need at least 2)");
+        return null;
+    }
+    
+    /**
+     * Process MRZ data and populate customer entity
+     */
+    private void processMRZData(String mrzText) {
+        try {
+            Log.d(TAG, "Processing MRZ data:\n" + mrzText);
             
-            // Set metadata
-            // Ensure ID exists; fallback to timestamp id
+            // Parse MRZ using MRZParser
+            MRZParser.MRZData mrzData = MRZParser.parseMRZ(mrzText);
+            
+            if (mrzData == null || !mrzData.isValid()) {
+                Log.w(TAG, "Failed to parse MRZ or invalid MRZ data");
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Unable to read MRZ data. Please hold the document steady, ensure good lighting, and try again.", Toast.LENGTH_LONG).show();
+                });
+                // Continue scanning - reset buffer to allow fresh detection
+                mrzFrameBuffer.clear();
+                frameCounter = 0;
+                isScanning = true;
+                return;
+            }
+            
+            // Create customer entity from MRZ data
+            CustomerEntity customer = new CustomerEntity();
+            
+            // Map MRZ data to customer fields
+            customer.setFullName(mrzData.fullName);
+            customer.setNationalIdNumber(mrzData.nationalIdNumber != null ? mrzData.nationalIdNumber : mrzData.documentNumber);
+            customer.setDateOfBirth(mrzData.dateOfBirth); // Already in YYYY-MM-DD format
+            customer.setExpiryDate(mrzData.expiryDate); // Already in YYYY-MM-DD format
+            customer.setDocumentType(mrzData.documentTypeName);
+            
+            // Set ID based on national ID number or document number
             if (customer.getNationalIdNumber() != null && !customer.getNationalIdNumber().isEmpty()) {
                 customer.setId(customer.getNationalIdNumber());
+            } else if (mrzData.documentNumber != null && !mrzData.documentNumber.isEmpty()) {
+                customer.setId(mrzData.documentNumber);
             } else {
                 customer.setId("customer_" + System.currentTimeMillis());
             }
+            
             if (currentUser != null) {
                 customer.setCreatedBy(currentUser.getUid());
             }
@@ -675,41 +631,50 @@ public class CustomerManagementActivity extends AppCompatActivity {
                                    (customer.getNationalIdNumber() != null && !customer.getNationalIdNumber().isEmpty()) ||
                                    (customer.getDateOfBirth() != null && !customer.getDateOfBirth().isEmpty());
             
-            // Show parsed preview
-            String preview = "Name: " + (customer.getFullName() == null || customer.getFullName().isEmpty() ? "" : customer.getFullName()) +
-                    "\nDOB: " + (customer.getDateOfBirth() == null || customer.getDateOfBirth().isEmpty() ? "" : customer.getDateOfBirth()) +
-                    "\nID: " + (customer.getNationalIdNumber() == null || customer.getNationalIdNumber().isEmpty() ? "" : customer.getNationalIdNumber()) +
-                    "\nIssue: " + (customer.getIssueDate() == null || customer.getIssueDate().isEmpty() ? "" : customer.getIssueDate()) +
-                    "\nExpiry: " + (customer.getExpiryDate() == null || customer.getExpiryDate().isEmpty() ? "" : customer.getExpiryDate());
-            
-            // If no data was parsed, show raw data for debugging
             if (!hasParsedData) {
-                preview += "\n\n--- Raw Barcode Data (Not Parsed) ---\n" + 
-                          rawData.substring(0, Math.min(500, rawData.length()));
-                Log.w(TAG, "No data could be parsed from barcode. Raw data: " + rawData);
+                Log.w(TAG, "No valid data parsed from MRZ");
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "No valid data found in MRZ. Please ensure the MRZ zone is clearly visible and try again.", Toast.LENGTH_LONG).show();
+                });
+                // Continue scanning - reset buffer to allow fresh detection
+                mrzFrameBuffer.clear();
+                frameCounter = 0;
+                isScanning = true;
+                return;
             }
             
+            // Show parsed preview
+            String preview = "Name: " + (customer.getFullName() != null ? customer.getFullName() : "") +
+                    "\nDOB: " + (customer.getDateOfBirth() != null ? customer.getDateOfBirth() : "") +
+                    "\nID: " + (customer.getNationalIdNumber() != null ? customer.getNationalIdNumber() : "") +
+                    "\nDocument Type: " + (customer.getDocumentType() != null ? customer.getDocumentType() : "") +
+                    "\nExpiry: " + (customer.getExpiryDate() != null ? customer.getExpiryDate() : "");
+            
+            runOnUiThread(() -> {
             new android.app.AlertDialog.Builder(this)
-                    .setTitle("Scanned Data")
+                        .setTitle("Scanned MRZ Data")
                     .setMessage(preview)
                     .setPositiveButton("Use Data", (d, w) -> showCustomerFormDialog(customer, true))
                     .setNegativeButton(android.R.string.cancel, null)
                     .show();
+            });
             
-            if (hasParsedData) {
-                Toast.makeText(this, getString(R.string.barcode_data_extracted), Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Data extracted but format not recognized. Check dialog for raw data.", Toast.LENGTH_LONG).show();
-            }
+            Log.d(TAG, "MRZ data processed successfully");
             
         } catch (Exception e) {
-            Log.e(TAG, "Error parsing barcode data", e);
-            Toast.makeText(this, getString(R.string.barcode_scan_failed), Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Error processing MRZ data", e);
+            runOnUiThread(() -> {
+                Toast.makeText(this, "Error processing MRZ. Please try again.", Toast.LENGTH_SHORT).show();
+            });
+            // Continue scanning on error - reset buffer
+            mrzFrameBuffer.clear();
+            frameCounter = 0;
+            isScanning = true;
         }
     }
     
     /**
-     * Setup automatic date formatting for DD-MM-YYYY format with dashes
+     * Setup automatic date formatting for YYYY-MM-DD format with dashes
      */
     private void setupDateOfBirthFormatting(EditText etDateOfBirth) {
         etDateOfBirth.addTextChangedListener(new android.text.TextWatcher() {
@@ -726,9 +691,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 String input = s.toString().replaceAll("[^\\d]", ""); // Remove non-digits
                 StringBuilder formatted = new StringBuilder();
                 
-                // Format as DD-MM-YYYY
+                // Format as YYYY-MM-DD
                 for (int i = 0; i < input.length() && i < 8; i++) {
-                    if (i == 2 || i == 4) {
+                    if (i == 4 || i == 6) {
                         formatted.append("-");
                     }
                     formatted.append(input.charAt(i));
@@ -736,7 +701,7 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 
                 // Update cursor position
                 int cursorPos = formatted.length();
-                if (cursorPos > 10) cursorPos = 10; // Max length DD-MM-YYYY
+                if (cursorPos > 10) cursorPos = 10; // Max length YYYY-MM-DD
                 
                 etDateOfBirth.setText(formatted.toString());
                 etDateOfBirth.setSelection(Math.min(cursorPos, formatted.length()));
@@ -750,38 +715,38 @@ public class CustomerManagementActivity extends AppCompatActivity {
     }
     
     /**
-     * Convert date from various formats to DD-MM-YYYY format for display
+     * Convert date from various formats to YYYY-MM-DD format for display
      */
-    private String convertDateToDDMMYYYY(String date) {
+    private String convertDateToYYYYMMDD(String date) {
         if (date == null || date.trim().isEmpty()) return "";
         
         try {
             String cleanDate = date.trim();
             
-            // If already in DD-MM-YYYY format
-            if (cleanDate.matches("\\d{2}-\\d{2}-\\d{4}")) {
+            // If already in YYYY-MM-DD format
+            if (cleanDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
                 return cleanDate;
             }
             
-            // If in YYYY-MM-DD format
-            if (cleanDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            // If in DD-MM-YYYY format
+            if (cleanDate.matches("\\d{2}-\\d{2}-\\d{4}")) {
                 String[] parts = cleanDate.split("-");
-                return parts[2] + "-" + parts[1] + "-" + parts[0]; // DD-MM-YYYY
+                return parts[2] + "-" + parts[1] + "-" + parts[0]; // YYYY-MM-DD
             }
             
             // If in YYYYMMDD format
             if (cleanDate.matches("\\d{8}")) {
-                return cleanDate.substring(6, 8) + "-" + cleanDate.substring(4, 6) + "-" + cleanDate.substring(0, 4);
+                return cleanDate.substring(0, 4) + "-" + cleanDate.substring(4, 6) + "-" + cleanDate.substring(6, 8);
             }
             
             // If in YYMMDD format
             if (cleanDate.matches("\\d{6}")) {
                 int year = Integer.parseInt(cleanDate.substring(0, 2));
                 String fullYear = (year >= 0 && year <= 30) ? "20" + String.format("%02d", year) : "19" + String.format("%02d", year);
-                return cleanDate.substring(4, 6) + "-" + cleanDate.substring(2, 4) + "-" + fullYear;
+                return fullYear + "-" + cleanDate.substring(2, 4) + "-" + cleanDate.substring(4, 6);
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error converting date to DD-MM-YYYY: " + date, e);
+            Log.e(TAG, "Error converting date to YYYY-MM-DD: " + date, e);
         }
         
         return date; // Return as-is if conversion fails
@@ -871,39 +836,6 @@ public class CustomerManagementActivity extends AppCompatActivity {
         return ""; // Return empty string if date format is not recognized or invalid
     }
     
-    private String getBarcodeFormatName(int format) {
-        switch (format) {
-            case Barcode.FORMAT_PDF417:
-                return "PDF417";
-            case Barcode.FORMAT_CODE_128:
-                return "CODE_128";
-            case Barcode.FORMAT_CODE_39:
-                return "CODE_39";
-            case Barcode.FORMAT_CODE_93:
-                return "CODE_93";
-            case Barcode.FORMAT_CODABAR:
-                return "CODABAR";
-            case Barcode.FORMAT_DATA_MATRIX:
-                return "DATA_MATRIX";
-            case Barcode.FORMAT_EAN_13:
-                return "EAN_13";
-            case Barcode.FORMAT_EAN_8:
-                return "EAN_8";
-            case Barcode.FORMAT_ITF:
-                return "ITF";
-            case Barcode.FORMAT_QR_CODE:
-                return "QR_CODE";
-            case Barcode.FORMAT_UPC_A:
-                return "UPC_A";
-            case Barcode.FORMAT_UPC_E:
-                return "UPC_E";
-            case Barcode.FORMAT_AZTEC:
-                return "AZTEC";
-            default:
-                return "UNKNOWN (" + format + ")";
-        }
-    }
-    
     private void showAddCustomerDialog() {
         showCustomerFormDialog(new CustomerEntity(), false);
     }
@@ -974,7 +906,7 @@ public class CustomerManagementActivity extends AppCompatActivity {
         if (fromBarcode || customer.getId() != null) {
             etFullName.setText(customer.getFullName());
             // Convert date from stored format (could be YYYY-MM-DD or DD-MM-YYYY) to DD-MM-YYYY for display
-            String dobDisplay = convertDateToDDMMYYYY(customer.getDateOfBirth());
+            String dobDisplay = convertDateToYYYYMMDD(customer.getDateOfBirth());
             etDateOfBirth.setText(dobDisplay);
             
             // Set document type spinner
@@ -1013,7 +945,7 @@ public class CustomerManagementActivity extends AppCompatActivity {
         dialog.setOnShowListener(dlg -> {
             android.widget.Button btnSave = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             btnSave.setOnClickListener(v -> {
-                if (validateCustomerForm(etFullName, etDateOfBirth, etNationalId, etIssueDate, etExpiryDate, etEmail)) {
+                if (validateCustomerForm(etFullName, etDateOfBirth, etNationalId, etIssueDate, etExpiryDate, etEmail, etPhoneNumber)) {
                     String selectedDocType = spinnerDocumentType.getSelectedItemPosition() >= 0 ? 
                             documentTypes[spinnerDocumentType.getSelectedItemPosition()] : null;
                     saveCustomer(customer, etFullName, etDateOfBirth, selectedDocType, etNationalId, etIssueDate, etExpiryDate, etPhoneNumber, etAddress, etEmail);
@@ -1027,22 +959,22 @@ public class CustomerManagementActivity extends AppCompatActivity {
     }
     
     private boolean validateCustomerForm(EditText etFullName, EditText etDateOfBirth, EditText etNationalId, 
-                                       EditText etIssueDate, EditText etExpiryDate, EditText etEmail) {
+                                       EditText etIssueDate, EditText etExpiryDate, EditText etEmail, EditText etPhoneNumber) {
         if (TextUtils.isEmpty(etFullName.getText())) {
             etFullName.setError(getString(R.string.required_fields_missing));
-            return false;
-        }
-        if (TextUtils.isEmpty(etDateOfBirth.getText())) {
-            etDateOfBirth.setError(getString(R.string.required_fields_missing));
             return false;
         }
         if (TextUtils.isEmpty(etNationalId.getText())) {
             etNationalId.setError(getString(R.string.required_fields_missing));
             return false;
         }
+        if (TextUtils.isEmpty(etPhoneNumber.getText())) {
+            etPhoneNumber.setError(getString(R.string.required_fields_missing));
+            return false;
+        }
         
-        // Validate date formats - Date of Birth uses DD-MM-YYYY, Issue/Expiry use YYYY-MM-DD
-        if (!isValidDateFormat(etDateOfBirth.getText().toString())) {
+        // Validate date formats - All dates use YYYY-MM-DD format
+        if (!TextUtils.isEmpty(etDateOfBirth.getText()) && !isValidDateFormatYYYYMMDD(etDateOfBirth.getText().toString())) {
             etDateOfBirth.setError(getString(R.string.invalid_date_format));
             return false;
         }
@@ -1160,14 +1092,45 @@ public class CustomerManagementActivity extends AppCompatActivity {
                             EditText etPhoneNumber, EditText etAddress, EditText etEmail) {
         new Thread(() -> {
             try {
+                String phoneNumber = etPhoneNumber.getText().toString().trim();
+                
                 // Check if customer with same National ID already exists (for new customers)
                 if (customer.getId() == null) {
-                    CustomerEntity existingCustomer = database.customerDao().getCustomerByNationalId(etNationalId.getText().toString());
-                    if (existingCustomer != null) {
+                    CustomerEntity existingCustomerById = database.customerDao().getCustomerByNationalId(etNationalId.getText().toString());
+                    if (existingCustomerById != null) {
                         runOnUiThread(() -> {
                             Toast.makeText(this, getString(R.string.customer_already_exists), Toast.LENGTH_SHORT).show();
                         });
                         return;
+                    }
+                    
+                    // Check if customer with same phone number already exists for this agent (for new customers only)
+                    if (phoneNumber != null && !phoneNumber.isEmpty() && currentUser != null) {
+                        CustomerEntity existingCustomerByPhone = database.customerDao().getCustomerByPhoneNumberAndUser(phoneNumber, currentUser.getUid());
+                        if (existingCustomerByPhone != null) {
+                            // Show dialog offering to select existing customer
+                            CustomerEntity finalExistingCustomer = existingCustomerByPhone;
+                            runOnUiThread(() -> {
+                                showDuplicatePhoneDialog(finalExistingCustomer, customer, etFullName, etDateOfBirth, 
+                                        documentType, etNationalId, etIssueDate, etExpiryDate, etPhoneNumber, etAddress, etEmail);
+                            });
+                            return;
+                        }
+                    }
+                } else {
+                    // For editing existing customers, check phone number but exclude current customer ID
+                    if (phoneNumber != null && !phoneNumber.isEmpty() && currentUser != null) {
+                        CustomerEntity existingCustomerByPhone = database.customerDao().getCustomerByPhoneNumberAndUserExcluding(
+                                phoneNumber, currentUser.getUid(), customer.getId());
+                        if (existingCustomerByPhone != null) {
+                            // Show dialog offering to select existing customer
+                            CustomerEntity finalExistingCustomer = existingCustomerByPhone;
+                            runOnUiThread(() -> {
+                                showDuplicatePhoneDialog(finalExistingCustomer, customer, etFullName, etDateOfBirth, 
+                                        documentType, etNationalId, etIssueDate, etExpiryDate, etPhoneNumber, etAddress, etEmail);
+                            });
+                            return;
+                        }
                     }
                 }
                 
@@ -1183,14 +1146,19 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 customer.setFullName(etFullName.getText().toString());
                 customer.setDocumentType(documentType);
                 
-                // Format and validate date of birth (stored as DD-MM-YYYY)
+                // Format and validate date of birth (stored as YYYY-MM-DD)
                 String dobText = etDateOfBirth.getText().toString().trim();
-                if (!dobText.isEmpty() && isValidDateFormat(dobText)) {
-                    customer.setDateOfBirth(dobText); // Store as DD-MM-YYYY
-                    Log.d(TAG, "Date of birth saved: " + dobText);
+                if (!dobText.isEmpty()) {
+                    String normalizedDob = normalizeDateFormat(dobText);
+                    if (normalizedDob != null && isValidDateFormatYYYYMMDD(normalizedDob)) {
+                        customer.setDateOfBirth(normalizedDob); // Store as YYYY-MM-DD
+                        Log.d(TAG, "Date of birth normalized: " + dobText + " -> " + normalizedDob);
+                    } else {
+                        customer.setDateOfBirth(null);
+                        Log.w(TAG, "Invalid date of birth format: " + dobText);
+                    }
                 } else {
                     customer.setDateOfBirth(null);
-                    Log.w(TAG, "Invalid date of birth format: " + dobText);
                 }
                 
                 customer.setNationalIdNumber(etNationalId.getText().toString());
@@ -1250,6 +1218,49 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 });
             }
         }).start();
+    }
+    
+    private void showDuplicatePhoneDialog(CustomerEntity existingCustomer, CustomerEntity newCustomer, 
+                                         EditText etFullName, EditText etDateOfBirth, String documentType,
+                                         EditText etNationalId, EditText etIssueDate, EditText etExpiryDate,
+                                         EditText etPhoneNumber, EditText etAddress, EditText etEmail) {
+        String customerName = existingCustomer.getFullName() != null ? existingCustomer.getFullName() : "N/A";
+        String customerPhone = existingCustomer.getPhoneNumber() != null ? existingCustomer.getPhoneNumber() : "N/A";
+        String message = String.format(getString(R.string.customer_exists_phone_message), customerName, customerPhone);
+        
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.select_existing_customer))
+                .setMessage(message)
+                .setPositiveButton(getString(R.string.select_customer), (dialog, which) -> {
+                    // Select the existing customer - scroll to it in the list
+                    selectExistingCustomer(existingCustomer);
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
+    }
+    
+    private void selectExistingCustomer(CustomerEntity customer) {
+        // Reload customers to ensure the list is up to date
+        loadCustomers();
+        
+        // Scroll to the customer in the RecyclerView
+        runOnUiThread(() -> {
+            int position = -1;
+            for (int i = 0; i < customers.size(); i++) {
+                if (customers.get(i).getId().equals(customer.getId())) {
+                    position = i;
+                    break;
+                }
+            }
+            
+            if (position >= 0) {
+                recyclerViewCustomers.scrollToPosition(position);
+                // Highlight the customer by showing their details
+                showCustomerDetailsDialog(customer);
+            } else {
+                Toast.makeText(this, getString(R.string.customer_details), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
     
     private void deleteCustomer(CustomerEntity customer) {
@@ -1324,8 +1335,8 @@ public class CustomerManagementActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (barcodeScanner != null) {
-            barcodeScanner.close();
+        if (textRecognizer != null) {
+            textRecognizer.close();
         }
     }
 }

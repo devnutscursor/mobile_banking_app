@@ -32,7 +32,7 @@ import com.example.myapplication.database.dao.CommissionDao;
     entities = {UserEntity.class, LicenseEntity.class, SessionEntity.class, CredentialEntity.class, CustomerEntity.class,
             OperatorEntity.class, OperatorActionEntity.class, TransactionEntity.class, BalanceAdjustmentEntity.class,
             CommissionRateEntity.class, CommissionEntity.class},
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -71,7 +71,29 @@ public abstract class AppDatabase extends RoomDatabase {
     }
     
     public static void destroyInstance() {
+        if (INSTANCE != null) {
+            INSTANCE.close();
+            INSTANCE = null;
+        }
+    }
+    
+    /**
+     * Clear all data from the database and recreate it
+     * WARNING: This will delete all local data!
+     */
+    public static void clearDatabase(Context context) {
+        destroyInstance();
+        context.deleteDatabase(DATABASE_NAME);
+        // Also delete any journal files
+        String[] dbFiles = context.databaseList();
+        for (String dbFile : dbFiles) {
+            if (dbFile.startsWith(DATABASE_NAME)) {
+                context.deleteDatabase(dbFile.replace(".db", "").replace("-wal", "").replace("-shm", ""));
+            }
+        }
+        // Clear the instance so it will be recreated
         INSTANCE = null;
+        android.util.Log.d("AppDatabase", "Database cleared and will be recreated on next access");
     }
 }
 

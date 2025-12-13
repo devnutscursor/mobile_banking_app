@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import { exportCommissionsToExcel, exportCommissionSummaryToExcel } from '@/lib/exportUtils';
 import { useAuth } from '@/lib/authContext';
+import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
 
 interface FilteredCommissionsTabProps {
   allowedUserIds?: string[];
@@ -167,7 +168,7 @@ export default function FilteredCommissionsTab({ allowedUserIds, showExport = tr
       key: 'totalCommission',
       render: (amt: number) => (
         <Typography.Text strong style={{ color: colors.beige[500] }}>
-          ${amt.toFixed(2)}
+          {formatCurrencyWithSymbol(amt)}
         </Typography.Text>
       ),
     },
@@ -202,7 +203,7 @@ export default function FilteredCommissionsTab({ allowedUserIds, showExport = tr
       title: 'Transaction Amount',
       dataIndex: 'transactionAmount',
       key: 'transactionAmount',
-      render: (amt: number) => `$${amt.toFixed(2)}`,
+      render: (amt: number) => formatCurrencyWithSymbol(amt),
     },
     {
       title: 'Commission Rate (%)',
@@ -216,7 +217,7 @@ export default function FilteredCommissionsTab({ allowedUserIds, showExport = tr
       key: 'totalCommission',
       render: (amt: number) => (
         <Typography.Text strong style={{ color: colors.beige[500] }}>
-          ${amt.toFixed(2)}
+          {formatCurrencyWithSymbol(amt)}
         </Typography.Text>
       ),
     },

@@ -50,7 +50,8 @@
             android:id="@+id/etCreditAmount"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="numberDecimal"
+            android:inputType="text"
+            android:digits="0123456789,."
             android:textColor="@android:color/black"
             android:textColorHint="@color/text_on_light_glass" />
 

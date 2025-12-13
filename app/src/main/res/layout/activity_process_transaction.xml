@@ -191,6 +191,20 @@
 
                     </LinearLayout>
 
+                    <!-- Customer Phone Number Search -->
+                    <EditText
+                        android:id="@+id/etCustomerSearch"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:background="@drawable/edittext_background"
+                        android:hint="@string/search_by_phone_number"
+                        android:inputType="phone"
+                        android:padding="12dp"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_secondary"
+                        android:layout_marginBottom="12dp" />
+
                     <Spinner
                         android:id="@+id/spinnerCustomer"
                         android:layout_width="match_parent"
@@ -219,7 +233,8 @@
                         android:layout_height="56dp"
                         android:background="@drawable/edittext_background"
                         android:hint="@string/amount"
-                        android:inputType="numberDecimal"
+                        android:inputType="text"
+                        android:digits="0123456789,."
                         android:padding="16dp"
                         android:textSize="16sp"
                         android:textColor="@color/text_primary"

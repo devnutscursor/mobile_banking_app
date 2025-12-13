@@ -9,6 +9,7 @@ import { db, getSecondaryAuth, signOutSecondary } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
+import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
 
 interface DealersTabProps {
   onUpdate: () => void;
@@ -151,7 +152,7 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
       render: (v: number) => (
         <Space>
           <DollarOutlined />
-          <Typography.Text style={{ color: colors.beige[500] }}>${v || 0}</Typography.Text>
+          <Typography.Text style={{ color: colors.beige[500] }}>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
         </Space>
       ),
     },
@@ -160,14 +161,14 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
       dataIndex: 'totalCreditUsed',
       key: 'used',
       align: 'right' as const,
-      render: (v: number) => <Typography.Text>${v || 0}</Typography.Text>,
+      render: (v: number) => <Typography.Text>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>,
     },
     {
       title: 'Earned',
       dataIndex: 'totalCreditEarned',
       key: 'earned',
       align: 'right' as const,
-      render: (v: number) => <Typography.Text>${v || 0}</Typography.Text>,
+      render: (v: number) => <Typography.Text>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>,
     },
     {
       title: 'Status',
@@ -231,7 +232,7 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
         onCancel={() => { setIsModalOpen(false); setEditingDealer(null); }}
         onOk={handleSubmit}
         okText={editingDealer ? 'Update' : 'Create'}
-        destroyOnHidden
+        destroyOnClose
       >
         <Form form={form} layout="vertical" preserve={false}>
           {!editingDealer && (
@@ -251,7 +252,12 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
             <Input prefix={<PhoneOutlined />} placeholder="+1234567890" />
           </Form.Item>
           <Form.Item name="virtualCredit" label="Virtual Credit" rules={[{ type: 'number', min: 0 }]}> 
-            <InputNumber addonBefore="$" style={{ width: '100%' }} />
+            <InputNumber 
+              addonBefore="$" 
+              style={{ width: '100%' }}
+              formatter={(value) => value !== null && value !== undefined ? value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+              parser={(value) => value ? value.replace(/,/g, '') : ''}
+            />
           </Form.Item>
           <Form.Item name="disabled" label="Disable User"> 
             <Switch />

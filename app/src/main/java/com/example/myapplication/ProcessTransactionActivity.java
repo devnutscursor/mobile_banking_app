@@ -48,7 +48,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
     // UI Elements
     private Spinner spinnerOperator, spinnerAction, spinnerCustomer;
-    private EditText etAmount, etNote;
+    private EditText etAmount, etNote, etCustomerSearch;
     private TextView tvAvailableCredit;
     private Button btnExecuteTransaction;
 
@@ -143,6 +143,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         spinnerCustomer = findViewById(R.id.spinnerCustomer);
         etAmount = findViewById(R.id.etAmount);
         etNote = findViewById(R.id.etNote);
+        etCustomerSearch = findViewById(R.id.etCustomerSearch);
         tvAvailableCredit = findViewById(R.id.tvAvailableCredit);
         btnExecuteTransaction = findViewById(R.id.btnExecuteTransaction);
         
@@ -153,6 +154,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
         // Setup listeners
         setupListeners();
+        
+        // Add thousands separator to amount field
+        com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etAmount);
     }
 
     private void setupListeners() {
@@ -213,6 +217,20 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             public void onNothingSelected(AdapterView<?> parent) {
                 selectedCustomer = null;
             }
+        });
+
+        // Setup customer phone number search
+        etCustomerSearch.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                searchCustomersByPhone(s.toString());
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
         });
 
         btnExecuteTransaction.setOnClickListener(v -> executeTransaction());
@@ -426,6 +444,36 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         }).start();
     }
 
+    private void searchCustomersByPhone(String phoneQuery) {
+        if (TextUtils.isEmpty(phoneQuery)) {
+            // If search is empty, load all customers
+            loadCustomers();
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                List<CustomerEntity> searchResults;
+                if (activeUserId != null) {
+                    // Search customers by phone number for current user
+                    searchResults = database.customerDao().searchCustomersByUser(activeUserId, phoneQuery);
+                } else {
+                    searchResults = new ArrayList<>();
+                }
+
+                runOnUiThread(() -> {
+                    customers.clear();
+                    customers.addAll(searchResults);
+                    updateCustomerSpinner();
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error searching customers by phone", e);
+                runOnUiThread(() -> Toast.makeText(this, "Error searching customers", Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
     private void updateOperatorSpinner() {
         List<String> operatorNames = new ArrayList<>();
         
@@ -457,7 +505,21 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerOperator.setAdapter(adapter);
         if (!operatorNames.isEmpty()) {
-            spinnerOperator.setSelection(0);
+            // Temporarily remove listener to avoid triggering loadActions during initial setup
+            AdapterView.OnItemSelectedListener currentListener = spinnerOperator.getOnItemSelectedListener();
+            spinnerOperator.setOnItemSelectedListener(null);
+            spinnerOperator.setSelection(0, false); // false = don't trigger listener
+            // Now manually trigger action loading for the first operator
+            if (operators.size() > 0) {
+                selectedOperator = operators.get(0);
+                loadActions(selectedOperator.getId());
+            }
+            // Restore listener
+            spinnerOperator.setOnItemSelectedListener(currentListener);
+        } else {
+            // Clear actions if no operators
+            actions.clear();
+            updateActionSpinner();
         }
     }
     
@@ -501,11 +563,24 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             }
         };
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        
+        // Temporarily remove listener to avoid triggering during adapter update
+        AdapterView.OnItemSelectedListener currentListener = spinnerAction.getOnItemSelectedListener();
+        spinnerAction.setOnItemSelectedListener(null);
+        
         spinnerAction.setAdapter(adapter);
+        
         if (!actionNames.isEmpty()) {
-            spinnerAction.setSelection(0);
+            spinnerAction.setSelection(0, false); // false = don't trigger listener
             selectedAction = actions.get(0);
+        } else {
+            selectedAction = null;
+            // Clear selection if no actions
+            spinnerAction.setSelection(0, false);
         }
+        
+        // Restore listener
+        spinnerAction.setOnItemSelectedListener(currentListener);
     }
 
     private void updateCustomerSpinner() {
@@ -673,8 +748,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 String input = s.toString().replaceAll("[^\\d]", "");
                 StringBuilder formatted = new StringBuilder();
                 
+                // Format as YYYY-MM-DD
                 for (int i = 0; i < input.length() && i < 8; i++) {
-                    if (i == 2 || i == 4) {
+                    if (i == 4 || i == 6) {
                         formatted.append("-");
                     }
                     formatted.append(input.charAt(i));
@@ -694,33 +770,102 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         });
     }
     
+    private void showDuplicatePhoneDialogInTransaction(CustomerEntity existingCustomer, CustomerEntity newCustomer,
+                                                       EditText etFullName, EditText etDateOfBirth,
+                                                       Spinner spinnerDocumentType, String[] documentTypes,
+                                                       EditText etNationalId, EditText etIssueDate,
+                                                       EditText etExpiryDate, EditText etPhoneNumber,
+                                                       EditText etAddress, EditText etEmail) {
+        String customerName = existingCustomer.getFullName() != null ? existingCustomer.getFullName() : "N/A";
+        String customerPhone = existingCustomer.getPhoneNumber() != null ? existingCustomer.getPhoneNumber() : "N/A";
+        String message = String.format(getString(R.string.customer_exists_phone_message), customerName, customerPhone);
+        
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.select_existing_customer))
+                .setMessage(message)
+                .setPositiveButton(getString(R.string.select_customer), (dialog, which) -> {
+                    // Select the existing customer in the spinner
+                    selectExistingCustomerInTransaction(existingCustomer);
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
+    }
+    
+    private void selectExistingCustomerInTransaction(CustomerEntity customer) {
+        // Reload customers to ensure the list is up to date
+        loadCustomers();
+        
+        // After customers are loaded, select the existing customer
+        new android.os.Handler().postDelayed(() -> {
+            // Find the customer in the list
+            int position = -1;
+            for (int i = 0; i < customers.size(); i++) {
+                if (customers.get(i).getId().equals(customer.getId())) {
+                    position = i + 1; // +1 because position 0 is "Add Customer" option
+                    break;
+                }
+            }
+            
+            if (position > 0 && position <= spinnerCustomer.getCount()) {
+                // Temporarily remove listener to prevent triggering on programmatic selection
+                AdapterView.OnItemSelectedListener currentListener = spinnerCustomer.getOnItemSelectedListener();
+                spinnerCustomer.setOnItemSelectedListener(null);
+                
+                // Select the customer
+                spinnerCustomer.setSelection(position);
+                selectedCustomer = customer;
+                
+                // Restore listener
+                spinnerCustomer.setOnItemSelectedListener(currentListener);
+                
+                Toast.makeText(this, getString(R.string.customer_saved), Toast.LENGTH_SHORT).show();
+            }
+        }, 300); // Small delay to ensure customers list is updated
+    }
+    
     private boolean validateAndSaveCustomer(CustomerEntity customer, EditText etFullName, EditText etDateOfBirth,
             Spinner spinnerDocumentType, String[] documentTypes, EditText etNationalId, EditText etIssueDate,
             EditText etExpiryDate, EditText etPhoneNumber, EditText etAddress, EditText etEmail) {
-        // Basic validation
+        // Basic validation - Mandatory fields: Name, Document number, Phone number
         if (TextUtils.isEmpty(etFullName.getText())) {
             etFullName.setError(getString(R.string.required_fields_missing));
-            return false;
-        }
-        if (TextUtils.isEmpty(etDateOfBirth.getText())) {
-            etDateOfBirth.setError(getString(R.string.required_fields_missing));
             return false;
         }
         if (TextUtils.isEmpty(etNationalId.getText())) {
             etNationalId.setError(getString(R.string.required_fields_missing));
             return false;
         }
+        if (TextUtils.isEmpty(etPhoneNumber.getText())) {
+            etPhoneNumber.setError(getString(R.string.required_fields_missing));
+            return false;
+        }
         
         // Save customer in background thread
         new Thread(() -> {
             try {
+                String phoneNumber = etPhoneNumber.getText().toString().trim();
+                
                 // Check if customer with same National ID already exists
-                CustomerEntity existingCustomer = database.customerDao().getCustomerByNationalId(etNationalId.getText().toString());
-                if (existingCustomer != null) {
+                CustomerEntity existingCustomerById = database.customerDao().getCustomerByNationalId(etNationalId.getText().toString());
+                if (existingCustomerById != null) {
                     runOnUiThread(() -> {
                         Toast.makeText(this, getString(R.string.customer_already_exists), Toast.LENGTH_SHORT).show();
                     });
                     return;
+                }
+                
+                // Check if customer with same phone number already exists for this agent (for new customers only)
+                if (phoneNumber != null && !phoneNumber.isEmpty() && currentUserEntity != null) {
+                    CustomerEntity existingCustomerByPhone = database.customerDao().getCustomerByPhoneNumberAndUser(phoneNumber, currentUserEntity.getUid());
+                    if (existingCustomerByPhone != null) {
+                        // Show dialog offering to select existing customer
+                        CustomerEntity finalExistingCustomer = existingCustomerByPhone;
+                        runOnUiThread(() -> {
+                            showDuplicatePhoneDialogInTransaction(finalExistingCustomer, customer, etFullName, etDateOfBirth,
+                                    spinnerDocumentType, documentTypes, etNationalId, etIssueDate, etExpiryDate, etPhoneNumber, etAddress, etEmail);
+                        });
+                        return;
+                    }
                 }
                 
                 // Set customer data
@@ -776,7 +921,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             return;
         }
 
-        double amount = Double.parseDouble(etAmount.getText().toString());
+        double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(etAmount.getText().toString());
         
         Log.d(TAG, "Transaction amount: " + amount);
         Log.d(TAG, "Available credit: " + availableCredit);
@@ -832,7 +977,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         }
 
         try {
-            double amount = Double.parseDouble(amountStr);
+            double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(amountStr);
             if (amount <= 0) {
                 Toast.makeText(this, getString(R.string.invalid_amount), Toast.LENGTH_SHORT).show();
                 return false;
@@ -850,9 +995,16 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         String transactionType = detectTransactionType();
         
         // For deposits, user needs credit
+        // For transfers, user needs credit (base amount + fees)
         // For withdrawals, user gains credit
         if ("deposit".equalsIgnoreCase(transactionType)) {
             return availableCredit >= amount;
+        } else if ("transfer".equalsIgnoreCase(transactionType)) {
+            // Transfer needs credit for base amount + fees
+            double transferRate = selectedOperator.getTransferRate();
+            double transferFee = amount * (transferRate / 100.0);
+            double totalAmount = amount + transferFee;
+            return availableCredit >= totalAmount;
         }
         
         return true; // Withdrawals don't need credit check
@@ -870,7 +1022,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             return "withdrawal";
         }
         
-        // Default to deposit for all other actions (deposit, transfer, bills, etc.)
+        // Check for transfer keywords
+        if (actionName.contains("transfer") || 
+            actionName.contains("virement") || 
+            actionName.contains("transfert")) {
+            return "transfer";
+        }
+        
+        // Default to deposit for all other actions (deposit, bills, etc.)
         return "deposit";
     }
 
@@ -952,11 +1111,19 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         
         transaction.setCreditBefore(availableCredit);
         
-        // Calculate credit after
+        // Calculate credit after based on transaction type
         double creditAfter = availableCredit;
-        if ("deposit".equals(transaction.getTransactionType())) {
+        String transactionType = transaction.getTransactionType();
+        
+        if ("deposit".equals(transactionType)) {
             creditAfter -= amount; // Deposit subtracts credit
-        } else {
+        } else if ("transfer".equals(transactionType)) {
+            // Transfer: debit amount + fees from operator credit
+            double transferRate = selectedOperator.getTransferRate();
+            double transferFee = amount * (transferRate / 100.0);
+            double totalAmount = amount + transferFee;
+            creditAfter -= totalAmount; // Debit total amount (base + fees)
+        } else if ("withdrawal".equals(transactionType)) {
             creditAfter += amount; // Withdrawal adds credit
         }
         transaction.setCreditAfter(creditAfter);
@@ -1135,45 +1302,110 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         }
 
         double newCredit = transaction.getCreditAfter();
+        double amount = transaction.getAmount();
+        String transactionType = transaction.getTransactionType().toLowerCase();
         
         // Update local database
         new Thread(() -> {
             try {
-                currentUserEntity.setVirtualCredit(newCredit);
-                currentUserEntity.setCreditUpdatedAt(System.currentTimeMillis());
-                
-                // Update tracking fields
-                if ("deposit".equals(transaction.getTransactionType())) {
-                    currentUserEntity.setTotalCreditUsed(
-                        currentUserEntity.getTotalCreditUsed() + transaction.getAmount());
-                } else {
-                    currentUserEntity.setTotalCreditEarned(
-                        currentUserEntity.getTotalCreditEarned() + transaction.getAmount());
+                // Refresh user data to get current cash balance
+                UserEntity user = database.userDao().getUserById(activeUserId);
+                if (user == null) {
+                    Log.e(TAG, "User not found for credit/cash update");
+                    return;
                 }
                 
-                database.userDao().updateUser(currentUserEntity);
+                double currentCashBalance = user.getCashBalance();
+                double newCashBalance = currentCashBalance;
+                
+                // Update cash balance based on transaction type
+                // Deposit: customer gives cash to agent, so cash balance increases
+                // Transfer: customer gives cash to agent (base amount + fees), so cash balance increases by total
+                // Withdrawal: agent gives cash to customer, so cash balance decreases
+                if ("deposit".equalsIgnoreCase(transactionType)) {
+                    newCashBalance = currentCashBalance + amount; // Increase cash (customer gives cash)
+                    Log.d(TAG, "Deposit: Cash balance increased by " + amount + " (from " + currentCashBalance + " to " + newCashBalance + ")");
+                } else if ("transfer".equalsIgnoreCase(transactionType)) {
+                    // Transfer: cash balance increases by base amount + fees
+                    // Need to get the operator to calculate fees
+                    OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                    if (operator != null) {
+                        double transferRate = operator.getTransferRate();
+                        double transferFee = amount * (transferRate / 100.0);
+                        double totalAmount = amount + transferFee;
+                        newCashBalance = currentCashBalance + totalAmount; // Increase cash by total (base + fees)
+                        Log.d(TAG, "Transfer: Cash balance increased by " + totalAmount + " (base: " + amount + ", fee: " + transferFee + ") from " + currentCashBalance + " to " + newCashBalance);
+                    } else {
+                        // Fallback: if operator not found, just use base amount
+                        newCashBalance = currentCashBalance + amount;
+                        Log.d(TAG, "Transfer: Operator not found, using base amount. Cash balance increased by " + amount);
+                    }
+                } else if (transactionType.contains("withdrawal")) {
+                    newCashBalance = currentCashBalance - amount; // Decrease cash (agent gives cash)
+                    Log.d(TAG, "Withdrawal: Cash balance decreased by " + amount + " (from " + currentCashBalance + " to " + newCashBalance + ")");
+                }
+                
+                // Update virtual credit
+                user.setVirtualCredit(newCredit);
+                user.setCreditUpdatedAt(System.currentTimeMillis());
+                
+                // Update cash balance
+                user.setCashBalance(newCashBalance);
+                
+                // Update tracking fields
+                if ("deposit".equalsIgnoreCase(transactionType)) {
+                    user.setTotalCreditUsed(user.getTotalCreditUsed() + amount);
+                } else if ("transfer".equalsIgnoreCase(transactionType)) {
+                    // For transfers, track the total amount debited (base + fees)
+                    OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                    double trackedAmount = amount;
+                    if (operator != null) {
+                        double transferRate = operator.getTransferRate();
+                        double transferFee = amount * (transferRate / 100.0);
+                        trackedAmount = amount + transferFee; // Track total debited
+                    }
+                    user.setTotalCreditUsed(user.getTotalCreditUsed() + trackedAmount);
+                } else {
+                    user.setTotalCreditEarned(user.getTotalCreditEarned() + amount);
+                }
+                
+                database.userDao().updateUser(user);
+                currentUserEntity = user; // Update reference
                 
                 availableCredit = newCredit;
                 runOnUiThread(() -> updateCreditDisplay());
                 
-                Log.d(TAG, "Credit updated locally: " + newCredit);
+                Log.d(TAG, "Credit updated locally: " + newCredit + ", Cash balance updated: " + newCashBalance);
+                
+                // Try to update Firestore in background (don't block on this)
+                updateCreditInFirestoreBackground(newCredit, transaction, newCashBalance);
             } catch (Exception e) {
-                Log.e(TAG, "Error updating credit locally", e);
+                Log.e(TAG, "Error updating credit/cash locally", e);
             }
         }).start();
-
-        // Try to update Firestore in background (don't block on this)
-        updateCreditInFirestoreBackground(newCredit, transaction);
     }
     
-    private void updateCreditInFirestoreBackground(double newCredit, TransactionEntity transaction) {
+    private void updateCreditInFirestoreBackground(double newCredit, TransactionEntity transaction, double newCashBalance) {
         try {
             Map<String, Object> updates = new HashMap<>();
             updates.put("virtualCredit", newCredit);
+            updates.put("cashBalance", newCashBalance);
             updates.put("creditUpdatedAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
             
-            if ("deposit".equals(transaction.getTransactionType())) {
+            String txType = transaction.getTransactionType();
+            if ("deposit".equals(txType)) {
                 updates.put("totalCreditUsed", com.google.firebase.firestore.FieldValue.increment(transaction.getAmount()));
+            } else if ("transfer".equals(txType)) {
+                // For transfers, increment by total amount (base + fees)
+                // Need to get operator to calculate fees
+                OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                double incrementAmount = transaction.getAmount();
+                if (operator != null) {
+                    double transferRate = operator.getTransferRate();
+                    double transferFee = transaction.getAmount() * (transferRate / 100.0);
+                    incrementAmount = transaction.getAmount() + transferFee;
+                }
+                updates.put("totalCreditUsed", com.google.firebase.firestore.FieldValue.increment(incrementAmount));
             } else {
                 updates.put("totalCreditEarned", com.google.firebase.firestore.FieldValue.increment(transaction.getAmount()));
             }

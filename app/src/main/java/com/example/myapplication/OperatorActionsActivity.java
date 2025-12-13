@@ -81,8 +81,8 @@ public class OperatorActionsActivity extends AppCompatActivity {
         EditText etCode = v.findViewById(R.id.etActionCode);
         CheckBox cbDisableUssd = v.findViewById(R.id.cbDisableUssd);
         
-        // Setup action name spinner with Deposit/Withdrawal
-        String[] actionNames = new String[]{"Deposit", "Withdrawal"};
+        // Setup action name spinner with Deposit/Withdrawal/Transfer
+        String[] actionNames = new String[]{"Deposit", "Withdrawal", "Transfer"};
         android.widget.ArrayAdapter<String> nameAdapter = new android.widget.ArrayAdapter<>(
                 this, android.R.layout.simple_spinner_item, actionNames);
         nameAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -91,10 +91,17 @@ public class OperatorActionsActivity extends AppCompatActivity {
         if (existing != null) {
             // Set spinner selection based on existing name
             String existingName = existing.getName();
-            if (existingName != null && existingName.toLowerCase().contains("withdraw")) {
-                spinnerName.setSelection(1); // Withdrawal
+            if (existingName != null) {
+                String lowerName = existingName.toLowerCase();
+                if (lowerName.contains("withdraw")) {
+                    spinnerName.setSelection(1); // Withdrawal
+                } else if (lowerName.contains("transfer")) {
+                    spinnerName.setSelection(2); // Transfer
+                } else {
+                    spinnerName.setSelection(0); // Deposit
+                }
             } else {
-                spinnerName.setSelection(0); // Deposit
+                spinnerName.setSelection(0); // Default to Deposit
             }
             etCode.setText(existing.getActionCode());
             cbDisableUssd.setChecked(existing.isDisableUssd());

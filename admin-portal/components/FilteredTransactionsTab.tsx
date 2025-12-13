@@ -11,6 +11,7 @@ import { colors } from '@/lib/theme';
 import dayjs from 'dayjs';
 import { exportTransactionsToExcel } from '@/lib/exportUtils';
 import { useAuth } from '@/lib/authContext';
+import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
 
 const { RangePicker } = DatePicker;
 
@@ -245,7 +246,7 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
       key: 'amount',
       render: (amt: number) => (
         <Typography.Text strong style={{ color: colors.beige[500] }}>
-          ${amt.toFixed(2)}
+          {formatCurrencyWithSymbol(amt)}
         </Typography.Text>
       ),
     },

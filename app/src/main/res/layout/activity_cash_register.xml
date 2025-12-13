@@ -61,16 +61,6 @@
 
             </androidx.cardview.widget.CardView>
 
-            <!-- Adjust Balance Button -->
-            <Button
-                android:id="@+id/btnAdjustBalance"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/adjust_balance"
-                android:textColor="@android:color/white"
-                android:background="@drawable/button_primary"
-                android:textSize="14sp" />
-
         </LinearLayout>
 
         <!-- Transactions RecyclerView -->

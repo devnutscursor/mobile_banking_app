@@ -117,6 +117,9 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
         // Default to operator balance
         rbOperatorBalance.setChecked(true);
         
+        // Add thousands separator to amount field
+        com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etAdjustmentAmount);
+        
         // Apply adjustment button
         btnApplyAdjustment.setOnClickListener(v -> applyAdjustment());
     }
@@ -183,7 +186,7 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
         }
         
         try {
-            double amount = Double.parseDouble(amountStr);
+            double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(amountStr);
             if (amount == 0) {
                 etAdjustmentAmount.setError(getString(R.string.invalid_amount));
                 return;

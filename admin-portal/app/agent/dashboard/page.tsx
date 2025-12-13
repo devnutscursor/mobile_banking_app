@@ -20,6 +20,7 @@ import { useAuth } from '@/lib/authContext';
 import { Transaction, Customer, Commission, User as UserType } from '@/lib/types';
 import { exportTransactionsToExcel, exportCustomersToExcel, exportCommissionsToExcel } from '@/lib/exportUtils';
 import { format } from 'date-fns';
+import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
 
 const { Title } = Typography;
 
@@ -52,9 +53,41 @@ export default function AgentDashboardPage() {
       const txnQuery = query(collection(db, 'transactions'), where('userId', '==', currentUser.uid));
       const txnSnapshot = await getDocs(txnQuery);
       
-      // Load customers count
-      const custQuery = query(collection(db, 'customers'), where('addedBy', '==', currentUser.uid));
-      const custSnapshot = await getDocs(custQuery);
+      // Load customers count - check multiple field names (addedBy, userId, createdBy)
+      // Some customers might use different field names
+      let customerCount = 0;
+      try {
+        // Try querying by 'addedBy' first
+        const custQuery = query(collection(db, 'customers'), where('addedBy', '==', currentUser.uid));
+        const custSnapshot = await getDocs(custQuery);
+        customerCount = custSnapshot.size;
+        
+        // Also do client-side filtering to catch customers using different field names
+        // This ensures we find all customers regardless of which field name they use
+        const allCustomersSnapshot = await getDocs(collection(db, 'customers'));
+        const allCustomers = allCustomersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        
+        // Filter by checking all possible field names
+        const additionalCustomers = allCustomers.filter((c: any) => {
+          const matches = (c.addedBy === currentUser.uid) || 
+                         (c.userId === currentUser.uid) || 
+                         (c.createdBy === currentUser.uid);
+          // Only count if not already counted in the query result
+          return matches && !custSnapshot.docs.some(doc => doc.id === c.id);
+        });
+        
+        customerCount += additionalCustomers.length;
+      } catch (error) {
+        console.error('Error loading customers count:', error);
+        // Fallback: load all and filter client-side
+        const allCustomersSnapshot = await getDocs(collection(db, 'customers'));
+        const allCustomers = allCustomersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        customerCount = allCustomers.filter((c: any) => {
+          return (c.addedBy === currentUser.uid) || 
+                 (c.userId === currentUser.uid) || 
+                 (c.createdBy === currentUser.uid);
+        }).length;
+      }
 
       // Load current month commissions
       const now = new Date();
@@ -76,7 +109,7 @@ export default function AgentDashboardPage() {
 
       setStats({
         totalTransactions: txnSnapshot.size,
-        totalCustomers: custSnapshot.size,
+        totalCustomers: customerCount,
         totalCommissions: commissionSum,
       });
     } catch (error) {
@@ -94,15 +127,35 @@ export default function AgentDashboardPage() {
       message.loading({ content: 'Loading data for export...', key: 'export', duration: 0 });
 
       // Load all agent's data
-      const [transactionsSnapshot, customersSnapshot, commissionsSnapshot, usersSnapshot] = await Promise.all([
+      const [transactionsSnapshot, customersSnapshot, commissionsSnapshot, usersSnapshot, allCustomersSnapshot] = await Promise.all([
         getDocs(query(collection(db, 'transactions'), where('userId', '==', currentUser.uid))),
         getDocs(query(collection(db, 'customers'), where('addedBy', '==', currentUser.uid))),
         getDocs(query(collection(db, 'commissions'), where('userId', '==', currentUser.uid))),
         getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'customers')), // Load all customers for client-side filtering
       ]);
 
       const transactions = transactionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Transaction));
-      const customers = customersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Customer));
+      
+      // Get customers from query result
+      let customers = customersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Customer));
+      
+      // Also check for customers using different field names (userId, createdBy)
+      const allCustomers = allCustomersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      const existingCustomerIds = new Set(customers.map(c => c.id));
+      
+      // Filter customers that match by any of the possible field names
+      const additionalCustomers = allCustomers
+        .filter((c: any) => {
+          const matches = (c.addedBy === currentUser.uid) || 
+                         (c.userId === currentUser.uid) || 
+                         (c.createdBy === currentUser.uid);
+          return matches && !existingCustomerIds.has(c.id);
+        })
+        .map(c => ({ ...c, id: c.id } as Customer));
+      
+      customers = [...customers, ...additionalCustomers];
+      
       const commissions = commissionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
 
       const users = usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as UserType));
@@ -110,15 +163,15 @@ export default function AgentDashboardPage() {
       users.forEach(u => { usersMap[u.uid] = u; });
 
       // Load related data for transactions
-      const [operatorsSnapshot, actionsSnapshot, allCustomersSnapshot] = await Promise.all([
+      const [operatorsSnapshot, actionsSnapshot] = await Promise.all([
         getDocs(collection(db, 'operators')),
         getDocs(collection(db, 'operator_actions')),
-        getDocs(collection(db, 'customers')),
       ]);
 
       const operators = operatorsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
       const actions = actionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
-      const allCustomers = allCustomersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Customer));
+      // Use all customers from the earlier query for the customers map
+      const allCustomersForMap = allCustomersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Customer));
 
       const operatorsMap: { [key: string]: any } = {};
       operators.forEach(op => { operatorsMap[op.id || ''] = op; });
@@ -127,7 +180,7 @@ export default function AgentDashboardPage() {
       actions.forEach(action => { actionsMap[action.id || ''] = action; });
 
       const customersMap: { [key: string]: Customer } = {};
-      allCustomers.forEach(c => { customersMap[c.id || ''] = c; });
+      allCustomersForMap.forEach(c => { customersMap[c.id || ''] = c; });
 
       message.loading({ content: 'Generating Excel files...', key: 'export' });
 
@@ -162,7 +215,7 @@ export default function AgentDashboardPage() {
     },
     {
       title: 'This Month Commissions',
-      value: `$${stats.totalCommissions.toFixed(2)}`,
+      value: formatCurrencyWithSymbol(stats.totalCommissions),
       icon: <DollarOutlined />,
       gradient: `linear-gradient(135deg, ${colors.midnight_green[700]}, ${colors.air_force_blue[700]})`,
     },

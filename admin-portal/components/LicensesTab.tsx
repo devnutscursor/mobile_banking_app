@@ -287,9 +287,9 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
         onCancel={() => { setIsModalOpen(false); setEditingLicense(null); }}
         onOk={handleSubmit}
         okText={editingLicense ? 'Update' : 'Create'}
-        destroyOnHidden
+        destroyOnClose
       >
-        <Form form={form} layout="vertical" preserve={true}>
+        <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="licenseKey" label="License Key" rules={[{ required: true }]}> 
             <Input placeholder="LIC-DEALER-001" disabled={!!editingLicense} />
           </Form.Item>

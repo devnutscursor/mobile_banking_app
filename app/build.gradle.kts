@@ -81,6 +81,9 @@ dependencies {
     // ML Kit Barcode Scanning for PDF417
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     
+    // ML Kit Text Recognition for MRZ scanning (offline)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    
     val camerax_version = "1.5.0"
     // The following line is optional, as the core library is included indirectly by camera-camera2
     implementation("androidx.camera:camera-core:${camerax_version}")

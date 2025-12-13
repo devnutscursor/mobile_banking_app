@@ -25,15 +25,15 @@ public class CommissionCalculator {
      */
     public CommissionEntity calculateCommission(TransactionEntity transaction, UserEntity user) {
         try {
-            // Only calculate commission for deposit and withdrawal transactions
+            // Only calculate commission for deposit, withdrawal, and transfer transactions
             if (transaction == null || user == null) {
                 Log.w(TAG, "Transaction or user is null");
                 return null;
             }
             
             String transactionType = transaction.getTransactionType();
-            if (!"deposit".equals(transactionType) && !"withdrawal".equals(transactionType)) {
-                Log.d(TAG, "Commission only applies to deposit/withdrawal transactions");
+            if (!"deposit".equals(transactionType) && !"withdrawal".equals(transactionType) && !"transfer".equals(transactionType)) {
+                Log.d(TAG, "Commission only applies to deposit/withdrawal/transfer transactions");
                 return null;
             }
             
@@ -65,7 +65,17 @@ public class CommissionCalculator {
             CommissionEntity commission = existing != null ? existing : new CommissionEntity();
             commission.setTransactionId(transaction.getId());
             commission.setTransactionType(transactionType);
-            commission.setTransactionAmount(transaction.getAmount());
+            // For transfers, commission is calculated on base amount (without fees)
+            // For deposits and withdrawals, use transaction amount as is
+            double commissionBaseAmount = transaction.getAmount();
+            if ("transfer".equals(transactionType)) {
+                // Commission is calculated on base amount only (without transfer fees)
+                // transaction.getAmount() already contains the base amount
+                commissionBaseAmount = transaction.getAmount();
+                Log.d(TAG, "Transfer commission calculated on base amount (without fees): " + commissionBaseAmount);
+            }
+            
+            commission.setTransactionAmount(commissionBaseAmount);
             commission.setUserId(user.getUid());
             commission.setUserName(user.getName());
             commission.setUserRole(user.getRole());
@@ -75,7 +85,7 @@ public class CommissionCalculator {
             // Calculate commission
             double commissionRate = rate.getCommissionRate();
             double taxRate = rate.getTaxRate();
-            commission.calculateCommission(transaction.getAmount(), commissionRate, taxRate);
+            commission.calculateCommission(commissionBaseAmount, commissionRate, taxRate);
             
             // Set commission date
             commission.setCommissionDate(transaction.getCreatedAt());

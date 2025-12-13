@@ -36,17 +36,25 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
     try {
       setLoadingLicense(true);
       
-      // Find license assigned to this dealer
-      const licensesSnapshot = await getDocs(
-        query(collection(db, 'licenses'), where('assignedToUserId', '==', currentUser.uid))
-      );
+      // Load all licenses and filter client-side to handle both string and array formats
+      const allLicensesSnapshot = await getDocs(collection(db, 'licenses'));
+      const allLicenses = allLicensesSnapshot.docs.map(doc => ({ ...doc.data(), licenseKey: doc.id } as License));
+      
+      // Find license assigned to this dealer (handle both string and array formats)
+      const assignedLicense = allLicenses.find(license => {
+        if (!license.assignedToUserId) return false;
+        
+        // Handle both array and string formats
+        if (Array.isArray(license.assignedToUserId)) {
+          return license.assignedToUserId.includes(currentUser.uid);
+        }
+        return license.assignedToUserId === currentUser.uid;
+      });
       
       let maxAgentCount: number | null = null;
       
-      if (!licensesSnapshot.empty) {
-        const licenseDoc = licensesSnapshot.docs[0];
-        const licenseData = licenseDoc.data() as License;
-        maxAgentCount = licenseData.maxAgentCount ?? null;
+      if (assignedLicense) {
+        maxAgentCount = assignedLicense.maxAgentCount ?? null;
       }
 
       // Count current agents
@@ -57,7 +65,8 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
           where('dealerId', '==', currentUser.uid)
         )
       );
-      const currentCount = agentsSnapshot.size;
+      // maxAgentCount includes dealer + agents, so we count dealer (1) + agents
+      const currentCount = 1 + agentsSnapshot.size;
 
       setLicenseInfo({ maxAgentCount, currentCount });
     } catch (error) {
@@ -102,9 +111,33 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
         return;
       }
 
-      // Check license limit
-      if (!canAddMoreAgents()) {
-        message.error(`Cannot add more agents. License limit reached (${licenseInfo?.maxAgentCount} users allowed).`);
+      // Re-check license limit with fresh data before creating (prevents race conditions)
+      const licensesSnapshot = await getDocs(
+        query(collection(db, 'licenses'), where('assignedToUserId', '==', currentUser.uid))
+      );
+      
+      let maxAgentCount: number | null = null;
+      if (!licensesSnapshot.empty) {
+        const licenseDoc = licensesSnapshot.docs[0];
+        const licenseData = licenseDoc.data() as License;
+        maxAgentCount = licenseData.maxAgentCount ?? null;
+      }
+
+      // Count current agents with fresh query
+      const agentsSnapshot = await getDocs(
+        query(
+          collection(db, 'users'),
+          where('role', '==', 'agent'),
+          where('dealerId', '==', currentUser.uid)
+        )
+      );
+      const currentCount = 1 + agentsSnapshot.size; // dealer (1) + agents
+
+      // Check if we can add one more agent
+      // We're adding 1 agent, so check: (currentCount + 1) <= maxAgentCount
+      if (maxAgentCount !== null && currentCount + 1 > maxAgentCount) {
+        const maxAgents = maxAgentCount - 1;
+        message.error(`Cannot add more agents. License limit reached (${maxAgents} agents allowed, ${maxAgentCount} total users including dealer).`);
         return;
       }
 
@@ -209,8 +242,15 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
           )}
           <Typography.Text style={{ color: colors.beige[500], fontSize: 14 }}>
             {licenseInfo.maxAgentCount === null
-              ? `You have ${licenseInfo.currentCount} agent(s). Unlimited users allowed.`
-              : `You have ${licenseInfo.currentCount} of ${licenseInfo.maxAgentCount} users allowed by your license.`
+              ? `You have ${licenseInfo.currentCount - 1} agent(s). Unlimited users allowed.`
+              : (() => {
+                  const currentAgents = licenseInfo.currentCount - 1;
+                  const maxAgents = licenseInfo.maxAgentCount - 1;
+                  const remaining = maxAgents - currentAgents;
+                  return remaining > 0 
+                    ? `You have ${currentAgents} agent(s). ${remaining} agent(s) remaining.`
+                    : `You have ${currentAgents} agent(s). License limit reached.`;
+                })()
             }
           </Typography.Text>
         </div>
@@ -256,13 +296,14 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
         onOk={handleSubmit}
         okText="Create Agent"
         cancelText="Cancel"
+        destroyOnHidden
         styles={{
           content: {
             background: colors.midnight_green[400],
           },
         }}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" preserve={false}>
           <Form.Item
             name="name"
             label="Name"

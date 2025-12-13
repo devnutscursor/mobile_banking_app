@@ -1,6 +1,7 @@
 package com.example.myapplication;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -97,6 +98,19 @@ public class BuyCreditActivity extends AppCompatActivity {
         
         btnPurchaseCredit.setOnClickListener(v -> purchaseCredit());
         btnPurchaseCash.setOnClickListener(v -> purchaseCash());
+        
+        // Add thousands separator to amount fields
+        com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etCreditAmount);
+        com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etCashAmount);
+        
+        // Setup adjust balance button
+        Button btnAdjustBalance = findViewById(R.id.btnAdjustBalance);
+        if (btnAdjustBalance != null) {
+            btnAdjustBalance.setOnClickListener(v -> {
+                Intent intent = new Intent(this, BalanceAdjustmentActivity.class);
+                startActivity(intent);
+            });
+        }
     }
     
     private void loadBalances() {
@@ -138,7 +152,7 @@ public class BuyCreditActivity extends AppCompatActivity {
         }
         
         try {
-            double amount = Double.parseDouble(amountStr);
+            double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(amountStr);
             if (amount <= 0) {
                 etCreditAmount.setError(getString(R.string.invalid_amount));
                 return;
@@ -168,7 +182,7 @@ public class BuyCreditActivity extends AppCompatActivity {
         }
         
         try {
-            double amount = Double.parseDouble(amountStr);
+            double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(amountStr);
             if (amount <= 0) {
                 etCashAmount.setError(getString(R.string.invalid_amount));
                 return;

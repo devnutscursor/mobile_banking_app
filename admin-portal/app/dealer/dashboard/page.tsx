@@ -23,6 +23,7 @@ import DealerAgentsTab from '@/components/DealerAgentsTab';
 import { Transaction, Customer, Commission, User as UserType } from '@/lib/types';
 import { exportTransactionsToExcel, exportCustomersToExcel, exportCommissionsToExcel } from '@/lib/exportUtils';
 import { format } from 'date-fns';
+import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
 
 const { Title } = Typography;
 
@@ -39,13 +40,74 @@ export default function DealerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [affiliatedAgentIds, setAffiliatedAgentIds] = useState<string[]>([]);
+  const [licenseInfo, setLicenseInfo] = useState<{ maxAgentCount: number | null; currentCount: number } | null>(null);
 
   useEffect(() => {
     if (currentUser) {
       loadStats();
       loadAffiliatedAgents();
+      loadLicenseInfo();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
+  const loadLicenseInfo = useCallback(async () => {
+    if (!currentUser) return;
+    
+    try {
+      console.log('[DealerDashboard] Loading license info for dealer:', currentUser.uid, currentUser.name);
+      
+      // Load all licenses and filter client-side to handle both string and array formats
+      const allLicensesSnapshot = await getDocs(collection(db, 'licenses'));
+      const allLicenses = allLicensesSnapshot.docs.map(doc => ({ ...doc.data(), licenseKey: doc.id } as License));
+      
+      console.log('[DealerDashboard] Total licenses found:', allLicenses.length);
+      
+      // Find license assigned to this dealer (handle both string and array formats)
+      const assignedLicense = allLicenses.find(license => {
+        if (!license.assignedToUserId) return false;
+        
+        // Handle both array and string formats
+        if (Array.isArray(license.assignedToUserId)) {
+          return license.assignedToUserId.includes(currentUser.uid);
+        }
+        return license.assignedToUserId === currentUser.uid;
+      });
+      
+      let maxAgentCount: number | null = null;
+      
+      if (assignedLicense) {
+        console.log('[DealerDashboard] Found assigned license:', {
+          licenseKey: assignedLicense.licenseKey,
+          maxAgentCount: assignedLicense.maxAgentCount,
+          assignedToUserId: assignedLicense.assignedToUserId
+        });
+        maxAgentCount = assignedLicense.maxAgentCount ?? null;
+      } else {
+        console.log('[DealerDashboard] No license assigned to dealer:', currentUser.uid);
+      }
+
+      // Count current agents
+      const agentsSnapshot = await getDocs(
+        query(
+          collection(db, 'users'),
+          where('role', '==', 'agent'),
+          where('dealerId', '==', currentUser.uid)
+        )
+      );
+      // maxAgentCount includes dealer + agents, so we count dealer (1) + agents
+      const currentCount = 1 + agentsSnapshot.size;
+      
+      console.log('[DealerDashboard] License info:', {
+        maxAgentCount,
+        currentCount,
+        agentCount: agentsSnapshot.size
+      });
+
+      setLicenseInfo({ maxAgentCount, currentCount });
+    } catch (error) {
+      console.error('[DealerDashboard] Error loading license info:', error);
+    }
   }, [currentUser]);
 
   const loadAffiliatedAgents = useCallback(async () => {
@@ -65,6 +127,24 @@ export default function DealerDashboardPage() {
       const agentIds = agentsSnapshot.docs.map(doc => doc.id);
       console.log('[DealerDashboard] loadAffiliatedAgents: Found', agentIds.length, 'agents:', agentIds);
       setAffiliatedAgentIds(agentIds);
+      
+      // Reload license info to ensure we have the latest data including maxAgentCount
+      // This ensures license info is loaded even if it wasn't loaded initially
+      const allLicensesSnapshot = await getDocs(collection(db, 'licenses'));
+      const allLicenses = allLicensesSnapshot.docs.map(doc => ({ ...doc.data(), licenseKey: doc.id } as License));
+      
+      const assignedLicense = allLicenses.find(license => {
+        if (!license.assignedToUserId) return false;
+        if (Array.isArray(license.assignedToUserId)) {
+          return license.assignedToUserId.includes(currentUser.uid);
+        }
+        return license.assignedToUserId === currentUser.uid;
+      });
+      
+      const maxAgentCount = assignedLicense?.maxAgentCount ?? null;
+      const currentCount = 1 + agentIds.length;
+      
+      setLicenseInfo({ maxAgentCount, currentCount });
     } catch (error) {
       console.error('[DealerDashboard] Error loading affiliated agents:', error);
     }
@@ -98,22 +178,25 @@ export default function DealerDashboardPage() {
         }
       }
 
-      // Load customers
+      // Load customers - check multiple field names (addedBy, userId, createdBy)
+      // Some customers might use different field names, so we load all and filter client-side
       let customerCount = 0;
-      if (allUserIds.length <= 10) {
-        const custQuery = query(collection(db, 'customers'), where('addedBy', 'in', allUserIds));
-        const custSnapshot = await getDocs(custQuery);
-        customerCount = custSnapshot.size;
-      } else {
-        const batches: string[][] = [];
-        for (let i = 0; i < allUserIds.length; i += 10) {
-          batches.push(allUserIds.slice(i, i + 10));
-        }
-        for (const batch of batches) {
-          const custQuery = query(collection(db, 'customers'), where('addedBy', 'in', batch));
-          const custSnapshot = await getDocs(custQuery);
-          customerCount += custSnapshot.size;
-        }
+      try {
+        // Load all customers and filter client-side to handle different field names
+        const allCustomersSnapshot = await getDocs(collection(db, 'customers'));
+        const allCustomers = allCustomersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        
+        // Filter customers that match any of the user IDs in any of the possible fields
+        const matchingCustomers = allCustomers.filter((c: any) => {
+          return allUserIds.includes(c.addedBy) || 
+                 allUserIds.includes(c.userId) || 
+                 allUserIds.includes(c.createdBy);
+        });
+        
+        customerCount = matchingCustomers.length;
+      } catch (error) {
+        console.error('[DealerDashboard] Error loading customers count:', error);
+        customerCount = 0;
       }
 
       // Load current month commissions
@@ -168,38 +251,45 @@ export default function DealerDashboardPage() {
   };
 
   useEffect(() => {
-    if (affiliatedAgentIds.length > 0) {
+    if (affiliatedAgentIds.length >= 0) {
       loadStats();
+      // Reload license info when agents change to ensure we have fresh data
+      loadLicenseInfo();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [affiliatedAgentIds]);
 
-  const statCards = [
-    {
-      title: 'Total Transactions',
-      value: stats.totalTransactions,
-      icon: <ShoppingOutlined />,
-      gradient: `linear-gradient(135deg, ${colors.midnight_green[600]}, ${colors.air_force_blue[600]})`,
-    },
-    {
-      title: 'Total Customers',
-      value: stats.totalCustomers,
-      icon: <UserOutlined />,
-      gradient: `linear-gradient(135deg, ${colors.air_force_blue[600]}, ${colors.midnight_green[700]})`,
-    },
-    {
-      title: 'Total Agents',
-      value: stats.totalAgents,
-      icon: <TeamOutlined />,
-      gradient: `linear-gradient(135deg, ${colors.midnight_green[700]}, ${colors.air_force_blue[700]})`,
-    },
-    {
-      title: 'This Month Commissions',
-      value: `$${stats.totalCommissions.toFixed(2)}`,
-      icon: <DollarOutlined />,
-      gradient: `linear-gradient(135deg, ${colors.air_force_blue[600]}, ${colors.midnight_green[700]})`,
-    },
-  ];
+  const statCards = useMemo(() => {
+    const cards = [
+      {
+        title: 'Total Transactions',
+        value: stats.totalTransactions,
+        icon: <ShoppingOutlined />,
+        gradient: `linear-gradient(135deg, ${colors.midnight_green[600]}, ${colors.air_force_blue[600]})`,
+      },
+      {
+        title: 'Total Customers',
+        value: stats.totalCustomers,
+        icon: <UserOutlined />,
+        gradient: `linear-gradient(135deg, ${colors.air_force_blue[600]}, ${colors.midnight_green[700]})`,
+      },
+      {
+        title: 'Total Agents',
+        value: licenseInfo && licenseInfo.maxAgentCount !== null 
+          ? `${stats.totalAgents} / ${licenseInfo.maxAgentCount - 1}`
+          : stats.totalAgents,
+        icon: <TeamOutlined />,
+        gradient: `linear-gradient(135deg, ${colors.midnight_green[700]}, ${colors.air_force_blue[700]})`,
+      },
+      {
+        title: 'This Month Commissions',
+        value: formatCurrencyWithSymbol(stats.totalCommissions),
+        icon: <DollarOutlined />,
+        gradient: `linear-gradient(135deg, ${colors.air_force_blue[600]}, ${colors.midnight_green[700]})`,
+      },
+    ];
+    return cards;
+  }, [stats, licenseInfo]);
 
   // Get all user IDs for filtering (dealer + affiliated agents)
   const allUserIdsForFiltering = useMemo(() => {
@@ -429,8 +519,11 @@ export default function DealerDashboardPage() {
                         boxShadow: '0 8px 24px rgba(1, 22, 30, 0.5)',
                         overflow: 'hidden',
                         position: 'relative',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
                       }}
-                      styles={{ body: { padding: 24 } }}
+                      styles={{ body: { padding: 24, flex: 1, display: 'flex', flexDirection: 'column' } }}
                     >
                       <div style={{
                         position: 'absolute',
@@ -443,35 +536,37 @@ export default function DealerDashboardPage() {
                         filter: 'blur(40px)',
                       }} />
                       
-                      <Space direction="vertical" size="small" style={{ width: '100%', position: 'relative' }}>
-                        <div style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 12,
-                          background: 'rgba(255, 255, 255, 0.2)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginBottom: 8,
-                        }}>
-                          <span style={{ fontSize: 24, color: colors.beige[500] }}>
-                            {card.icon}
-                          </span>
-                        </div>
-                        
-                        <Statistic
-                          title={
-                            <span style={{ color: colors.beige[600], fontSize: 13 }}>
-                              {card.title}
+                      <Space direction="vertical" size="small" style={{ width: '100%', position: 'relative', flex: 1, justifyContent: 'space-between', display: 'flex' }}>
+                        <div>
+                          <div style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 12,
+                            background: 'rgba(255, 255, 255, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: 8,
+                          }}>
+                            <span style={{ fontSize: 24, color: colors.beige[500] }}>
+                              {card.icon}
                             </span>
-                          }
-                          value={card.value}
-                          valueStyle={{
-                            color: colors.beige[500],
-                            fontSize: 32,
-                            fontWeight: 700,
-                          }}
-                        />
+                          </div>
+                          
+                          <Statistic
+                            title={
+                              <span style={{ color: colors.beige[600], fontSize: 13 }}>
+                                {card.title}
+                              </span>
+                            }
+                            value={card.value}
+                            valueStyle={{
+                              color: colors.beige[500],
+                              fontSize: 32,
+                              fontWeight: 700,
+                            }}
+                          />
+                        </div>
                       </Space>
                     </Card>
                   </Col>

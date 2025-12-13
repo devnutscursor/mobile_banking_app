@@ -34,7 +34,7 @@
     <string name="agent_operations">Agent Operations</string>
     <string name="manage_customers">Add Customers</string>
     <string name="buy_virtual_credit">Buy Virtual Credit</string>
-    <string name="buy_credit">Buy Credit</string>
+    <string name="buy_credit">Purchase</string>
     <string name="buy_credit_info">Contact your dealer to purchase additional credits for your account.</string>
     <string name="current_balances">Current Balances</string>
     <string name="operator_balance">Operator Balance</string>
@@ -49,7 +49,7 @@
     <string name="credit_purchased_successfully">Credit purchased successfully</string>
     <string name="cash_purchased_successfully">Cash purchased successfully</string>
     <string name="add_credits">Add Credits</string>
-    <string name="process_transactions">Process Transactions</string>
+    <string name="process_transactions">Sale</string>
     <string name="my_reports">My Reports</string>
     <string name="manage_operators">Manage Operators</string>
     <string name="edit">Edit</string>
@@ -57,7 +57,7 @@
     <string name="dealer_dashboard">Dealer Dashboard</string>
     <string name="agent_dashboard">Agent Dashboard</string>
     <string name="manage_agents">Manage Agents</string>
-    <string name="cash_register">Cash Register</string>
+    <string name="cash_register">Transactions</string>
     <string name="virtual_accounts">Virtual Accounts</string>
     <string name="transactions">Transactions</string>
     <string name="reports">Reports</string>
@@ -142,9 +142,9 @@
     <string name="customer_management">Customer Management</string>
     <string name="add_customer">Add Customer</string>
     <string name="search_customers">Search Customers</string>
-    <string name="scan_barcode">Scan Barcode</string>
+    <string name="scan_barcode">Scan MRZ</string>
     <string name="manual_entry">Manual Entry</string>
-    <string name="scanned_data">Scanned Data</string>
+    <string name="scanned_data">Scanned MRZ Data</string>
     <string name="full_name">Full Name</string>
     <string name="document_type">Document Type</string>
     <string name="date_of_birth">Date of Birth</string>
@@ -166,6 +166,7 @@
     </string-array>
     <string name="expiry_date">Expiry Date</string>
     <string name="phone_number">Phone Number</string>
+    <string name="search_by_phone_number">Search by phone number...</string>
     <string name="address">Address</string>
     <string name="save_customer">Save Customer</string>
     <string name="update_customer">Update Customer</string>
@@ -173,12 +174,15 @@
     <string name="customer_saved">Customer saved successfully</string>
     <string name="customer_updated">Customer updated successfully</string>
     <string name="customer_deleted">Customer deleted successfully</string>
-    <string name="scan_barcode_instruction">Position the barcode within the frame to scan</string>
+    <string name="scan_barcode_instruction">Position the document MRZ zone within the frame to scan</string>
     <string name="barcode_scan_failed">Failed to scan barcode. Please try again or use manual entry.</string>
     <string name="barcode_no_data">Barcode detected but no readable data found. Please try again or use manual entry.</string>
     <string name="barcode_data_extracted">Barcode data extracted successfully</string>
     <string name="invalid_date_format">Invalid date format. Please use DD-MM-YYYY for Date of Birth</string>
     <string name="customer_already_exists">Customer with this National ID already exists</string>
+    <string name="customer_phone_already_exists">A customer with phone number %1$s already exists in your list.</string>
+    <string name="select_existing_customer">Select Existing Customer</string>
+    <string name="customer_exists_phone_message">A customer with this phone number already exists.\n\nName: %1$s\nPhone: %2$s\n\nWould you like to select this customer instead?</string>
     <string name="required_fields_missing">Please fill all required fields</string>
     <string name="invalid_phone_number">Invalid phone number format</string>
     <string name="invalid_email">Invalid email format</string>
@@ -217,6 +221,8 @@
     <string name="delete_operator">Delete Operator</string>
     <string name="operators_empty">No operators yet</string>
     <string name="operator_code">Operator Code/Prefix</string>
+    <string name="transfer_rate">Transfer Rate (%)</string>
+    <string name="transfer">Transfer</string>
 
     <!-- Operator Actions -->
     <string name="operator_actions">Operator Actions</string>
@@ -237,7 +243,7 @@
     <string name="are_you_sure">Are you sure?</string>
     
     <!-- Transaction Processing -->
-    <string name="process_transaction">Process Transaction</string>
+    <string name="process_transaction">Sale</string>
     <string name="select_operator">Select Operator</string>
     <string name="select_action">Select Action</string>
     <string name="select_customer">Select Customer</string>
@@ -297,8 +303,8 @@
     <string name="confirm_adjustment">Are you sure you want to apply this adjustment?</string>
     
     
-    <!-- Cash Register -->
-    <string name="cash_register_title">Cash Register</string>
+    <!-- Cash Register / Transactions -->
+    <string name="cash_register_title">Transactions</string>
     <string name="all_transactions">All Transactions</string>
     <string name="view_manage_transactions">View and manage all your transactions</string>
     <string name="no_transactions_found">No transactions found</string>
@@ -375,4 +381,30 @@
     <string name="tax_rate_range_error">Tax rate must be between 0 and 100</string>
     <string name="please_enter_valid_numbers">Please enter valid numbers</string>
     <string name="generate_report">Generate Report</string>
+    
+    <!-- Additional strings for French translation compatibility -->
+    <string name="agent_account">Agent Account</string>
+    <string name="dealer_account">Dealer Account</string>
+    <string name="total">Total</string>
+    <string name="today">Today</string>
+    <string name="current">Current</string>
+    <string name="customers">Customers</string>
+    <string name="balance">Balance</string>
+    <string name="agents">Agents</string>
+    <string name="operators">Operators</string>
+    <string name="credit">Credit</string>
+    <string name="amount_hint">Amount (XAF)</string>
+    <string name="process_transaction_button">Process Transaction</string>
+    <string name="transaction_successful">Transaction Successful</string>
+    <string name="ussd_code_generated">USSD Code Generated</string>
+    <string name="ussd_code_opened">USSD code opened in dialer</string>
+    <string name="enter_valid_amount">Please enter a valid amount</string>
+    <string name="processing_transaction">Processing transaction...</string>
+    <string name="customer_name">Customer Name</string>
+    <string name="customer_phone">Customer Phone</string>
+    <string name="customer_address">Customer Address</string>
+    <string name="customer_dob">Date of Birth</string>
+    <string name="operator_saved">Operator saved successfully</string>
+    <string name="operator_updated">Operator updated successfully</string>
+    <string name="operator_deleted">Operator deleted successfully</string>
 </resources>

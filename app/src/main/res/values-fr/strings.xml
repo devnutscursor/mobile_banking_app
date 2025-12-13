@@ -35,10 +35,10 @@
     <string name="agent_operations">Opérations Agent</string>
     <string name="manage_customers">Ajouter Clients</string>
     <string name="buy_virtual_credit">Acheter Crédit Virtuel</string>
-    <string name="buy_credit">Acheter Crédit</string>
+    <string name="buy_credit">Achat</string>
     <string name="buy_credit_info">Contactez votre revendeur pour acheter des crédits supplémentaires pour votre compte.</string>
     <string name="add_credits">Ajouter Crédits</string>
-    <string name="process_transactions">Traiter Transactions</string>
+    <string name="process_transactions">Vente</string>
     <string name="my_reports">Mes Rapports</string>
     <string name="manage_operators">Gérer Opérateurs</string>
     <string name="edit">Modifier</string>
@@ -46,7 +46,7 @@
     <string name="dealer_dashboard">Tableau de Bord Revendeur</string>
     <string name="agent_dashboard">Tableau de Bord Agent</string>
     <string name="manage_agents">Gérer Agents</string>
-    <string name="cash_register">Caisse</string>
+    <string name="cash_register">Transactions</string>
     <string name="virtual_accounts">Comptes Virtuels</string>
     <string name="transactions">Transactions</string>
     <string name="reports">Rapports</string>
@@ -92,7 +92,7 @@
     <string name="logout">Déconnexion</string>
     
     <!-- Transaction Processing -->
-    <string name="process_transaction">Traiter Transaction</string>
+    <string name="process_transaction">Vente</string>
     <string name="select_customer">Sélectionner Client</string>
     <string name="select_operator">Sélectionner Opérateur</string>
     <string name="select_action">Sélectionner Action</string>
@@ -107,8 +107,8 @@
     <string name="enter_valid_amount">Veuillez entrer un montant valide</string>
     <string name="processing_transaction">Traitement de la transaction...</string>
     
-    <!-- Cash Register -->
-    <string name="cash_register_title">Caisse</string>
+    <!-- Cash Register / Transactions -->
+    <string name="cash_register_title">Transactions</string>
     <string name="all_transactions">Toutes les Transactions</string>
     <string name="view_manage_transactions">Voir et gérer toutes vos transactions</string>
     <string name="no_transactions_found">Aucune transaction trouvée</string>
@@ -207,14 +207,20 @@
     <!-- Customer Management -->
     <string name="customer_management">Gestion des Clients</string>
     <string name="add_customer">Ajouter Client</string>
+    <string name="scan_barcode">Scanner MRZ</string>
+    <string name="scan_barcode_instruction">Positionnez la zone MRZ du document dans le cadre pour scanner</string>
     <string name="customer_name">Nom du Client</string>
     <string name="customer_phone">Téléphone du Client</string>
+    <string name="search_by_phone_number">Rechercher par numéro de téléphone...</string>
     <string name="customer_address">Adresse du Client</string>
     <string name="customer_dob">Date de Naissance</string>
     <string name="save_customer">Enregistrer Client</string>
     <string name="customer_saved">Client enregistré avec succès</string>
     <string name="customer_updated">Client mis à jour avec succès</string>
     <string name="customer_deleted">Client supprimé avec succès</string>
+    <string name="customer_phone_already_exists">Un client avec le numéro de téléphone %1$s existe déjà dans votre liste.</string>
+    <string name="select_existing_customer">Sélectionner le Client Existant</string>
+    <string name="customer_exists_phone_message">Un client avec ce numéro de téléphone existe déjà.\n\nNom: %1$s\nTéléphone: %2$s\n\nSouhaitez-vous sélectionner ce client à la place?</string>
     <string name="document_type">Type de Document</string>
     <string name="document_type_cni">CNI</string>
     <string name="document_type_passport">PASSEPORT</string>
@@ -244,6 +250,8 @@
     <string name="operator_saved">Opérateur enregistré avec succès</string>
     <string name="operator_updated">Opérateur mis à jour avec succès</string>
     <string name="operator_deleted">Opérateur supprimé avec succès</string>
+    <string name="transfer_rate">Taux de Transfert (%)</string>
+    <string name="transfer">Transfert</string>
     
     <!-- Common -->
     <string name="confirm_transaction">Confirmer Transaction</string>
