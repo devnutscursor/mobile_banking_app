@@ -73,15 +73,18 @@ public class CustomerManagementActivity extends AppCompatActivity {
     private ProcessCameraProvider cameraProvider;
     private boolean isScanning = false;
     
-    // Frame buffering for better MRZ detection
-    private java.util.List<String> mrzFrameBuffer = new java.util.ArrayList<>();
-    private static final int FRAME_BUFFER_SIZE = 5; // Process every 5th frame to reduce load
-    private static final int MIN_CONSISTENT_DETECTIONS = 2; // Require MRZ detected in 2+ frames
+    // Advanced MRZ detection with consensus-based approach
+    private java.util.Map<String, Integer> mrzDetectionCounts = new java.util.HashMap<>(); // Track MRZ detection frequency
+    private static final int MIN_CONSENSUS_DETECTIONS = 3; // Require MRZ detected 3+ times for consensus
+    private static final int MAX_DETECTION_ATTEMPTS = 15; // Max attempts before choosing best candidate
+    private int detectionAttempts = 0;
     private int frameCounter = 0;
     private long lastProcessTime = 0;
-    private static final long MIN_PROCESS_INTERVAL_MS = 500; // Process at most every 500ms
-    private static final long MIN_SCANNING_DURATION_MS = 5000; // Wait at least 5 seconds before processing
-    private long scanningStartTime = 0; // Track when scanning started
+    private static final long MIN_PROCESS_INTERVAL_MS = 300; // Process every 300ms for quality
+    private static final long MIN_SCANNING_DURATION_MS = 3000; // Reduced to 3 seconds (faster than 5)
+    private long scanningStartTime = 0;
+    private String lastDetectedMRZ = null;
+    private boolean focusCompleted = false;
     
     // Database and Session
     private AppDatabase database;
@@ -291,19 +294,22 @@ public class CustomerManagementActivity extends AppCompatActivity {
             return;
         }
         
-        // Reset frame buffer and counters
-        mrzFrameBuffer.clear();
+        // Reset detection state
+        mrzDetectionCounts.clear();
+        detectionAttempts = 0;
         frameCounter = 0;
         lastProcessTime = 0;
-        scanningStartTime = System.currentTimeMillis(); // Record when scanning started
+        scanningStartTime = System.currentTimeMillis();
+        lastDetectedMRZ = null;
+        focusCompleted = false;
         
         isScanning = true;
         cameraPreviewCard.setVisibility(View.VISIBLE);
         previewView.setVisibility(View.VISIBLE);
         startCamera();
         
-        // Show message to user to focus and position document
-        Toast.makeText(this, "Please focus and position the MRZ zone clearly. Scanning will start in 5 seconds...", Toast.LENGTH_LONG).show();
+        // Show message to user
+        Toast.makeText(this, "Position the MRZ zone (3 bottom lines) in view. Hold steady...", Toast.LENGTH_LONG).show();
         
         // Show message to user to focus and position document
         Toast.makeText(this, "Please focus and position the MRZ zone clearly. Scanning will start in 5 seconds...", Toast.LENGTH_LONG).show();
@@ -313,11 +319,14 @@ public class CustomerManagementActivity extends AppCompatActivity {
         isScanning = false;
         cameraPreviewCard.setVisibility(View.GONE);
         previewView.setVisibility(View.GONE);
-        // Reset frame buffer and timing
-        mrzFrameBuffer.clear();
+        // Reset detection state
+        mrzDetectionCounts.clear();
+        detectionAttempts = 0;
         frameCounter = 0;
         lastProcessTime = 0;
         scanningStartTime = 0;
+        lastDetectedMRZ = null;
+        focusCompleted = false;
         try {
             if (cameraProvider != null) {
                 cameraProvider.unbindAll();
@@ -383,99 +392,307 @@ public class CustomerManagementActivity extends AppCompatActivity {
         if (!isScanning) { image.close(); return; }
         if (image.getImage() == null) { image.close(); return; }
         
-        // Throttle processing to avoid overwhelming the system
+        // Throttle processing for quality
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastProcessTime < MIN_PROCESS_INTERVAL_MS) {
             image.close();
             return;
         }
         
-        // Process every Nth frame to reduce load and allow time for stabilization
         frameCounter++;
-        if (frameCounter % FRAME_BUFFER_SIZE != 0) {
+        lastProcessTime = currentTime;
+        
+        // Check if minimum scanning duration has elapsed (allow focusing time)
+        long elapsedTime = currentTime - scanningStartTime;
+        if (elapsedTime < MIN_SCANNING_DURATION_MS) {
+            if (!focusCompleted && frameCounter % 5 == 0) {
+                long remainingTime = (MIN_SCANNING_DURATION_MS - elapsedTime + 999) / 1000;
+                Log.d(TAG, "Waiting " + remainingTime + " more second(s) for camera to focus...");
+            }
             image.close();
             return;
         }
         
-        lastProcessTime = currentTime;
+        // Mark focus period as complete and notify user once
+        if (!focusCompleted) {
+            focusCompleted = true;
+            runOnUiThread(() -> {
+                Toast.makeText(this, "Scanning... Keep card steady", Toast.LENGTH_SHORT).show();
+            });
+            Log.d(TAG, "Focus period complete, starting MRZ detection");
+        }
         
-        // Get rotation and image dimensions for better debugging
+        // Get image info
         int rotationDegrees = image.getImageInfo().getRotationDegrees();
         int imageWidth = image.getWidth();
         int imageHeight = image.getHeight();
         
-        Log.d(TAG, "Analyzing image for MRZ (frame #" + frameCounter + "): " + imageWidth + "x" + imageHeight + 
-              ", rotation: " + rotationDegrees + "°");
+        // Check image quality before processing
+        if (!checkImageQuality(image.getImage())) {
+            if (frameCounter % 5 == 0) {
+                Log.d(TAG, "Image quality check failed - too dark or blurry. Keep card in good light.");
+            }
+            image.close();
+            return;
+        }
+        
+        Log.d(TAG, "Processing frame #" + frameCounter + " (" + imageWidth + "x" + imageHeight + ")");
         
         InputImage inputImage = InputImage.fromMediaImage(image.getImage(), rotationDegrees);
         
         textRecognizer.process(inputImage)
                 .addOnSuccessListener(text -> {
                     if (text != null && isScanning) {
-                        // Extract MRZ lines from recognized text
-                        String mrzText = extractMRZText(text);
+                        // Extract and correct MRZ text
+                        String mrzText = extractAndCorrectMRZ(text);
                         
-                        if (mrzText != null && !mrzText.trim().isEmpty()) {
-                            // Check if minimum scanning duration has elapsed
-                            long elapsedTime = System.currentTimeMillis() - scanningStartTime;
-                            boolean minDurationElapsed = elapsedTime >= MIN_SCANNING_DURATION_MS;
+                        if (mrzText != null && !mrzText.trim().isEmpty() && isValidMRZ(mrzText)) {
+                            detectionAttempts++;
                             
-                            if (!minDurationElapsed) {
-                                // Still within the 5-second focus period - don't process yet, just log
-                                long remainingTime = (MIN_SCANNING_DURATION_MS - elapsedTime + 999) / 1000; // Round up
-                                Log.d(TAG, "MRZ detected in frame #" + frameCounter + " but waiting " + remainingTime + " more second(s) for focusing...");
-                                // Continue scanning, don't process yet
-                                return;
-                            }
+                            // Normalize MRZ for comparison (consistent format)
+                            String normalizedMRZ = normalizeMRZ(mrzText);
                             
-                            // Add to frame buffer for consistency checking
-                            mrzFrameBuffer.add(mrzText);
-                            Log.d(TAG, "MRZ detected in frame #" + frameCounter + " (buffer size: " + mrzFrameBuffer.size() + ", elapsed: " + (elapsedTime / 1000) + "s)");
+                            // Track detection frequency
+                            Integer count = mrzDetectionCounts.getOrDefault(normalizedMRZ, 0);
+                            mrzDetectionCounts.put(normalizedMRZ, count + 1);
                             
-                            // Require consistent detection across multiple frames to avoid false positives
-                            if (mrzFrameBuffer.size() >= MIN_CONSISTENT_DETECTIONS) {
-                                // Use the most recent detection (clearest image)
-                                String finalMrzText = mrzFrameBuffer.get(mrzFrameBuffer.size() - 1);
-                                Log.d(TAG, "========== MRZ TEXT CONFIRMED (detected " + mrzFrameBuffer.size() + " times after " + (elapsedTime / 1000) + "s) ==========");
-                                Log.d(TAG, "MRZ Text:\n" + finalMrzText);
+                            Log.d(TAG, "Valid MRZ detected (attempt " + detectionAttempts + ", seen " + (count + 1) + " times)");
+                            
+                            // Check if we have consensus (same MRZ detected multiple times)
+                            if (count + 1 >= MIN_CONSENSUS_DETECTIONS) {
+                                Log.d(TAG, "========== CONSENSUS REACHED (" + (count + 1) + " detections) ==========");
+                                Log.d(TAG, "MRZ Text:\n" + normalizedMRZ);
                                 
                                 isScanning = false;
-                                mrzFrameBuffer.clear();
-                                processMRZData(finalMrzText);
+                                lastDetectedMRZ = normalizedMRZ;
                                 
-                                // Stop camera
+                                runOnUiThread(() -> {
+                                    Toast.makeText(this, "MRZ verified! Processing...", Toast.LENGTH_SHORT).show();
+                                });
+                                
+                                processMRZData(normalizedMRZ);
                                 stopBarcodeScanning();
-                            } else {
-                                // Continue scanning to get more consistent detections
-                                Log.d(TAG, "MRZ detected but need " + (MIN_CONSISTENT_DETECTIONS - mrzFrameBuffer.size()) + " more consistent detections");
+                            } else if (detectionAttempts >= MAX_DETECTION_ATTEMPTS) {
+                                // Reached max attempts, use most frequently detected MRZ
+                                String bestMRZ = getMostFrequentMRZ();
+                                if (bestMRZ != null) {
+                                    Log.d(TAG, "========== MAX ATTEMPTS REACHED - Using best candidate ==========");
+                                    Log.d(TAG, "MRZ Text:\n" + bestMRZ);
+                                    
+                                    isScanning = false;
+                                    lastDetectedMRZ = bestMRZ;
+                                    
+                                    runOnUiThread(() -> {
+                                        Toast.makeText(this, "Processing MRZ...", Toast.LENGTH_SHORT).show();
+                                    });
+                                    
+                                    processMRZData(bestMRZ);
+                                    stopBarcodeScanning();
+                                } else {
+                                    Log.w(TAG, "No valid MRZ candidate found after " + MAX_DETECTION_ATTEMPTS + " attempts");
+                                    runOnUiThread(() -> {
+                                        Toast.makeText(this, "Unable to read MRZ. Please reposition the card.", Toast.LENGTH_LONG).show();
+                                    });
+                                    stopBarcodeScanning();
+                                }
                             }
-                        } else if (isScanning) {
-                            // Reset buffer if MRZ not detected in this frame
-                            if (mrzFrameBuffer.size() > 0) {
-                                Log.d(TAG, "MRZ lost in frame #" + frameCounter + ", resetting buffer");
-                                mrzFrameBuffer.clear();
+                        } else {
+                            // Invalid or no MRZ detected
+                            if (frameCounter % 5 == 0 && detectionAttempts > 0) {
+                                Log.d(TAG, "No valid MRZ in this frame (attempt " + detectionAttempts + " of " + MAX_DETECTION_ATTEMPTS + ")");
                             }
-                            // Continue scanning - MRZ not found yet
-                            Log.v(TAG, "Scanning... MRZ not detected yet. Image: " + 
-                              imageWidth + "x" + imageHeight);
                         }
                     }
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "MRZ text recognition failed", e);
-                    Log.e(TAG, "Error details - Image size: " + imageWidth + "x" + imageHeight + 
-                          ", Rotation: " + rotationDegrees + "°, Error: " + e.getMessage());
-                    if (e.getCause() != null) {
-                        Log.e(TAG, "Error cause: " + e.getCause().getMessage());
-                    }
-                    // Reset buffer on error
-                    mrzFrameBuffer.clear();
                 })
                 .addOnCompleteListener(result -> image.close());
     }
     
     /**
-     * Extract MRZ lines from recognized text
+     * Check image quality (brightness, sharpness estimate)
+     */
+    private boolean checkImageQuality(android.media.Image image) {
+        // Basic quality check - ensure image is not too dark
+        // In a production app, you might want more sophisticated checks
+        return true; // For now, accept all images
+    }
+    
+    /**
+     * Get the most frequently detected MRZ from the detection map
+     */
+    private String getMostFrequentMRZ() {
+        if (mrzDetectionCounts.isEmpty()) {
+            return null;
+        }
+        
+        String bestMRZ = null;
+        int maxCount = 0;
+        
+        for (java.util.Map.Entry<String, Integer> entry : mrzDetectionCounts.entrySet()) {
+            if (entry.getValue() > maxCount) {
+                maxCount = entry.getValue();
+                bestMRZ = entry.getKey();
+            }
+        }
+        
+        Log.d(TAG, "Most frequent MRZ detected " + maxCount + " times");
+        return bestMRZ;
+    }
+    
+    /**
+     * Normalize MRZ for consistent comparison
+     */
+    private String normalizeMRZ(String mrz) {
+        if (mrz == null) return "";
+        // Ensure consistent format - uppercase, trimmed, normalized line breaks
+        return mrz.toUpperCase().trim().replaceAll("\\r\\n", "\n").replaceAll("\\r", "\n");
+    }
+    
+    /**
+     * Extract MRZ from recognized text with aggressive OCR error correction
+     */
+    private String extractAndCorrectMRZ(Text text) {
+        if (text == null) {
+            return null;
+        }
+        
+        // First extract potential MRZ lines
+        String rawMRZ = extractMRZText(text);
+        if (rawMRZ == null || rawMRZ.trim().isEmpty()) {
+            return null;
+        }
+        
+        // Apply aggressive OCR error correction
+        return correctMRZOCRErrors(rawMRZ);
+    }
+    
+    /**
+     * Aggressive OCR error correction specifically for MRZ format
+     * MRZ contains only: A-Z, 0-9, and < (filler)
+     */
+    private String correctMRZOCRErrors(String mrz) {
+        if (mrz == null) return null;
+        
+        String[] lines = mrz.split("\n");
+        StringBuilder corrected = new StringBuilder();
+        
+        for (int lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+            String line = lines[lineIdx].toUpperCase();
+            StringBuilder correctedLine = new StringBuilder();
+            
+            for (int i = 0; i < line.length(); i++) {
+                char c = line.charAt(i);
+                char correctedChar = c;
+                
+                // Context-aware correction based on position and surrounding characters
+                if (lineIdx == 0) {
+                    // Line 1: I<BFAB213719491<<<<<<<<<<<<<<<
+                    if (i == 0) {
+                        // First char should be document type (I, P, A, C)
+                        if (c == '1' || c == 'L' || c == 'J') correctedChar = 'I';
+                        else if (c == '0' || c == 'O' || c == 'D') correctedChar = 'O'; // Might be part of IO
+                    } else if (i >= 2 && i <= 4) {
+                        // Country code (3 letters) - positions 2-4
+                        correctedChar = correctToLetter(c);
+                    } else if (i >= 5 && i <= 14) {
+                        // Document number (can be letters and numbers)
+                        // Keep as-is unless it's obviously wrong
+                        if (c == 'O') correctedChar = '0'; // O in document number likely 0
+                        else if (c == 'I' && i > 5) correctedChar = '1'; // I after position 5 likely 1
+                    }
+                } else if (lineIdx == 1) {
+                    // Line 2: 0001085M3504244BFA<<<<<<<<<<<4
+                    if (i >= 0 && i <= 5) {
+                        // Date of birth (6 digits) - positions 0-5
+                        correctedChar = correctToDigit(c);
+                    } else if (i == 7) {
+                        // Gender (M/F/X) - position 7
+                        if (c == 'N' || c == 'H') correctedChar = 'M';
+                        else if (c == 'E' || c == 'P') correctedChar = 'F';
+                    } else if (i >= 8 && i <= 13) {
+                        // Expiry date (6 digits) - positions 8-13
+                        correctedChar = correctToDigit(c);
+                    } else if (i >= 15 && i <= 17) {
+                        // Nationality (3 letters) - positions 15-17
+                        correctedChar = correctToLetter(c);
+                    }
+                } else if (lineIdx == 2) {
+                    // Line 3: TIEMA<<DANLE<CHEICK<ABOUBACA<S
+                    // Names - should be all letters or <
+                    if (c != '<') {
+                        correctedChar = correctToLetter(c);
+                    }
+                }
+                
+                // General corrections for all positions
+                if (correctedChar == c) {
+                    // Apply general MRZ character corrections
+                    switch (c) {
+                        case '|': case '/': case '\\': case 'l': case 'L': case '!': case '1':
+                            // These might be < (filler)
+                            // Check context: if surrounded by < or at end, likely <
+                            if ((i > 0 && line.charAt(i-1) == '<') || 
+                                (i < line.length()-1 && line.charAt(i+1) == '<') ||
+                                i >= line.length() - 15) { // Last 15 chars often fillers
+                                correctedChar = '<';
+                            }
+                            break;
+                    }
+                }
+                
+                correctedLine.append(correctedChar);
+            }
+            
+            if (lineIdx > 0) corrected.append('\n');
+            corrected.append(correctedLine);
+        }
+        
+        String result = corrected.toString();
+        if (!result.equals(mrz)) {
+            Log.d(TAG, "OCR Corrections applied:");
+            Log.d(TAG, "Before: " + mrz);
+            Log.d(TAG, "After:  " + result);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Correct character to most likely digit (0-9)
+     */
+    private char correctToDigit(char c) {
+        switch (c) {
+            case 'O': case 'Q': case 'D': return '0';
+            case 'I': case 'L': case 'l': case '|': return '1';
+            case 'Z': case 'z': return '2';
+            case 'S': case 's': return '5';
+            case 'G': case 'g': return '6';
+            case 'T': case 't': return '7';
+            case 'B': return '8';
+            default: return c;
+        }
+    }
+    
+    /**
+     * Correct character to most likely letter (A-Z)
+     */
+    private char correctToLetter(char c) {
+        switch (c) {
+            case '0': return 'O';
+            case '1': return 'I';
+            case '2': return 'Z';
+            case '5': return 'S';
+            case '6': return 'G';
+            case '7': return 'T';
+            case '8': return 'B';
+            default: return Character.isLetter(c) ? Character.toUpperCase(c) : c;
+        }
+    }
+    
+    /**
+     * Extract MRZ lines from recognized text (original method)
      * Looks for lines that match MRZ format (long lines with letters, numbers, and <)
      */
     private String extractMRZText(Text text) {
@@ -512,52 +729,76 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 String normalized = lineText
                     .replaceAll("\\|+", "<")    // | (pipe) might be <
                     .replaceAll("[/\\\\]+", "<")  // / or \ might be <
-                    .replaceAll("\\s+", "");     // Remove all spaces
+                    .replaceAll("\\s+", "")      // Remove all spaces
+                    .replaceAll("[^A-Z0-9<]", ""); // Remove any other special characters
                 
                 // More conservative: check if line has MRZ characteristics
                 // MRZ lines are long (30+ chars) and contain mix of letters/numbers
                 // They may or may not have < characters (OCR might miss them)
                 
-                // Check if line is long enough
-                if (normalized.length() >= 28) { // Slightly lower threshold (28 instead of 30)
+                // Check if line is long enough (28-32 chars for TD1, which is most common)
+                if (normalized.length() >= 28 && normalized.length() <= 32) {
                     // Check if it contains mostly alphanumeric (and possibly <)
                     long alphanumericCount = normalized.chars()
                         .filter(c -> (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '<')
                         .count();
                     
-                    // If at least 90% is alphanumeric or <, it's likely MRZ
+                    // Require very high alphanumeric ratio
                     double alphanumericRatio = (double) alphanumericCount / normalized.length();
                     
-                    if (alphanumericRatio >= 0.85) {
-                        // Check if line looks like MRZ format
-                        // TD1 lines are exactly 30 chars, but OCR might not be perfect
-                        // Look for pattern: starts with document type (I, P, A, C) or country code
+                    if (alphanumericRatio >= 0.90) {
+                        // STRICT MRZ detection - must match one of these patterns:
                         boolean looksLikeMRZ = false;
                         
-                        // Check if starts with document type indicators
-                        if (normalized.length() > 2) {
+                        if (normalized.length() >= 2) {
                             char firstChar = normalized.charAt(0);
-                            // TD1/TD2/TD3 typically start with P, I, A, C, or have country code at pos 2-4
-                            if (firstChar == 'P' || firstChar == 'I' || firstChar == 'A' || firstChar == 'C') {
-                                looksLikeMRZ = true;
-                            } else if (normalized.length() > 5) {
-                                // Check if positions 2-4 might be country code (3 uppercase letters)
-                                String possibleCountry = normalized.substring(2, Math.min(5, normalized.length()));
-                                if (possibleCountry.matches("[A-Z]{3}")) {
+                            char secondChar = normalized.length() > 1 ? normalized.charAt(1) : ' ';
+                            
+                            // Line 1: Starts with document type I<, P<, A<, C<
+                            if ((firstChar == 'I' || firstChar == 'P' || firstChar == 'A' || firstChar == 'C') && 
+                                (secondChar == '<' || secondChar == 'D' || secondChar == 'P')) {
+                                // Check for country code at position 2-4
+                                if (normalized.length() >= 5) {
+                                    String possibleCountry = normalized.substring(2, 5);
+                                    // Country code should be 3 letters
+                                    if (possibleCountry.matches("[A-Z]{3}")) {
+                                        looksLikeMRZ = true;
+                                        Log.d(TAG, "✓ MRZ Line 1 pattern detected: " + normalized.substring(0, Math.min(30, normalized.length())));
+                                    }
+                                }
+                            }
+                            // Line 2: Starts with digit (date of birth YYMMDD)
+                            else if (Character.isDigit(firstChar) && normalized.length() >= 14) {
+                                // Check if first 6 chars look like a date (YYMMDD)
+                                String first6 = normalized.substring(0, 6);
+                                if (first6.matches("\\d{6}") || first6.replaceAll("[OIL]", "").matches("\\d+")) {
+                                    // Check position 7 for gender (M, F, or X)
+                                    if (normalized.length() > 7) {
+                                        char genderPos = normalized.charAt(7);
+                                        if (genderPos == 'M' || genderPos == 'F' || genderPos == 'X' || genderPos == 'H' || genderPos == 'N') {
+                                            looksLikeMRZ = true;
+                                            Log.d(TAG, "✓ MRZ Line 2 pattern detected: " + normalized.substring(0, Math.min(30, normalized.length())));
+                                        }
+                                    }
+                                }
+                            }
+                            // Line 3: Name line - should have << separator
+                            else if (normalized.contains("<<")) {
+                                // Name line should have mostly letters and < characters
+                                long letterCount = normalized.chars().filter(c -> c >= 'A' && c <= 'Z').count();
+                                long fillerCount = normalized.chars().filter(c -> c == '<').count();
+                                if (letterCount >= 10 && (letterCount + fillerCount) >= normalized.length() * 0.95) {
                                     looksLikeMRZ = true;
+                                    Log.d(TAG, "✓ MRZ Line 3 pattern detected: " + normalized.substring(0, Math.min(30, normalized.length())));
                                 }
                             }
                         }
                         
-                        // Also check if line has pattern of dates (YYMMDD)
-                        if (normalized.matches(".*\\d{6}.*")) {
-                            looksLikeMRZ = true;
-                        }
-                        
-                        if (looksLikeMRZ || alphanumericRatio >= 0.95) {
+                        if (looksLikeMRZ) {
                             mrzLines.add(normalized);
-                            Log.d(TAG, "Found potential MRZ line: " + normalized.substring(0, Math.min(44, normalized.length())));
-                            Log.d(TAG, "Original line was: " + originalLine);
+                            Log.d(TAG, "Added MRZ line: " + normalized);
+                        } else {
+                            Log.d(TAG, "✗ Rejected (not MRZ pattern): " + normalized.substring(0, Math.min(30, normalized.length())));
                         }
                     }
                 }
@@ -569,16 +810,111 @@ public class CustomerManagementActivity extends AppCompatActivity {
             Log.d(TAG, "MRZ Line " + (i + 1) + ": " + mrzLines.get(i));
         }
         
-        // For TD1 format, we need 3 lines, but accept 2+ lines to be more flexible
-        if (mrzLines.size() >= 2) {
-            // Join lines with newline
-            String result = String.join("\n", mrzLines);
-            Log.d(TAG, "Returning MRZ text with " + mrzLines.size() + " lines");
-            return result;
+        // For TD1 format (ID cards), we need EXACTLY 3 lines
+        // Reject if we have more or less to avoid false positives from card text
+        if (mrzLines.size() == 3) {
+            // Verify the 3 lines match TD1 pattern
+            String line1 = mrzLines.get(0);
+            String line2 = mrzLines.get(1);
+            String line3 = mrzLines.get(2);
+            
+            // Line 1 should start with document type
+            boolean line1Valid = line1.length() >= 5 && 
+                                 (line1.charAt(0) == 'I' || line1.charAt(0) == 'P' || line1.charAt(0) == 'A' || line1.charAt(0) == 'C');
+            
+            // Line 2 should start with digits (date)
+            boolean line2Valid = line2.length() >= 6 && Character.isDigit(line2.charAt(0));
+            
+            // Line 3 should contain << (name separator)
+            boolean line3Valid = line3.contains("<<");
+            
+            if (line1Valid && line2Valid && line3Valid) {
+                String result = String.join("\n", mrzLines);
+                Log.d(TAG, "✓ Valid TD1 MRZ with 3 lines");
+                return result;
+            } else {
+                Log.w(TAG, "✗ Found 3 lines but pattern validation failed: L1=" + line1Valid + ", L2=" + line2Valid + ", L3=" + line3Valid);
+                return null;
+            }
         }
         
-        Log.w(TAG, "Not enough MRZ lines found (found " + mrzLines.size() + ", need at least 2)");
+        Log.w(TAG, "✗ Invalid MRZ line count (found " + mrzLines.size() + ", need exactly 3 for TD1)");
         return null;
+    }
+    
+    /**
+     * Validate MRZ format to ensure it's a complete and well-formed MRZ before processing
+     */
+    private boolean isValidMRZ(String mrzText) {
+        if (mrzText == null || mrzText.trim().isEmpty()) {
+            return false;
+        }
+        
+        String[] lines = mrzText.split("\n");
+        
+        // For TD1 (ID cards), must have EXACTLY 3 lines
+        if (lines.length != 3) {
+            Log.d(TAG, "MRZ validation failed: expected 3 lines for TD1, got " + lines.length);
+            return false;
+        }
+        
+        // Check each line
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            
+            // Each line must be reasonably long (at least 28 chars for TD1/TD2/TD3)
+            if (line.length() < 28) {
+                Log.d(TAG, "MRZ validation failed: line " + (i+1) + " too short (" + line.length() + " chars)");
+                return false;
+            }
+            
+            // Each line should contain mostly alphanumeric characters and <
+            long validChars = line.chars()
+                .filter(c -> (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '<')
+                .count();
+            
+            double validRatio = (double) validChars / line.length();
+            if (validRatio < 0.85) {
+                Log.d(TAG, "MRZ validation failed: line " + (i+1) + " has too many invalid chars (ratio: " + validRatio + ")");
+                return false;
+            }
+        }
+        
+        // Check first line format
+        String firstLine = lines[0].trim();
+        
+        // First line should start with document type (I, P, A, C) for TD1/TD3
+        // or with a digit for TD2 second line, or country code
+        char firstChar = firstLine.charAt(0);
+        if (firstChar != 'I' && firstChar != 'P' && firstChar != 'A' && firstChar != 'C' && !Character.isDigit(firstChar)) {
+            // Check if it might have a country code at position 2-4
+            if (firstLine.length() < 5) {
+                Log.d(TAG, "MRZ validation failed: first line format invalid");
+                return false;
+            }
+            String possibleCountry = firstLine.substring(2, 5);
+            if (!possibleCountry.matches("[A-Z]{3}")) {
+                Log.d(TAG, "MRZ validation failed: no valid document type or country code found");
+                return false;
+            }
+        }
+        
+        // Check for date patterns (YYMMDD) - at least one line should have a date
+        boolean hasDatePattern = false;
+        for (String line : lines) {
+            if (line.matches(".*\\d{6}.*")) {
+                hasDatePattern = true;
+                break;
+            }
+        }
+        
+        if (!hasDatePattern) {
+            Log.d(TAG, "MRZ validation failed: no date pattern found");
+            return false;
+        }
+        
+        Log.d(TAG, "MRZ validation passed - " + lines.length + " lines detected");
+        return true;
     }
     
     /**
@@ -596,8 +932,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     Toast.makeText(this, "Unable to read MRZ data. Please hold the document steady, ensure good lighting, and try again.", Toast.LENGTH_LONG).show();
                 });
-                // Continue scanning - reset buffer to allow fresh detection
-                mrzFrameBuffer.clear();
+                // Continue scanning - reset detection state
+                mrzDetectionCounts.clear();
+                detectionAttempts = 0;
                 frameCounter = 0;
                 isScanning = true;
                 return;
@@ -636,8 +973,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     Toast.makeText(this, "No valid data found in MRZ. Please ensure the MRZ zone is clearly visible and try again.", Toast.LENGTH_LONG).show();
                 });
-                // Continue scanning - reset buffer to allow fresh detection
-                mrzFrameBuffer.clear();
+                // Continue scanning - reset detection state
+                mrzDetectionCounts.clear();
+                detectionAttempts = 0;
                 frameCounter = 0;
                 isScanning = true;
                 return;
@@ -666,8 +1004,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 Toast.makeText(this, "Error processing MRZ. Please try again.", Toast.LENGTH_SHORT).show();
             });
-            // Continue scanning on error - reset buffer
-            mrzFrameBuffer.clear();
+            // Continue scanning on error - reset detection state
+            mrzDetectionCounts.clear();
+            detectionAttempts = 0;
             frameCounter = 0;
             isScanning = true;
         }
