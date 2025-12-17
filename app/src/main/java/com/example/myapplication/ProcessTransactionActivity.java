@@ -29,6 +29,7 @@ import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.LanguageManager;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.CommissionCalculator;
+import com.example.myapplication.utils.OperatorBalanceHelper;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -59,6 +60,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private UserEntity currentUserEntity;
     private String activeUserId; // single source of truth for current user id
+    private OperatorBalanceHelper balanceHelper;
+    private LanguageManager languageManager;
+    private static long lastLanguageChangeTime = 0;
 
     private List<OperatorEntity> operators = new ArrayList<>();
     private List<OperatorActionEntity> actions = new ArrayList<>();
@@ -69,7 +73,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     private CustomerEntity selectedCustomer;
     private String selectedTransactionType;
 
-    private double availableCredit = 0.0;
+    private double availableCredit = 0.0; // Current operator-specific balance
     
 
     @Override
@@ -104,9 +108,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         firebaseUser = FirebaseAuth.getInstance().getCurrentUser();
         database = AppDatabase.getDatabase(this);
         sessionManager = new SessionManager(this);
+        balanceHelper = new OperatorBalanceHelper(database);
+        languageManager = LanguageManager.getInstance(this);
 
         // Initialize UI
         initViews();
+        
+        // Setup language selector after views are initialized
+        setupLanguageSelector();
         
         // Resolve active user from session (offline-first)
         currentUserEntity = sessionManager.getCurrentUser();
@@ -131,10 +140,12 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Update language flag in case language was changed elsewhere
+        updateLanguageFlag();
         // Refresh data when returning to activity (e.g., after adding customers/operators)
         loadCustomers();
         loadOperators();
-        loadUserData(); // Refresh credit as well
+        loadUserData(); // Refresh credit as well (this will reload operator balance)
     }
 
     private void initViews() {
@@ -158,6 +169,74 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         // Add thousands separator to amount field
         com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etAmount);
     }
+    
+    private void setupLanguageSelector() {
+        // Find the language flag image view
+        ImageView ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        if (ivLanguageFlag == null) {
+            // Language selector might not be in the layout, skip setup
+            return;
+        }
+        
+        // Ensure languageManager is initialized
+        if (languageManager == null) {
+            languageManager = LanguageManager.getInstance(this);
+        }
+        
+        // Set initial flag based on current language
+        updateLanguageFlag();
+        
+        // Make the language selector clickable
+        View languageSelector = findViewById(R.id.ivLanguageFlag);
+        if (languageSelector != null) {
+            languageSelector.setOnClickListener(v -> {
+                // Prevent rapid language changes (debounce)
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastLanguageChangeTime < 1000) { // 1 second debounce
+                    return;
+                }
+                
+                // Toggle between English and French
+                String currentLang = languageManager.getCurrentLanguage();
+                String newLang = currentLang.equals("en") ? "fr" : "en";
+                
+                lastLanguageChangeTime = currentTime;
+                
+                // Set language and recreate activity
+                languageManager.setLanguageWithTranslation(newLang)
+                        .thenAccept(success -> {
+                            runOnUiThread(() -> {
+                                if (success) {
+                                    // Recreate activity to apply new language
+                                    recreate();
+                                } else {
+                                    Toast.makeText(this, "Failed to change language", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        });
+            });
+        }
+    }
+    
+    private void updateLanguageFlag() {
+        ImageView ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        if (ivLanguageFlag == null) {
+            return;
+        }
+        
+        // Ensure languageManager is initialized
+        if (languageManager == null) {
+            languageManager = LanguageManager.getInstance(this);
+        }
+        
+        String currentLang = languageManager.getCurrentLanguage();
+        
+        if ("fr".equals(currentLang)) {
+            ivLanguageFlag.setImageResource(R.drawable.ic_flag_fr);
+        } else {
+            ivLanguageFlag.setImageResource(R.drawable.ic_flag_us);
+        }
+    }
 
     private void setupListeners() {
         spinnerOperator.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -166,16 +245,22 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 if (position >= 0 && position < operators.size()) { // No placeholder, direct index
                     selectedOperator = operators.get(position);
                     loadActions(selectedOperator.getId());
+                    // Load operator-specific balance when operator is selected
+                    loadOperatorBalance();
                 } else {
                     selectedOperator = null;
                     actions.clear();
                     updateActionSpinner();
+                    availableCredit = 0.0;
+                    updateCreditDisplay();
                 }
             }
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
                 selectedOperator = null;
+                availableCredit = 0.0;
+                updateCreditDisplay();
             }
         });
 
@@ -246,26 +331,22 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
         new Thread(() -> {
             try {
-                // Reset credit to 0 first to avoid showing old user's credit
-                availableCredit = 0.0;
-                runOnUiThread(() -> updateCreditDisplay());
-                
                 // Load from local database first (offline-first approach)
                 currentUserEntity = database.userDao().getUserById(activeUserId);
                 
-                if (currentUserEntity != null) {
-                    availableCredit = currentUserEntity.getVirtualCredit();
-                    Log.d(TAG, "Loaded credit from local DB for user " + activeUserId + ": " + availableCredit);
-                    runOnUiThread(() -> updateCreditDisplay());
-                } else {
+                if (currentUserEntity == null) {
                     Log.e(TAG, "No user found in local database for: " + activeUserId);
-                    // Set default credit if no user found
-                    availableCredit = 0.0;
-                    runOnUiThread(() -> updateCreditDisplay());
                 }
 
-                // Always try to sync with Firestore to get latest credit for current user
-                syncWithFirestoreIfOnline();
+                // Load operator-specific balance if operator is selected
+                runOnUiThread(() -> {
+                    if (selectedOperator != null) {
+                        loadOperatorBalance();
+                    } else {
+                        availableCredit = 0.0;
+                        updateCreditDisplay();
+                    }
+                });
 
             } catch (Exception e) {
                 Log.e(TAG, "Error loading user data", e);
@@ -275,14 +356,39 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             }
         }).start();
     }
+    
+    /**
+     * Load operator-specific balance for the currently selected operator.
+     */
+    private void loadOperatorBalance() {
+        if (activeUserId == null || selectedOperator == null) {
+            availableCredit = 0.0;
+            updateCreditDisplay();
+            return;
+        }
+        
+        new Thread(() -> {
+            try {
+                // Get operator-specific balance
+                double operatorBalance = balanceHelper.getBalance(activeUserId, selectedOperator.getId());
+                availableCredit = operatorBalance;
+                
+                Log.d(TAG, "Loaded balance for operator " + selectedOperator.getName() + ": " + operatorBalance);
+                
+                runOnUiThread(() -> updateCreditDisplay());
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading operator balance", e);
+                runOnUiThread(() -> {
+                    availableCredit = 0.0;
+                    updateCreditDisplay();
+                });
+            }
+        }).start();
+    }
 
     private void updateCreditDisplay() {
-        // Display integer-like when possible, else 2 decimals
-        if (Math.abs(availableCredit - Math.rint(availableCredit)) < 0.005) {
-            tvAvailableCredit.setText(String.format(java.util.Locale.getDefault(), "%.0f", availableCredit));
-        } else {
-            tvAvailableCredit.setText(String.format(java.util.Locale.getDefault(), "%.2f", availableCredit));
-        }
+        // Display with thousands separators
+        tvAvailableCredit.setText(com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(availableCredit));
     }
     
     private void syncWithFirestoreIfOnline() {
@@ -1109,10 +1215,12 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             transaction.setUserRole(currentUserEntity.getRole());
         }
         
-        transaction.setCreditBefore(availableCredit);
+        // Get current operator-specific balance
+        double currentOperatorBalance = balanceHelper.getBalance(activeUserId, selectedOperator.getId());
+        transaction.setCreditBefore(currentOperatorBalance);
         
         // Calculate credit after based on transaction type
-        double creditAfter = availableCredit;
+        double creditAfter = currentOperatorBalance;
         String transactionType = transaction.getTransactionType();
         
         if ("deposit".equals(transactionType)) {
@@ -1296,14 +1404,15 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     }
 
     private void updateUserCredit(TransactionEntity transaction) {
-        if (activeUserId == null || currentUserEntity == null) {
-            Log.e(TAG, "Cannot update credit: currentUser or currentUserEntity is null");
+        if (activeUserId == null || selectedOperator == null) {
+            Log.e(TAG, "Cannot update credit: activeUserId or selectedOperator is null");
             return;
         }
 
         double newCredit = transaction.getCreditAfter();
         double amount = transaction.getAmount();
         String transactionType = transaction.getTransactionType().toLowerCase();
+        String operatorId = selectedOperator.getId();
         
         // Update local database
         new Thread(() -> {
@@ -1345,16 +1454,12 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                     Log.d(TAG, "Withdrawal: Cash balance decreased by " + amount + " (from " + currentCashBalance + " to " + newCashBalance + ")");
                 }
                 
-                // Update virtual credit
-                user.setVirtualCredit(newCredit);
-                user.setCreditUpdatedAt(System.currentTimeMillis());
+                // Update operator-specific balance using OperatorBalanceHelper
+                balanceHelper.updateBalance(activeUserId, operatorId, newCredit);
                 
-                // Update cash balance
-                user.setCashBalance(newCashBalance);
-                
-                // Update tracking fields
+                // Update tracking fields in operator balance entity
                 if ("deposit".equalsIgnoreCase(transactionType)) {
-                    user.setTotalCreditUsed(user.getTotalCreditUsed() + amount);
+                    balanceHelper.incrementCreditUsed(activeUserId, operatorId, amount);
                 } else if ("transfer".equalsIgnoreCase(transactionType)) {
                     // For transfers, track the total amount debited (base + fees)
                     OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
@@ -1364,21 +1469,20 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                         double transferFee = amount * (transferRate / 100.0);
                         trackedAmount = amount + transferFee; // Track total debited
                     }
-                    user.setTotalCreditUsed(user.getTotalCreditUsed() + trackedAmount);
+                    balanceHelper.incrementCreditUsed(activeUserId, operatorId, trackedAmount);
                 } else {
-                    user.setTotalCreditEarned(user.getTotalCreditEarned() + amount);
+                    balanceHelper.incrementCreditEarned(activeUserId, operatorId, amount);
                 }
                 
+                // Update cash balance (cash balance is still global per user, not per operator)
+                user.setCashBalance(newCashBalance);
                 database.userDao().updateUser(user);
                 currentUserEntity = user; // Update reference
                 
                 availableCredit = newCredit;
                 runOnUiThread(() -> updateCreditDisplay());
                 
-                Log.d(TAG, "Credit updated locally: " + newCredit + ", Cash balance updated: " + newCashBalance);
-                
-                // Try to update Firestore in background (don't block on this)
-                updateCreditInFirestoreBackground(newCredit, transaction, newCashBalance);
+                Log.d(TAG, "Operator-specific balance updated for " + selectedOperator.getName() + ": " + newCredit + ", Cash balance updated: " + newCashBalance);
             } catch (Exception e) {
                 Log.e(TAG, "Error updating credit/cash locally", e);
             }

@@ -14,10 +14,15 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.myapplication.database.AppDatabase;
+import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.AuthManager;
+import com.example.myapplication.utils.OperatorBalanceHelper;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.LanguageManager;
+
+import java.util.List;
 import com.example.myapplication.adapters.LanguageSpinnerAdapter;
 import com.example.myapplication.services.DataSyncService;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -304,7 +309,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
                 
                 if (localUser != null) {
                     double localCashBalance = localUser.getCashBalance();
-                    String display = String.format(java.util.Locale.getDefault(), "%.0f", localCashBalance);
+                    String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(localCashBalance);
                     runOnUiThread(() -> {
                         if (tvCashBalance != null) {
                             tvCashBalance.setText(display);
@@ -358,34 +363,32 @@ public class DealerDashboardActivity extends AppCompatActivity {
             }
         }).start();
 
-        // Load virtual credit from local database first (offline-first approach)
+        // Load total operator balance (sum of all operator balances) from local database
         new Thread(() -> {
             try {
-                com.example.myapplication.database.AppDatabase database = 
-                    com.example.myapplication.database.AppDatabase.getDatabase(this);
-                com.example.myapplication.database.entities.UserEntity localUser = database.userDao().getUserById(currentUser.getUid());
+                AppDatabase database = AppDatabase.getDatabase(this);
+                OperatorBalanceHelper balanceHelper = new OperatorBalanceHelper(database);
                 
-                if (localUser != null) {
-                    double localCredit = localUser.getVirtualCredit();
-                    String display = String.format(java.util.Locale.getDefault(), "%.0f", localCredit);
-                    runOnUiThread(() -> {
-                        if (tvVirtualBalance != null) {
-                            tvVirtualBalance.setText(display);
-                        }
-                        cachedVirtualBalance = display;
-                    });
-                    android.util.Log.d("DealerDashboard", "Loaded credit from local DB: " + localCredit);
-                } else {
-                    runOnUiThread(() -> {
-                        if (tvVirtualBalance != null) {
-                            tvVirtualBalance.setText("0");
-                        }
-                        cachedVirtualBalance = "0";
-                    });
+                // Get all operators for this user
+                List<OperatorEntity> operators = database.operatorDao().getActiveForUser(currentUser.getUid());
+                
+                // Calculate total balance across all operators
+                double totalBalance = 0.0;
+                for (OperatorEntity operator : operators) {
+                    double operatorBalance = balanceHelper.getBalance(currentUser.getUid(), operator.getId());
+                    totalBalance += operatorBalance;
                 }
                 
+                String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(totalBalance);
+                runOnUiThread(() -> {
+                    if (tvVirtualBalance != null) {
+                        tvVirtualBalance.setText(display);
+                    }
+                    cachedVirtualBalance = display;
+                });
+                android.util.Log.d("DealerDashboard", "Loaded total operator balance from local DB: " + totalBalance + " (across " + operators.size() + " operators)");
             } catch (Exception e) {
-                android.util.Log.e("DealerDashboard", "Error loading credit from local DB", e);
+                android.util.Log.e("DealerDashboard", "Error loading total operator balance from local DB", e);
                 runOnUiThread(() -> {
                     if (tvVirtualBalance != null) {
                         tvVirtualBalance.setText("0");
@@ -506,6 +509,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         
         // Clear cached data to force fresh load
         cachedCashBalance = "";
+        cachedVirtualBalance = ""; // Clear virtual balance cache to refresh total credit
         // Refresh stats when returning
         loadDealerCardStats();
         // Refresh license expiry date

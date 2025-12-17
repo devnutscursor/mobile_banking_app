@@ -318,6 +318,10 @@
     <string name="pending">Pending</string>
     <string name="successful">Successful</string>
     <string name="failed">Failed</string>
+    <string name="status_pending">Pending</string>
+    <string name="status_successful">Successful</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_cancelled">Cancelled</string>
     <string name="update_status_button">Update Status</string>
     <string name="status_updated">Transaction status updated</string>
     <string name="error_updating_status">Error updating status</string>

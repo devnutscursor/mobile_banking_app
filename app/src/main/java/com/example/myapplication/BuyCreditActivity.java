@@ -14,16 +14,25 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.myapplication.database.AppDatabase;
+import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.services.DataSyncService;
 import com.example.myapplication.utils.LanguageManager;
+import com.example.myapplication.utils.OperatorBalanceHelper;
 import com.example.myapplication.utils.SessionManager;
 import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.ArrayList;
+import java.util.List;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
 
 import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import android.view.View;
 
 public class BuyCreditActivity extends AppCompatActivity {
     private static final String TAG = "BuyCreditActivity";
@@ -36,11 +45,15 @@ public class BuyCreditActivity extends AppCompatActivity {
     private CheckBox cbCashWithoutOperator;
     private Button btnPurchaseCredit;
     private Button btnPurchaseCash;
+    private Spinner spinnerOperator;
     
     private SessionManager sessionManager;
     private AppDatabase database;
     private FirebaseFirestore firestore;
     private UserEntity currentUser;
+    private OperatorBalanceHelper balanceHelper;
+    private List<OperatorEntity> operators = new ArrayList<>();
+    private OperatorEntity selectedOperator;
     
     @Override
     protected void attachBaseContext(Context newBase) {
@@ -70,6 +83,7 @@ public class BuyCreditActivity extends AppCompatActivity {
         database = AppDatabase.getDatabase(this);
         firestore = FirebaseFirestore.getInstance();
         currentUser = sessionManager.getCurrentUser();
+        balanceHelper = new OperatorBalanceHelper(database);
         
         if (currentUser == null) {
             Toast.makeText(this, "No active user", Toast.LENGTH_SHORT).show();
@@ -78,7 +92,76 @@ public class BuyCreditActivity extends AppCompatActivity {
         }
         
         initViews();
+        loadOperators();
         loadBalances();
+    }
+    
+    private void loadOperators() {
+        new Thread(() -> {
+            try {
+                if (currentUser != null) {
+                    operators = database.operatorDao().getActiveForUser(currentUser.getUid());
+                } else {
+                    operators = new ArrayList<>();
+                }
+                
+                runOnUiThread(() -> {
+                    updateOperatorSpinner();
+                    if (!operators.isEmpty()) {
+                        selectedOperator = operators.get(0);
+                        loadBalances();
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading operators", e);
+            }
+        }).start();
+    }
+    
+    private void updateOperatorSpinner() {
+        List<String> operatorNames = new ArrayList<>();
+        for (OperatorEntity operator : operators) {
+            operatorNames.add(operator.getName());
+        }
+        
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(
+            this,
+            android.R.layout.simple_spinner_item,
+            operatorNames
+        ) {
+            @Override
+            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                TextView view = (TextView) super.getView(position, convertView, parent);
+                view.setTextColor(getResources().getColor(R.color.black, null));
+                return view;
+            }
+            
+            @Override
+            public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
+                TextView view = (TextView) super.getDropDownView(position, convertView, parent);
+                view.setTextColor(getResources().getColor(R.color.primary_orange, null));
+                return view;
+            }
+        };
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerOperator.setAdapter(adapter);
+        
+        spinnerOperator.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position >= 0 && position < operators.size()) {
+                    selectedOperator = operators.get(position);
+                    loadBalances();
+                } else {
+                    selectedOperator = null;
+                }
+            }
+            
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                selectedOperator = null;
+            }
+        });
     }
     
     private void initViews() {
@@ -95,6 +178,7 @@ public class BuyCreditActivity extends AppCompatActivity {
         cbCashWithoutOperator = findViewById(R.id.cbCashWithoutOperator);
         btnPurchaseCredit = findViewById(R.id.btnPurchaseCredit);
         btnPurchaseCash = findViewById(R.id.btnPurchaseCash);
+        spinnerOperator = findViewById(R.id.spinnerOperator);
         
         btnPurchaseCredit.setOnClickListener(v -> purchaseCredit());
         btnPurchaseCash.setOnClickListener(v -> purchaseCash());
@@ -126,14 +210,23 @@ public class BuyCreditActivity extends AppCompatActivity {
                     return;
                 }
                 
-                double operatorBalance = currentUser.getVirtualCredit();
+                // Get operator-specific balance
+                double operatorBalance = 0.0;
+                final OperatorEntity finalSelectedOperator = selectedOperator;
+                if (finalSelectedOperator != null && currentUser != null) {
+                    operatorBalance = balanceHelper.getBalance(currentUser.getUid(), finalSelectedOperator.getId());
+                }
+                
+                final double finalOperatorBalance = operatorBalance;
                 double cashBalance = currentUser.getCashBalance();
+                final double finalCashBalance = cashBalance;
                 
                 NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.getDefault());
+                final NumberFormat finalCurrencyFormat = currencyFormat;
                 
                 runOnUiThread(() -> {
-                    tvOperatorBalance.setText(currencyFormat.format(operatorBalance));
-                    tvCashBalance.setText(currencyFormat.format(cashBalance));
+                    tvOperatorBalance.setText(finalCurrencyFormat.format(finalOperatorBalance));
+                    tvCashBalance.setText(finalCurrencyFormat.format(finalCashBalance));
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading balances", e);
@@ -192,7 +285,12 @@ public class BuyCreditActivity extends AppCompatActivity {
             
             // Check if operator balance is sufficient (if not using checkbox)
             if (!withoutOperator) {
-                if (currentUser.getVirtualCredit() < amount) {
+                if (selectedOperator == null) {
+                    Toast.makeText(this, "Please select an operator", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                double operatorBalance = balanceHelper.getBalance(currentUser.getUid(), selectedOperator.getId());
+                if (operatorBalance < amount) {
                     Toast.makeText(this, getString(R.string.insufficient_credit), Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -216,10 +314,16 @@ public class BuyCreditActivity extends AppCompatActivity {
                     return;
                 }
                 
-                // Update operator balance (credit) - always increase
-                double newOperatorBalance = user.getVirtualCredit() + amount;
-                user.setVirtualCredit(newOperatorBalance);
-                user.setCreditUpdatedAt(System.currentTimeMillis());
+                // Update operator-specific balance (credit) - always increase
+                if (selectedOperator == null) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "Please select an operator", Toast.LENGTH_SHORT).show();
+                    });
+                    return;
+                }
+                double currentOperatorBalance = balanceHelper.getBalance(user.getUid(), selectedOperator.getId());
+                double newOperatorBalance = currentOperatorBalance + amount;
+                balanceHelper.updateBalance(user.getUid(), selectedOperator.getId(), newOperatorBalance);
                 
                 // Update cash balance - decrease only if checkbox is not checked
                 double newCashBalance = user.getCashBalance();
@@ -270,12 +374,17 @@ public class BuyCreditActivity extends AppCompatActivity {
                 double newCashBalance = user.getCashBalance() + amount;
                 user.setCashBalance(newCashBalance);
                 
-                // Update operator balance (credit) - decrease only if checkbox is not checked
-                double newOperatorBalance = user.getVirtualCredit();
+                // Update operator-specific balance (credit) - decrease only if checkbox is not checked
                 if (!withoutOperator) {
-                    newOperatorBalance = user.getVirtualCredit() - amount;
-                    user.setVirtualCredit(newOperatorBalance);
-                    user.setCreditUpdatedAt(System.currentTimeMillis());
+                    if (selectedOperator == null) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(this, "Please select an operator", Toast.LENGTH_SHORT).show();
+                        });
+                        return;
+                    }
+                    double currentOperatorBalance = balanceHelper.getBalance(user.getUid(), selectedOperator.getId());
+                    double newOperatorBalance = currentOperatorBalance - amount;
+                    balanceHelper.updateBalance(user.getUid(), selectedOperator.getId(), newOperatorBalance);
                 }
                 
                 user.setUpdatedAt(System.currentTimeMillis());
@@ -306,20 +415,22 @@ public class BuyCreditActivity extends AppCompatActivity {
     
     private void syncBalancesToFirestore(UserEntity user) {
         try {
+            // Sync cash balance (still global per user)
             Map<String, Object> updates = new HashMap<>();
-            updates.put("virtualCredit", user.getVirtualCredit());
             updates.put("cashBalance", user.getCashBalance());
-            updates.put("creditUpdatedAt", user.getCreditUpdatedAt());
             updates.put("updatedAt", com.google.firebase.Timestamp.now());
             
             firestore.collection("users").document(user.getUid())
                     .update(updates)
                     .addOnSuccessListener(aVoid -> {
-                        Log.d(TAG, "Balances synced to Firestore");
+                        Log.d(TAG, "Cash balance synced to Firestore");
                     })
                     .addOnFailureListener(e -> {
                         Log.e(TAG, "Failed to sync balances to Firestore", e);
                     });
+            
+            // Note: Operator-specific balances are stored in operator_balances collection
+            // They should be synced separately if needed
         } catch (Exception e) {
             Log.e(TAG, "Error syncing balances to Firestore", e);
         }

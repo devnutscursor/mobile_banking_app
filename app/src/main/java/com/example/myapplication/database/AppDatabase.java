@@ -22,8 +22,10 @@ import com.example.myapplication.database.entities.TransactionEntity;
 import com.example.myapplication.database.entities.BalanceAdjustmentEntity;
 import com.example.myapplication.database.entities.CommissionRateEntity;
 import com.example.myapplication.database.entities.CommissionEntity;
+import com.example.myapplication.database.entities.OperatorBalanceEntity;
 import com.example.myapplication.database.dao.OperatorDao;
 import com.example.myapplication.database.dao.OperatorActionDao;
+import com.example.myapplication.database.dao.OperatorBalanceDao;
 import com.example.myapplication.database.dao.BalanceAdjustmentDao;
 import com.example.myapplication.database.dao.CommissionRateDao;
 import com.example.myapplication.database.dao.CommissionDao;
@@ -31,8 +33,8 @@ import com.example.myapplication.database.dao.CommissionDao;
 @Database(
     entities = {UserEntity.class, LicenseEntity.class, SessionEntity.class, CredentialEntity.class, CustomerEntity.class,
             OperatorEntity.class, OperatorActionEntity.class, TransactionEntity.class, BalanceAdjustmentEntity.class,
-            CommissionRateEntity.class, CommissionEntity.class},
-    version = 18,
+            CommissionRateEntity.class, CommissionEntity.class, OperatorBalanceEntity.class},
+    version = 19,
     exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -47,6 +49,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract CustomerDao customerDao();
     public abstract OperatorDao operatorDao();
     public abstract OperatorActionDao operatorActionDao();
+    public abstract OperatorBalanceDao operatorBalanceDao();
     public abstract TransactionDao transactionDao();
     public abstract BalanceAdjustmentDao balanceAdjustmentDao();
     public abstract CommissionRateDao commissionRateDao();

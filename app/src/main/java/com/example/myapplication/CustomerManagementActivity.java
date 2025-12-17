@@ -73,18 +73,16 @@ public class CustomerManagementActivity extends AppCompatActivity {
     private ProcessCameraProvider cameraProvider;
     private boolean isScanning = false;
     
-    // Advanced MRZ detection with consensus-based approach
+    // Advanced MRZ detection with strict pattern matching - process immediately when valid
     private java.util.Map<String, Integer> mrzDetectionCounts = new java.util.HashMap<>(); // Track MRZ detection frequency
-    private static final int MIN_CONSENSUS_DETECTIONS = 3; // Require MRZ detected 3+ times for consensus
-    private static final int MAX_DETECTION_ATTEMPTS = 15; // Max attempts before choosing best candidate
+    private static final int MIN_CONSENSUS_DETECTIONS = 2; // Require MRZ detected 2 times (reduced from 3)
+    private static final int MAX_DETECTION_ATTEMPTS = 10; // Max attempts before choosing best (reduced from 15)
     private int detectionAttempts = 0;
     private int frameCounter = 0;
     private long lastProcessTime = 0;
-    private static final long MIN_PROCESS_INTERVAL_MS = 300; // Process every 300ms for quality
-    private static final long MIN_SCANNING_DURATION_MS = 3000; // Reduced to 3 seconds (faster than 5)
+    private static final long MIN_PROCESS_INTERVAL_MS = 200; // Process every 200ms (faster)
     private long scanningStartTime = 0;
     private String lastDetectedMRZ = null;
-    private boolean focusCompleted = false;
     
     // Database and Session
     private AppDatabase database;
@@ -301,7 +299,6 @@ public class CustomerManagementActivity extends AppCompatActivity {
         lastProcessTime = 0;
         scanningStartTime = System.currentTimeMillis();
         lastDetectedMRZ = null;
-        focusCompleted = false;
         
         isScanning = true;
         cameraPreviewCard.setVisibility(View.VISIBLE);
@@ -309,7 +306,7 @@ public class CustomerManagementActivity extends AppCompatActivity {
         startCamera();
         
         // Show message to user
-        Toast.makeText(this, "Position the MRZ zone (3 bottom lines) in view. Hold steady...", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Position the card's MRZ zone (3 bottom lines) in view...", Toast.LENGTH_SHORT).show();
         
         // Show message to user to focus and position document
         Toast.makeText(this, "Please focus and position the MRZ zone clearly. Scanning will start in 5 seconds...", Toast.LENGTH_LONG).show();
@@ -326,7 +323,6 @@ public class CustomerManagementActivity extends AppCompatActivity {
         lastProcessTime = 0;
         scanningStartTime = 0;
         lastDetectedMRZ = null;
-        focusCompleted = false;
         try {
             if (cameraProvider != null) {
                 cameraProvider.unbindAll();
@@ -402,39 +398,10 @@ public class CustomerManagementActivity extends AppCompatActivity {
         frameCounter++;
         lastProcessTime = currentTime;
         
-        // Check if minimum scanning duration has elapsed (allow focusing time)
-        long elapsedTime = currentTime - scanningStartTime;
-        if (elapsedTime < MIN_SCANNING_DURATION_MS) {
-            if (!focusCompleted && frameCounter % 5 == 0) {
-                long remainingTime = (MIN_SCANNING_DURATION_MS - elapsedTime + 999) / 1000;
-                Log.d(TAG, "Waiting " + remainingTime + " more second(s) for camera to focus...");
-            }
-            image.close();
-            return;
-        }
-        
-        // Mark focus period as complete and notify user once
-        if (!focusCompleted) {
-            focusCompleted = true;
-            runOnUiThread(() -> {
-                Toast.makeText(this, "Scanning... Keep card steady", Toast.LENGTH_SHORT).show();
-            });
-            Log.d(TAG, "Focus period complete, starting MRZ detection");
-        }
-        
         // Get image info
         int rotationDegrees = image.getImageInfo().getRotationDegrees();
         int imageWidth = image.getWidth();
         int imageHeight = image.getHeight();
-        
-        // Check image quality before processing
-        if (!checkImageQuality(image.getImage())) {
-            if (frameCounter % 5 == 0) {
-                Log.d(TAG, "Image quality check failed - too dark or blurry. Keep card in good light.");
-            }
-            image.close();
-            return;
-        }
         
         Log.d(TAG, "Processing frame #" + frameCounter + " (" + imageWidth + "x" + imageHeight + ")");
         
@@ -445,62 +412,22 @@ public class CustomerManagementActivity extends AppCompatActivity {
                     if (text != null && isScanning) {
                         // Extract and correct MRZ text
                         String mrzText = extractAndCorrectMRZ(text);
-                        
+
+                        // As soon as we get a valid MRZ, process it immediately (no extra waiting)
                         if (mrzText != null && !mrzText.trim().isEmpty() && isValidMRZ(mrzText)) {
-                            detectionAttempts++;
-                            
-                            // Normalize MRZ for comparison (consistent format)
                             String normalizedMRZ = normalizeMRZ(mrzText);
-                            
-                            // Track detection frequency
-                            Integer count = mrzDetectionCounts.getOrDefault(normalizedMRZ, 0);
-                            mrzDetectionCounts.put(normalizedMRZ, count + 1);
-                            
-                            Log.d(TAG, "Valid MRZ detected (attempt " + detectionAttempts + ", seen " + (count + 1) + " times)");
-                            
-                            // Check if we have consensus (same MRZ detected multiple times)
-                            if (count + 1 >= MIN_CONSENSUS_DETECTIONS) {
-                                Log.d(TAG, "========== CONSENSUS REACHED (" + (count + 1) + " detections) ==========");
-                                Log.d(TAG, "MRZ Text:\n" + normalizedMRZ);
-                                
-                                isScanning = false;
-                                lastDetectedMRZ = normalizedMRZ;
-                                
-                                runOnUiThread(() -> {
-                                    Toast.makeText(this, "MRZ verified! Processing...", Toast.LENGTH_SHORT).show();
-                                });
-                                
-                                processMRZData(normalizedMRZ);
-                                stopBarcodeScanning();
-                            } else if (detectionAttempts >= MAX_DETECTION_ATTEMPTS) {
-                                // Reached max attempts, use most frequently detected MRZ
-                                String bestMRZ = getMostFrequentMRZ();
-                                if (bestMRZ != null) {
-                                    Log.d(TAG, "========== MAX ATTEMPTS REACHED - Using best candidate ==========");
-                                    Log.d(TAG, "MRZ Text:\n" + bestMRZ);
-                                    
-                                    isScanning = false;
-                                    lastDetectedMRZ = bestMRZ;
-                                    
-                                    runOnUiThread(() -> {
-                                        Toast.makeText(this, "Processing MRZ...", Toast.LENGTH_SHORT).show();
-                                    });
-                                    
-                                    processMRZData(bestMRZ);
-                                    stopBarcodeScanning();
-                                } else {
-                                    Log.w(TAG, "No valid MRZ candidate found after " + MAX_DETECTION_ATTEMPTS + " attempts");
-                                    runOnUiThread(() -> {
-                                        Toast.makeText(this, "Unable to read MRZ. Please reposition the card.", Toast.LENGTH_LONG).show();
-                                    });
-                                    stopBarcodeScanning();
-                                }
-                            }
-                        } else {
-                            // Invalid or no MRZ detected
-                            if (frameCounter % 5 == 0 && detectionAttempts > 0) {
-                                Log.d(TAG, "No valid MRZ in this frame (attempt " + detectionAttempts + " of " + MAX_DETECTION_ATTEMPTS + ")");
-                            }
+                            Log.d(TAG, "✓ Valid MRZ detected, processing immediately");
+                            Log.d(TAG, "MRZ Text:\n" + normalizedMRZ);
+
+                        isScanning = false;
+                            lastDetectedMRZ = normalizedMRZ;
+
+                            runOnUiThread(() ->
+                                    Toast.makeText(this, "Processing MRZ...", Toast.LENGTH_SHORT).show()
+                            );
+
+                            processMRZData(normalizedMRZ);
+                            stopBarcodeScanning();
                         }
                     }
                 })
@@ -1272,12 +1199,6 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 .setPositiveButton(getString(R.string.save_customer), null)
                 .setNegativeButton(getString(android.R.string.cancel), null);
         
-        if (customer.getId() != null) {
-            builder.setNeutralButton(getString(R.string.delete_customer), (dialog, which) -> {
-                deleteCustomer(customer);
-            });
-        }
-        
         // Also print current values to help with testing
         builder.setOnDismissListener(d -> Log.d(TAG, "Customer form closed"));
         AlertDialog dialog = builder.create();
@@ -1492,9 +1413,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
                     if (normalizedDob != null && isValidDateFormatYYYYMMDD(normalizedDob)) {
                         customer.setDateOfBirth(normalizedDob); // Store as YYYY-MM-DD
                         Log.d(TAG, "Date of birth normalized: " + dobText + " -> " + normalizedDob);
-                    } else {
-                        customer.setDateOfBirth(null);
-                        Log.w(TAG, "Invalid date of birth format: " + dobText);
+                } else {
+                    customer.setDateOfBirth(null);
+                    Log.w(TAG, "Invalid date of birth format: " + dobText);
                     }
                 } else {
                     customer.setDateOfBirth(null);

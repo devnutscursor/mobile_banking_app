@@ -28,6 +28,7 @@ import com.example.myapplication.database.entities.TransactionEntity;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.CommissionCalculator;
 import com.example.myapplication.utils.LanguageManager;
+import com.example.myapplication.utils.OperatorBalanceHelper;
 import com.example.myapplication.utils.SessionManager;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -68,6 +69,9 @@ public class CashRegisterActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private FirebaseFirestore firestore;
     private String activeUserId;
+    private OperatorBalanceHelper balanceHelper;
+    private LanguageManager languageManager;
+    private static long lastLanguageChangeTime = 0;
     private java.util.List<TransactionEntity> allTransactions = new java.util.ArrayList<>();
     
     @Override
@@ -79,6 +83,8 @@ public class CashRegisterActivity extends AppCompatActivity {
         database = AppDatabase.getDatabase(this);
         sessionManager = new SessionManager(this);
         firestore = FirebaseFirestore.getInstance();
+        balanceHelper = new OperatorBalanceHelper(database);
+        languageManager = LanguageManager.getInstance(this);
         activeUserId = sessionManager.getCurrentUser() != null ? sessionManager.getCurrentUser().getUid() : null;
         
         if (activeUserId == null) {
@@ -96,6 +102,9 @@ public class CashRegisterActivity extends AppCompatActivity {
         TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
         tvHeaderTitle.setText(getString(R.string.cash_register_title));
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
+        
+        // Setup language selector
+        setupLanguageSelector();
         
         // Setup RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -120,9 +129,79 @@ public class CashRegisterActivity extends AppCompatActivity {
         loadPendingTransactions();
     }
     
+    private void setupLanguageSelector() {
+        // Find the language flag image view
+        ImageView ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        if (ivLanguageFlag == null) {
+            // Language selector might not be in the layout, skip setup
+            return;
+        }
+        
+        // Ensure languageManager is initialized
+        if (languageManager == null) {
+            languageManager = LanguageManager.getInstance(this);
+        }
+        
+        // Set initial flag based on current language
+        updateLanguageFlag();
+        
+        // Make the language selector clickable
+        View languageSelector = findViewById(R.id.ivLanguageFlag);
+        if (languageSelector != null) {
+            languageSelector.setOnClickListener(v -> {
+                // Prevent rapid language changes (debounce)
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastLanguageChangeTime < 1000) { // 1 second debounce
+                    return;
+                }
+                
+                // Toggle between English and French
+                String currentLang = languageManager.getCurrentLanguage();
+                String newLang = currentLang.equals("en") ? "fr" : "en";
+                
+                lastLanguageChangeTime = currentTime;
+                
+                // Set language and recreate activity
+                languageManager.setLanguageWithTranslation(newLang)
+                        .thenAccept(success -> {
+                            runOnUiThread(() -> {
+                                if (success) {
+                                    // Recreate activity to apply new language
+                                    recreate();
+                                } else {
+                                    Toast.makeText(this, "Failed to change language", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        });
+            });
+        }
+    }
+    
+    private void updateLanguageFlag() {
+        ImageView ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        if (ivLanguageFlag == null) {
+            return;
+        }
+        
+        // Ensure languageManager is initialized
+        if (languageManager == null) {
+            languageManager = LanguageManager.getInstance(this);
+        }
+        
+        String currentLang = languageManager.getCurrentLanguage();
+        
+        if ("fr".equals(currentLang)) {
+            ivLanguageFlag.setImageResource(R.drawable.ic_flag_fr);
+        } else {
+            ivLanguageFlag.setImageResource(R.drawable.ic_flag_us);
+        }
+    }
+    
     @Override
     protected void onResume() {
         super.onResume();
+        // Update language flag in case language was changed elsewhere
+        updateLanguageFlag();
         // Refresh transactions when returning to activity (e.g., after processing new transactions)
         loadPendingTransactions();
     }
@@ -212,7 +291,8 @@ public class CashRegisterActivity extends AppCompatActivity {
         tvAction.setText(transaction.getActionName());
         tvAmount.setText(NumberFormat.getCurrencyInstance(Locale.getDefault()).format(transaction.getAmount()));
         tvType.setText(transaction.getTransactionType());
-        tvCurrentStatus.setText(transaction.getStatus());
+        // Display localized status value
+        tvCurrentStatus.setText(convertStatusToDisplayValue(transaction.getStatus()));
         
         // Setup status spinner with custom adapter for white text
         ArrayAdapter<CharSequence> statusAdapter = new ArrayAdapter<CharSequence>(this,
@@ -236,13 +316,16 @@ public class CashRegisterActivity extends AppCompatActivity {
         spinnerStatus.setAdapter(statusAdapter);
         
         // Set current status in spinner
-        int currentStatusIndex = statusAdapter.getPosition(transaction.getStatus());
+        // Convert database status (English) to display value (localized)
+        String displayStatus = convertStatusToDisplayValue(transaction.getStatus());
+        int currentStatusIndex = statusAdapter.getPosition(displayStatus);
         if (currentStatusIndex >= 0) {
             spinnerStatus.setSelection(currentStatusIndex);
         }
         
         // Show cancel transaction button only if transaction is not already canceled
-        if (!"canceled".equalsIgnoreCase(transaction.getStatus())) {
+        String normalizedStatus = normalizeStatusToEnglish(transaction.getStatus());
+        if (!"canceled".equalsIgnoreCase(normalizedStatus)) {
             btnCancelTransaction.setVisibility(View.VISIBLE);
         } else {
             btnCancelTransaction.setVisibility(View.GONE);
@@ -283,17 +366,107 @@ public class CashRegisterActivity extends AppCompatActivity {
         dialog.show();
     }
     
+    /**
+     * Normalize status value to English for database storage and internal processing.
+     * This converts any localized status string (French, etc.) to its English equivalent.
+     */
+    private String normalizeStatusToEnglish(String status) {
+        if (status == null) return "";
+        
+        String statusLower = status.toLowerCase().trim();
+        
+        // Handle French statuses
+        if (statusLower.equals("en_attente") || statusLower.equals("en attente")) {
+            return "pending";
+        }
+        if (statusLower.equals("réussi") || statusLower.equals("reussi")) {
+            return "successful";
+        }
+        if (statusLower.equals("annulé") || statusLower.equals("annule")) {
+            return "canceled";
+        }
+        if (statusLower.equals("échoué") || statusLower.equals("echoue")) {
+            return "failed";
+        }
+        
+        // Handle English statuses (normalize variations)
+        if (statusLower.equals("success")) {
+            return "successful";
+        }
+        if (statusLower.equals("cancelled")) {
+            return "canceled";
+        }
+        if (statusLower.equals("failure")) {
+            return "failed";
+        }
+        
+        // Return as-is if already in standard English form (pending, successful, canceled, failed, processing)
+        return statusLower;
+    }
+    
+    /**
+     * Convert database status (English) to display value (localized).
+     * This converts English status to the appropriate localized string for UI display.
+     */
+    private String convertStatusToDisplayValue(String dbStatus) {
+        if (dbStatus == null) return "";
+        
+        String statusLower = dbStatus.toLowerCase().trim();
+        
+        // Get current language
+        String currentLang = languageManager != null ? languageManager.getCurrentLanguage() : "en";
+        
+        if ("fr".equals(currentLang)) {
+            // French translations
+            switch (statusLower) {
+                case "pending":
+                case "processing":
+                    return "en_attente";
+                case "successful":
+                case "success":
+                    return "réussi";
+                case "canceled":
+                case "cancelled":
+                    return "annulé";
+                case "failed":
+                case "failure":
+                    return "échoué";
+                default:
+                    return dbStatus;
+            }
+        } else {
+            // English - normalize to standard forms
+            switch (statusLower) {
+                case "success":
+                    return "successful";
+                case "cancelled":
+                    return "canceled";
+                case "failure":
+                    return "failed";
+                default:
+                    return statusLower;
+            }
+        }
+    }
+    
     private void updateTransactionStatus(TransactionEntity transaction, String newStatus) {
         new Thread(() -> {
             try {
                 String oldStatus = transaction.getStatus();
-                transaction.setStatus(newStatus);
+                
+                // Normalize status values to English for database storage and internal processing
+                // This allows the UI to display in any language while maintaining consistent data
+                String normalizedNewStatus = normalizeStatusToEnglish(newStatus);
+                String normalizedOldStatus = normalizeStatusToEnglish(oldStatus);
+                
+                // Store normalized status in database
+                transaction.setStatus(normalizedNewStatus);
                 transaction.setUpdatedAt(System.currentTimeMillis());
                 
-                // Handle credit updates based on status changes
-                if (!oldStatus.equals(newStatus)) {
-                    handleCreditUpdate(transaction, oldStatus, newStatus);
-                    reconcileCommission(transaction, oldStatus, newStatus);
+                // Handle credit updates based on status changes (using normalized values)
+                if (!normalizedOldStatus.equals(normalizedNewStatus)) {
+                    handleCreditUpdate(transaction, normalizedOldStatus, normalizedNewStatus);
+                    reconcileCommission(transaction, normalizedOldStatus, normalizedNewStatus);
                 }
                 
                 // Update in local database
@@ -326,7 +499,15 @@ public class CashRegisterActivity extends AppCompatActivity {
                 return;
             }
             
-            double currentCredit = user.getVirtualCredit();
+            // Get operator ID from transaction
+            String operatorId = transaction.getOperatorId();
+            if (operatorId == null || operatorId.isEmpty()) {
+                Log.e(TAG, "Transaction has no operator ID, cannot update operator balance");
+                return;
+            }
+            
+            // Get operator-specific balance
+            double currentCredit = balanceHelper.getBalance(activeUserId, operatorId);
             double currentCashBalance = user.getCashBalance();
             double amount = transaction.getAmount();
             String transactionType = transaction.getTransactionType().toLowerCase();
@@ -471,8 +652,10 @@ public class CashRegisterActivity extends AppCompatActivity {
                 final double finalCashBalanceChange = cashBalanceChange;
                 final double newCredit = currentCredit + creditChange;
                 final double newCashBalance = currentCashBalance + cashBalanceChange;
+                final String finalOperatorId = operatorId;
                 
                 Log.d(TAG, "=== APPLYING BALANCE CHANGES ===");
+                Log.d(TAG, "Operator ID: " + finalOperatorId);
                 Log.d(TAG, "Credit Change: " + finalCreditChange);
                 Log.d(TAG, "Old Credit: " + currentCredit);
                 Log.d(TAG, "New Credit: " + newCredit);
@@ -480,14 +663,15 @@ public class CashRegisterActivity extends AppCompatActivity {
                 Log.d(TAG, "Old Cash Balance: " + currentCashBalance);
                 Log.d(TAG, "New Cash Balance: " + newCashBalance);
                 
-                // Update user credit and cash balance with timestamp
-                user.setVirtualCredit(newCredit);
+                // Update operator-specific balance using OperatorBalanceHelper
+                balanceHelper.updateBalance(activeUserId, finalOperatorId, newCredit);
+                
+                // Update cash balance (still global per user)
                 user.setCashBalance(newCashBalance);
-                user.setCreditUpdatedAt(System.currentTimeMillis());
                 database.userDao().updateUser(user);
                 
-                // Sync credit and cash balance to Firestore with timestamp
-                updateCreditInFirestore(activeUserId, newCredit, newCashBalance);
+                // Note: Operator-specific balances are stored in operator_balances table
+                // Firestore sync for operator balances should be handled separately if needed
                 
                 // Show success message on UI thread
                 runOnUiThread(() -> {
@@ -499,7 +683,7 @@ public class CashRegisterActivity extends AppCompatActivity {
                 });
                 
                 // Notify other activities about credit change
-                notifyCreditChange(newCredit);
+                notifyCreditChange(newCredit, finalOperatorId);
                 
                 Log.d(TAG, "=== BALANCE UPDATE COMPLETED ===");
             } else {
@@ -542,14 +726,15 @@ public class CashRegisterActivity extends AppCompatActivity {
                 ("successful".equalsIgnoreCase(status) || "completed".equalsIgnoreCase(status));
     }
     
-    private void notifyCreditChange(double newCredit) {
+    private void notifyCreditChange(double newCredit, String operatorId) {
         try {
             // Broadcast credit change to other activities
             android.content.Intent intent = new android.content.Intent("CREDIT_UPDATED");
             intent.putExtra("newCredit", newCredit);
             intent.putExtra("userId", activeUserId);
+            intent.putExtra("operatorId", operatorId);
             sendBroadcast(intent);
-            Log.d(TAG, "✓ Credit change broadcast sent: " + newCredit);
+            Log.d(TAG, "✓ Credit change broadcast sent for operator " + operatorId + ": " + newCredit);
         } catch (Exception e) {
             Log.e(TAG, "Error broadcasting credit change", e);
         }
@@ -631,16 +816,17 @@ public class CashRegisterActivity extends AppCompatActivity {
     private void cancelTransaction(TransactionEntity transaction) {
         new Thread(() -> {
             try {
-                String oldStatus = transaction.getStatus();
+                // Normalize old status to English for consistency
+                String normalizedOldStatus = normalizeStatusToEnglish(transaction.getStatus());
                 transaction.setStatus("canceled");
                 transaction.setUpdatedAt(System.currentTimeMillis());
                 transaction.setNotes((transaction.getNotes() != null ? transaction.getNotes() + "\n" : "") + 
                         "Canceled at " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new java.util.Date()));
                 
-                // Handle balance reversal
-                if (!oldStatus.equals("canceled")) {
-                    handleCreditUpdate(transaction, oldStatus, "canceled");
-                    reconcileCommission(transaction, oldStatus, "canceled");
+                // Handle balance reversal (using normalized values)
+                if (!normalizedOldStatus.equals("canceled")) {
+                    handleCreditUpdate(transaction, normalizedOldStatus, "canceled");
+                    reconcileCommission(transaction, normalizedOldStatus, "canceled");
                 }
                 
                 // Update in local database

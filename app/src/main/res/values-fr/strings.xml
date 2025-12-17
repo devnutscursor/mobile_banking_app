@@ -124,6 +124,10 @@
     <string name="pending">En Attente</string>
     <string name="successful">Réussi</string>
     <string name="failed">Échoué</string>
+    <string name="status_pending">En Attente</string>
+    <string name="status_successful">Réussi</string>
+    <string name="status_failed">Échoué</string>
+    <string name="status_cancelled">Annulé</string>
     <string name="update_status_button">Mettre à Jour Statut</string>
     <string name="status_updated">Statut de la transaction mis à jour</string>
     <string name="error_updating_status">Erreur lors de la mise à jour du statut</string>
