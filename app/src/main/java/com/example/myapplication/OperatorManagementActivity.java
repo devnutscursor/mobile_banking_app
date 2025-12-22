@@ -129,6 +129,7 @@ public class OperatorManagementActivity extends AppCompatActivity {
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_add_operator, null);
         EditText etName = view.findViewById(R.id.etOperatorName);
         EditText etCode = view.findViewById(R.id.etOperatorCode);
+        EditText etTransferRate = view.findViewById(R.id.etTransferRate);
         Spinner spType = view.findViewById(R.id.spOperatorType);
         Spinner spColor = view.findViewById(R.id.spOperatorColor);
         android.widget.CheckBox cbEnabled = view.findViewById(R.id.cbEnabled);
@@ -148,6 +149,7 @@ public class OperatorManagementActivity extends AppCompatActivity {
         if (existing != null) {
             etName.setText(existing.getName());
             if (existing.getCode() != null) etCode.setText(existing.getCode());
+            etTransferRate.setText(String.format(java.util.Locale.US, "%.2f", existing.getTransferRate()));
             // simple spinner: 0 USSD, 1 Traditional
             spType.setSelection("USSD".equalsIgnoreCase(existing.getType()) ? 0 : 1);
             cbEnabled.setChecked(existing.isEnabled());
@@ -171,14 +173,29 @@ public class OperatorManagementActivity extends AppCompatActivity {
                     String code = etCode.getText().toString().trim();
                     String color = (String) spColor.getSelectedItem();
                     boolean enabled = cbEnabled.isChecked();
-                    if (TextUtils.isEmpty(name) || TextUtils.isEmpty(code)) { 
+                    String transferRateStr = etTransferRate.getText().toString().trim();
+                    final double transferRate;
+                    try {
+                        if (!TextUtils.isEmpty(transferRateStr)) {
+                            transferRate = Double.parseDouble(transferRateStr);
+                        } else {
+                            transferRate = 0.0;
+                        }
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "Invalid transfer rate", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    // Operator code is now optional
+                    if (TextUtils.isEmpty(name)) { 
                         Toast.makeText(this, R.string.required_fields_missing, Toast.LENGTH_SHORT).show(); return; 
                     }
                     new Thread(() -> {
                         OperatorEntity op = existing != null ? existing : new OperatorEntity(UUID.randomUUID().toString(), name, type, enabled, currentUser.getUid());
                         op.setName(name); op.setType(type); op.setEnabled(enabled); op.setAddedBy(currentUser.getUid());
-                        op.setCode(code);
+                        // Set code only if provided (optional field)
+                        op.setCode(TextUtils.isEmpty(code) ? null : code);
                         op.setColor(color);
+                        op.setTransferRate(transferRate);
                         op.setUpdatedAt(System.currentTimeMillis()); op.setNeedsSync(true);
                         database.operatorDao().insertOperator(op);
                         runOnUiThread(() -> { loadOperators(); /* syncManager.syncOperators(); */ });

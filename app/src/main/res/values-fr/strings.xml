@@ -8,8 +8,15 @@
     <string name="welcome_back">Bon Retour</string>
     <string name="sign_in_subtitle">Connectez-vous à votre compte</string>
     <string name="email_hint">Adresse Email</string>
+    <string name="phone_hint">Numéro de Téléphone</string>
     <string name="password_hint">Mot de Passe</string>
+    <string name="password_pin_hint">Code PIN à 6 chiffres</string>
     <string name="login_button">Se Connecter</string>
+    <string name="login_with_email">Connexion par Email</string>
+    <string name="login_with_phone">Connexion par Téléphone</string>
+    <string name="invalid_phone_number">Numéro de téléphone invalide</string>
+    <string name="invalid_pin">Le code PIN doit contenir 6 chiffres</string>
+    <string name="user_not_found_phone">Aucun utilisateur trouvé avec ce numéro de téléphone</string>
     <string name="login_successful">Connexion réussie!</string>
     <string name="login_failed">Échec de la connexion</string>
     <string name="fill_all_fields">Veuillez remplir tous les champs</string>
@@ -35,10 +42,10 @@
     <string name="agent_operations">Opérations Agent</string>
     <string name="manage_customers">Ajouter Clients</string>
     <string name="buy_virtual_credit">Acheter Crédit Virtuel</string>
-    <string name="buy_credit">Acheter Crédit</string>
+    <string name="buy_credit">Achat</string>
     <string name="buy_credit_info">Contactez votre revendeur pour acheter des crédits supplémentaires pour votre compte.</string>
     <string name="add_credits">Ajouter Crédits</string>
-    <string name="process_transactions">Traiter Transactions</string>
+    <string name="process_transactions">Vente</string>
     <string name="my_reports">Mes Rapports</string>
     <string name="manage_operators">Gérer Opérateurs</string>
     <string name="edit">Modifier</string>
@@ -46,7 +53,7 @@
     <string name="dealer_dashboard">Tableau de Bord Revendeur</string>
     <string name="agent_dashboard">Tableau de Bord Agent</string>
     <string name="manage_agents">Gérer Agents</string>
-    <string name="cash_register">Caisse</string>
+    <string name="cash_register">Transactions</string>
     <string name="virtual_accounts">Comptes Virtuels</string>
     <string name="transactions">Transactions</string>
     <string name="reports">Rapports</string>
@@ -92,7 +99,7 @@
     <string name="logout">Déconnexion</string>
     
     <!-- Transaction Processing -->
-    <string name="process_transaction">Traiter Transaction</string>
+    <string name="process_transaction">Vente</string>
     <string name="select_customer">Sélectionner Client</string>
     <string name="select_operator">Sélectionner Opérateur</string>
     <string name="select_action">Sélectionner Action</string>
@@ -107,8 +114,8 @@
     <string name="enter_valid_amount">Veuillez entrer un montant valide</string>
     <string name="processing_transaction">Traitement de la transaction...</string>
     
-    <!-- Cash Register -->
-    <string name="cash_register_title">Caisse</string>
+    <!-- Cash Register / Transactions -->
+    <string name="cash_register_title">Transactions</string>
     <string name="all_transactions">Toutes les Transactions</string>
     <string name="view_manage_transactions">Voir et gérer toutes vos transactions</string>
     <string name="no_transactions_found">Aucune transaction trouvée</string>
@@ -124,6 +131,10 @@
     <string name="pending">En Attente</string>
     <string name="successful">Réussi</string>
     <string name="failed">Échoué</string>
+    <string name="status_pending">En Attente</string>
+    <string name="status_successful">Réussi</string>
+    <string name="status_failed">Échoué</string>
+    <string name="status_cancelled">Annulé</string>
     <string name="update_status_button">Mettre à Jour Statut</string>
     <string name="status_updated">Statut de la transaction mis à jour</string>
     <string name="error_updating_status">Erreur lors de la mise à jour du statut</string>
@@ -134,6 +145,7 @@
     
     <!-- Balance Adjustments -->
     <string name="adjust_balance">Ajuster le Solde</string>
+    <string name="adjustment_form">Formulaire d\'Ajustement</string>
     <string name="adjust_operator_balance">Ajuster le Solde Opérateur</string>
     <string name="adjust_cash_balance">Ajuster le Solde Espèces</string>
     <string name="adjustment_reason">Raison de l\'ajustement</string>
@@ -178,6 +190,10 @@
     <string name="select_period">Sélectionner Période</string>
     <string name="select_month">Sélectionner Mois</string>
     <string name="select_year">Sélectionner Année</string>
+    <string name="select_day">Sélectionner Jour</string>
+    <string name="breakdown_by_operator">Répartition par Opérateur</string>
+    <string name="breakdown_by_action">Répartition par Action</string>
+    <string name="no_data_available">Aucune donnée disponible</string>
     <string name="no_commission_data">Aucune donnée de commission disponible</string>
     <string name="commission_calculated">Commission calculée : %1$s</string>
     <string name="commission_summary">Résumé Commission</string>
@@ -207,14 +223,20 @@
     <!-- Customer Management -->
     <string name="customer_management">Gestion des Clients</string>
     <string name="add_customer">Ajouter Client</string>
+    <string name="scan_barcode">Scanner MRZ</string>
+    <string name="scan_barcode_instruction">Positionnez la zone MRZ du document dans le cadre pour scanner</string>
     <string name="customer_name">Nom du Client</string>
     <string name="customer_phone">Téléphone du Client</string>
+    <string name="search_by_phone_number">Rechercher par numéro de téléphone...</string>
     <string name="customer_address">Adresse du Client</string>
     <string name="customer_dob">Date de Naissance</string>
     <string name="save_customer">Enregistrer Client</string>
     <string name="customer_saved">Client enregistré avec succès</string>
     <string name="customer_updated">Client mis à jour avec succès</string>
     <string name="customer_deleted">Client supprimé avec succès</string>
+    <string name="customer_phone_already_exists">Un client avec le numéro de téléphone %1$s existe déjà dans votre liste.</string>
+    <string name="select_existing_customer">Sélectionner le Client Existant</string>
+    <string name="customer_exists_phone_message">Un client avec ce numéro de téléphone existe déjà.\n\nNom: %1$s\nTéléphone: %2$s\n\nSouhaitez-vous sélectionner ce client à la place?</string>
     <string name="document_type">Type de Document</string>
     <string name="document_type_cni">CNI</string>
     <string name="document_type_passport">PASSEPORT</string>
@@ -235,8 +257,9 @@
     <string name="operator_management">Gestion des Opérateurs</string>
     <string name="add_operator">Ajouter Opérateur</string>
     <string name="operator_name">Nom de l\'Opérateur</string>
-    <string name="operator_code">Code Opérateur</string>
+    <string name="operator_code">Code Opérateur (Optionnel)</string>
     <string name="operator_type">Type d\'Opérateur</string>
+    <string name="action_code">Code Action (Optionnel)</string>
     <string name="operator_color">Couleur de l\'Opérateur</string>
     <string name="save_operator">Enregistrer Opérateur</string>
     <string name="edit_operator">Modifier l\'Opérateur</string>
@@ -244,6 +267,8 @@
     <string name="operator_saved">Opérateur enregistré avec succès</string>
     <string name="operator_updated">Opérateur mis à jour avec succès</string>
     <string name="operator_deleted">Opérateur supprimé avec succès</string>
+    <string name="transfer_rate">Taux de Transfert (%)</string>
+    <string name="transfer">Transfert</string>
     
     <!-- Common -->
     <string name="confirm_transaction">Confirmer Transaction</string>
@@ -281,4 +306,16 @@
     <string name="syncing_operator_actions">Synchronisation des actions d\'opérateur...</string>
     <string name="data_synced_successfully">Données synchronisées avec succès!</string>
     <string name="sync_failed_error">Échec de la synchronisation: %1$s</string>
+    
+    <!-- Terms and Privacy Policy -->
+    <string name="terms_and_privacy_title">Conditions d\'Utilisation &amp; Politique de Confidentialité</string>
+    <string name="terms_and_privacy_message">Veuillez lire et accepter nos Conditions d\'Utilisation et Politique de Confidentialité pour continuer à utiliser l\'application.</string>
+    <string name="terms_of_use">Conditions d\'Utilisation</string>
+    <string name="terms_content">En utilisant cette application bancaire mobile, vous acceptez les conditions suivantes:\n\n1. Vous êtes responsable de maintenir la confidentialité de vos identifiants de compte.\n\n2. Toutes les transactions effectuées via cette application sont soumises à vérification et approbation.\n\n3. Vous devez utiliser l\'application en conformité avec toutes les lois et réglementations applicables.\n\n4. Le fournisseur de l\'application se réserve le droit de modifier ou d\'interrompre les services à tout moment.\n\n5. Vous acceptez de ne pas utiliser l\'application à des fins illégales ou non autorisées.\n\n6. Toutes les transactions financières sont soumises aux termes et conditions de votre institution financière.\n\n7. Le fournisseur de l\'application n\'est pas responsable des pertes résultant d\'un accès non autorisé à votre compte.\n\n8. Vous devez signaler immédiatement toute activité suspecte à votre institution financière.</string>
+    <string name="privacy_policy">Politique de Confidentialité</string>
+    <string name="privacy_content">Votre confidentialité est importante pour nous. Cette politique de confidentialité explique comment nous collectons, utilisons et protégeons vos informations:\n\n1. Collecte d\'Informations: Nous collectons les informations que vous fournissez directement, y compris les détails personnels, les données de transaction et les informations sur l\'appareil.\n\n2. Utilisation des Données: Vos informations sont utilisées pour fournir des services bancaires, traiter les transactions, améliorer nos services et respecter les obligations légales.\n\n3. Sécurité des Données: Nous mettons en œuvre des mesures de sécurité standard de l\'industrie pour protéger vos informations personnelles et financières.\n\n4. Partage des Données: Nous pouvons partager vos informations avec les institutions financières, les fournisseurs de services et selon les exigences légales.\n\n5. Conservation des Données: Nous conservons vos informations aussi longtemps que nécessaire pour fournir des services et respecter les exigences légales.\n\n6. Vos Droits: Vous avez le droit d\'accéder, de corriger ou de supprimer vos informations personnelles, sous réserve des exigences légales et opérationnelles.\n\n7. Services Tiers: Notre application peut contenir des liens vers des services tiers avec leurs propres politiques de confidentialité.\n\n8. Mises à Jour: Cette politique de confidentialité peut être mise à jour périodiquement. L\'utilisation continue de l\'application constitue une acceptation des modifications.</string>
+    <string name="i_accept_terms_and_privacy">J\'accepte les Conditions d\'Utilisation et la Politique de Confidentialité</string>
+    <string name="accept">Accepter</string>
+    <string name="decline">Refuser</string>
+    <string name="must_accept_terms">Vous devez accepter les conditions pour continuer</string>
 </resources>

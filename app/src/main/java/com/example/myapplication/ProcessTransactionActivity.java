@@ -1,7 +1,9 @@
 package com.example.myapplication;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -16,7 +18,10 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.text.TextUtils;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -29,6 +34,7 @@ import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.LanguageManager;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.CommissionCalculator;
+import com.example.myapplication.utils.OperatorBalanceHelper;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -41,16 +47,51 @@ import java.util.Locale;
 
 import com.example.myapplication.adapters.CustomSpinnerAdapter;
 import com.example.myapplication.adapters.CustomerSpinnerAdapter;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
+import androidx.camera.core.Preview;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.view.PreviewView;
+import android.util.Size;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import com.example.myapplication.utils.MRZParser;
+import java.util.concurrent.ExecutionException;
 
 public class ProcessTransactionActivity extends AppCompatActivity {
 
     private static final String TAG = "ProcessTransaction";
+    private static final int CAMERA_PERMISSION_REQUEST = 1001;
 
     // UI Elements
     private Spinner spinnerOperator, spinnerAction, spinnerCustomer;
-    private EditText etAmount, etNote;
+    private EditText etAmount, etNote, etCustomerSearch, etAccountNumber;
     private TextView tvAvailableCredit;
     private Button btnExecuteTransaction;
+    
+    // Scanner components (for customer form dialog)
+    private PreviewView previewView;
+    private TextRecognizer textRecognizer;
+    private Camera camera;
+    private ProcessCameraProvider cameraProvider;
+    private boolean isScanning = false;
+    private android.view.View cameraPreviewCard;
+    private Button btnStopScanning;
+    private java.util.Map<String, Integer> mrzDetectionCounts = new java.util.HashMap<>();
+    private int detectionAttempts = 0;
+    private int frameCounter = 0;
+    private long lastProcessTime = 0;
+    private static final long MIN_PROCESS_INTERVAL_MS = 200;
+    private long scanningStartTime = 0;
+    private String lastDetectedMRZ = null;
 
     // Data
     private AppDatabase database;
@@ -59,6 +100,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private UserEntity currentUserEntity;
     private String activeUserId; // single source of truth for current user id
+    private OperatorBalanceHelper balanceHelper;
+    private LanguageManager languageManager;
+    private static long lastLanguageChangeTime = 0;
 
     private List<OperatorEntity> operators = new ArrayList<>();
     private List<OperatorActionEntity> actions = new ArrayList<>();
@@ -69,7 +113,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     private CustomerEntity selectedCustomer;
     private String selectedTransactionType;
 
-    private double availableCredit = 0.0;
+    private double availableCredit = 0.0; // Current operator-specific balance
     
 
     @Override
@@ -104,9 +148,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         firebaseUser = FirebaseAuth.getInstance().getCurrentUser();
         database = AppDatabase.getDatabase(this);
         sessionManager = new SessionManager(this);
+        balanceHelper = new OperatorBalanceHelper(database);
+        languageManager = LanguageManager.getInstance(this);
 
         // Initialize UI
         initViews();
+        
+        // Setup language selector after views are initialized
+        setupLanguageSelector();
         
         // Resolve active user from session (offline-first)
         currentUserEntity = sessionManager.getCurrentUser();
@@ -131,10 +180,12 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Update language flag in case language was changed elsewhere
+        updateLanguageFlag();
         // Refresh data when returning to activity (e.g., after adding customers/operators)
         loadCustomers();
         loadOperators();
-        loadUserData(); // Refresh credit as well
+        loadUserData(); // Refresh credit as well (this will reload operator balance)
     }
 
     private void initViews() {
@@ -143,8 +194,13 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         spinnerCustomer = findViewById(R.id.spinnerCustomer);
         etAmount = findViewById(R.id.etAmount);
         etNote = findViewById(R.id.etNote);
+        etCustomerSearch = findViewById(R.id.etCustomerSearch);
+        etAccountNumber = findViewById(R.id.etAccountNumber);
         tvAvailableCredit = findViewById(R.id.tvAvailableCredit);
         btnExecuteTransaction = findViewById(R.id.btnExecuteTransaction);
+        
+        // Initialize MRZ text recognizer (offline)
+        textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
         
         // Header
         TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
@@ -153,6 +209,77 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
         // Setup listeners
         setupListeners();
+        
+        // Add thousands separator to amount field
+        com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etAmount);
+    }
+    
+    private void setupLanguageSelector() {
+        // Find the language flag image view
+        ImageView ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        if (ivLanguageFlag == null) {
+            // Language selector might not be in the layout, skip setup
+            return;
+        }
+        
+        // Ensure languageManager is initialized
+        if (languageManager == null) {
+            languageManager = LanguageManager.getInstance(this);
+        }
+        
+        // Set initial flag based on current language
+        updateLanguageFlag();
+        
+        // Make the language selector clickable
+        View languageSelector = findViewById(R.id.ivLanguageFlag);
+        if (languageSelector != null) {
+            languageSelector.setOnClickListener(v -> {
+                // Prevent rapid language changes (debounce)
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastLanguageChangeTime < 1000) { // 1 second debounce
+                    return;
+                }
+                
+                // Toggle between English and French
+                String currentLang = languageManager.getCurrentLanguage();
+                String newLang = currentLang.equals("en") ? "fr" : "en";
+                
+                lastLanguageChangeTime = currentTime;
+                
+                // Set language and recreate activity
+                languageManager.setLanguageWithTranslation(newLang)
+                        .thenAccept(success -> {
+                            runOnUiThread(() -> {
+                                if (success) {
+                                    // Recreate activity to apply new language
+                                    recreate();
+                                } else {
+                                    Toast.makeText(this, "Failed to change language", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        });
+            });
+        }
+    }
+    
+    private void updateLanguageFlag() {
+        ImageView ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        if (ivLanguageFlag == null) {
+            return;
+        }
+        
+        // Ensure languageManager is initialized
+        if (languageManager == null) {
+            languageManager = LanguageManager.getInstance(this);
+        }
+        
+        String currentLang = languageManager.getCurrentLanguage();
+        
+        if ("fr".equals(currentLang)) {
+            ivLanguageFlag.setImageResource(R.drawable.ic_flag_fr);
+        } else {
+            ivLanguageFlag.setImageResource(R.drawable.ic_flag_us);
+        }
     }
 
     private void setupListeners() {
@@ -162,16 +289,22 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 if (position >= 0 && position < operators.size()) { // No placeholder, direct index
                     selectedOperator = operators.get(position);
                     loadActions(selectedOperator.getId());
+                    // Load operator-specific balance when operator is selected
+                    loadOperatorBalance();
                 } else {
                     selectedOperator = null;
                     actions.clear();
                     updateActionSpinner();
+                    availableCredit = 0.0;
+                    updateCreditDisplay();
                 }
             }
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
                 selectedOperator = null;
+                availableCredit = 0.0;
+                updateCreditDisplay();
             }
         });
 
@@ -215,6 +348,20 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             }
         });
 
+        // Setup customer phone number search
+        etCustomerSearch.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                searchCustomersByPhone(s.toString());
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+
         btnExecuteTransaction.setOnClickListener(v -> executeTransaction());
     }
 
@@ -228,26 +375,22 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
         new Thread(() -> {
             try {
-                // Reset credit to 0 first to avoid showing old user's credit
-                availableCredit = 0.0;
-                runOnUiThread(() -> updateCreditDisplay());
-                
                 // Load from local database first (offline-first approach)
                 currentUserEntity = database.userDao().getUserById(activeUserId);
                 
-                if (currentUserEntity != null) {
-                    availableCredit = currentUserEntity.getVirtualCredit();
-                    Log.d(TAG, "Loaded credit from local DB for user " + activeUserId + ": " + availableCredit);
-                    runOnUiThread(() -> updateCreditDisplay());
-                } else {
+                if (currentUserEntity == null) {
                     Log.e(TAG, "No user found in local database for: " + activeUserId);
-                    // Set default credit if no user found
-                    availableCredit = 0.0;
-                    runOnUiThread(() -> updateCreditDisplay());
                 }
 
-                // Always try to sync with Firestore to get latest credit for current user
-                syncWithFirestoreIfOnline();
+                // Load operator-specific balance if operator is selected
+                runOnUiThread(() -> {
+                    if (selectedOperator != null) {
+                        loadOperatorBalance();
+                    } else {
+                        availableCredit = 0.0;
+                        updateCreditDisplay();
+                    }
+                });
 
             } catch (Exception e) {
                 Log.e(TAG, "Error loading user data", e);
@@ -257,14 +400,58 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             }
         }).start();
     }
+    
+    /**
+     * Load operator-specific balance for the currently selected operator.
+     */
+    private void loadOperatorBalance() {
+        if (activeUserId == null || selectedOperator == null) {
+            availableCredit = 0.0;
+            updateCreditDisplay();
+            return;
+        }
+        
+        new Thread(() -> {
+            try {
+                // Ensure balances are recalculated from transactions if needed
+                // Check if there are transactions that need to be accounted for
+                List<com.example.myapplication.database.entities.TransactionEntity> transactions = 
+                    database.transactionDao().getTransactionsByUser(activeUserId);
+                
+                // If there are transactions, ensure balances are up to date
+                if (transactions != null && !transactions.isEmpty()) {
+                    // Check if this operator has a balance record
+                    com.example.myapplication.database.entities.OperatorBalanceEntity existingBalance = 
+                        database.operatorBalanceDao().getBalance(activeUserId, selectedOperator.getId());
+                    
+                    // If no balance exists or balance seems incorrect, trigger recalculation
+                    // (The recalculation will run in background and update all operators)
+                    if (existingBalance == null) {
+                        Log.d(TAG, "No balance record found for operator " + selectedOperator.getName() + ", triggering recalculation");
+                        balanceHelper.recalculateBalancesFromTransactions(activeUserId);
+                    }
+                }
+                
+                // Get operator-specific balance (after ensuring it's calculated)
+                double operatorBalance = balanceHelper.getBalance(activeUserId, selectedOperator.getId());
+                availableCredit = operatorBalance;
+                
+                Log.d(TAG, "Loaded balance for operator " + selectedOperator.getName() + " (ID: " + selectedOperator.getId() + "): " + operatorBalance);
+                
+                runOnUiThread(() -> updateCreditDisplay());
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading operator balance", e);
+                runOnUiThread(() -> {
+                    availableCredit = 0.0;
+                    updateCreditDisplay();
+                });
+            }
+        }).start();
+    }
 
     private void updateCreditDisplay() {
-        // Display integer-like when possible, else 2 decimals
-        if (Math.abs(availableCredit - Math.rint(availableCredit)) < 0.005) {
-            tvAvailableCredit.setText(String.format(java.util.Locale.getDefault(), "%.0f", availableCredit));
-        } else {
-            tvAvailableCredit.setText(String.format(java.util.Locale.getDefault(), "%.2f", availableCredit));
-        }
+        // Display with thousands separators
+        tvAvailableCredit.setText(com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(availableCredit));
     }
     
     private void syncWithFirestoreIfOnline() {
@@ -426,6 +613,36 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         }).start();
     }
 
+    private void searchCustomersByPhone(String phoneQuery) {
+        if (TextUtils.isEmpty(phoneQuery)) {
+            // If search is empty, load all customers
+            loadCustomers();
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                List<CustomerEntity> searchResults;
+                if (activeUserId != null) {
+                    // Search customers by phone number for current user
+                    searchResults = database.customerDao().searchCustomersByUser(activeUserId, phoneQuery);
+                } else {
+                    searchResults = new ArrayList<>();
+                }
+
+                runOnUiThread(() -> {
+                    customers.clear();
+                    customers.addAll(searchResults);
+                    updateCustomerSpinner();
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error searching customers by phone", e);
+                runOnUiThread(() -> Toast.makeText(this, "Error searching customers", Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
     private void updateOperatorSpinner() {
         List<String> operatorNames = new ArrayList<>();
         
@@ -457,7 +674,23 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerOperator.setAdapter(adapter);
         if (!operatorNames.isEmpty()) {
-            spinnerOperator.setSelection(0);
+            // Temporarily remove listener to avoid triggering loadActions during initial setup
+            AdapterView.OnItemSelectedListener currentListener = spinnerOperator.getOnItemSelectedListener();
+            spinnerOperator.setOnItemSelectedListener(null);
+            spinnerOperator.setSelection(0, false); // false = don't trigger listener
+            // Now manually trigger action loading and balance loading for the first operator
+            if (operators.size() > 0) {
+                selectedOperator = operators.get(0);
+                loadActions(selectedOperator.getId());
+                // Load operator-specific balance for the first operator
+                loadOperatorBalance();
+            }
+            // Restore listener
+            spinnerOperator.setOnItemSelectedListener(currentListener);
+        } else {
+            // Clear actions if no operators
+            actions.clear();
+            updateActionSpinner();
         }
     }
     
@@ -501,11 +734,24 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             }
         };
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        
+        // Temporarily remove listener to avoid triggering during adapter update
+        AdapterView.OnItemSelectedListener currentListener = spinnerAction.getOnItemSelectedListener();
+        spinnerAction.setOnItemSelectedListener(null);
+        
         spinnerAction.setAdapter(adapter);
+        
         if (!actionNames.isEmpty()) {
-            spinnerAction.setSelection(0);
+            spinnerAction.setSelection(0, false); // false = don't trigger listener
             selectedAction = actions.get(0);
+        } else {
+            selectedAction = null;
+            // Clear selection if no actions
+            spinnerAction.setSelection(0, false);
         }
+        
+        // Restore listener
+        spinnerAction.setOnItemSelectedListener(currentListener);
     }
 
     private void updateCustomerSpinner() {
@@ -632,15 +878,27 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         styledAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerDocumentType.setAdapter(styledAdapter);
         
-        // Setup date of birth auto-formatting - we need to copy the method from CustomerManagementActivity
-        // For now, we'll use a simplified version
+        // Setup date of birth auto-formatting - use DD-MM-YYYY format
         setupDateOfBirthFormatting(etDateOfBirth);
+        setupDateFormatting(etIssueDate);
+        setupDateFormatting(etExpiryDate);
         
         builder.setTitle(getString(R.string.add_customer))
                 .setPositiveButton(getString(R.string.save_customer), null)
                 .setNegativeButton(getString(android.R.string.cancel), null);
         
         AlertDialog dialog = builder.create();
+        
+        // Setup scanner button (after dialog is created so we can pass it)
+        android.view.View btnScanBarcode = dialogView.findViewById(R.id.btnScanBarcode);
+        if (btnScanBarcode != null) {
+            btnScanBarcode.setOnClickListener(v -> {
+                // Open scanner dialog
+                showScannerDialog(dialog, etFullName, etDateOfBirth, spinnerDocumentType, 
+                        documentTypes, etNationalId, etIssueDate, etExpiryDate);
+            });
+        }
+        
         dialog.setOnShowListener(dlg -> {
             android.widget.Button btnSave = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             btnSave.setOnClickListener(v -> {
@@ -657,7 +915,475 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         dialog.show();
     }
     
-    // Copy date formatting method from CustomerManagementActivity
+    private void showScannerDialog(AlertDialog parentDialog, EditText etFullName, EditText etDateOfBirth,
+                                  Spinner spinnerDocumentType, String[] documentTypes,
+                                  EditText etNationalId, EditText etIssueDate, EditText etExpiryDate) {
+        // Create scanner dialog
+        AlertDialog.Builder scannerBuilder = new AlertDialog.Builder(this);
+        android.view.View scannerView = getLayoutInflater().inflate(R.layout.dialog_scanner, null);
+        scannerBuilder.setView(scannerView);
+        
+        PreviewView scannerPreviewView = scannerView.findViewById(R.id.previewView);
+        Button btnStopScanning = scannerView.findViewById(R.id.btnStopScanning);
+        cameraPreviewCard = scannerView.findViewById(R.id.cameraPreviewCard);
+        
+        AlertDialog scannerDialog = scannerBuilder.create();
+        // Make dialog window background transparent so only our scanner card is visible
+        if (scannerDialog.getWindow() != null) {
+            scannerDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        
+        btnStopScanning.setOnClickListener(v -> {
+            stopBarcodeScanning();
+            scannerDialog.dismiss();
+        });
+        
+        scannerDialog.setOnDismissListener(d -> stopBarcodeScanning());
+        
+        // Start scanning
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, 
+                    new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST);
+            return;
+        }
+        
+        previewView = scannerPreviewView;
+        isScanning = true;
+        mrzDetectionCounts.clear();
+        detectionAttempts = 0;
+        frameCounter = 0;
+        lastProcessTime = 0;
+        scanningStartTime = System.currentTimeMillis();
+        lastDetectedMRZ = null;
+        
+        startCameraForDialog(parentDialog, etFullName, etDateOfBirth, spinnerDocumentType, 
+                documentTypes, etNationalId, etIssueDate, etExpiryDate, scannerDialog);
+        
+        scannerDialog.show();
+    }
+    
+    private void startCameraForDialog(AlertDialog parentDialog, EditText etFullName, EditText etDateOfBirth,
+                                     Spinner spinnerDocumentType, String[] documentTypes,
+                                     EditText etNationalId, EditText etIssueDate, EditText etExpiryDate,
+                                     AlertDialog scannerDialog) {
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = 
+                ProcessCameraProvider.getInstance(this);
+        
+        cameraProviderFuture.addListener(() -> {
+            try {
+                cameraProvider = cameraProviderFuture.get();
+                
+                Preview preview = new Preview.Builder().build();
+                preview.setSurfaceProvider(previewView.getSurfaceProvider());
+                
+                ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
+                        .setTargetResolution(new Size(1920, 1920))
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                        .build();
+                
+                imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this), image -> analyzeImageForDialog(
+                        image, parentDialog, etFullName, etDateOfBirth, spinnerDocumentType, 
+                        documentTypes, etNationalId, etIssueDate, etExpiryDate, scannerDialog));
+                
+                CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
+                try { cameraProvider.unbindAll(); } catch (Exception ignored) {}
+                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
+                
+            } catch (ExecutionException | InterruptedException e) {
+                Log.e(TAG, "Error starting camera", e);
+                Toast.makeText(this, "Error starting camera", Toast.LENGTH_SHORT).show();
+            }
+        }, ContextCompat.getMainExecutor(this));
+    }
+    
+    private void analyzeImageForDialog(ImageProxy image, AlertDialog parentDialog, EditText etFullName, 
+                                      EditText etDateOfBirth, Spinner spinnerDocumentType, String[] documentTypes,
+                                      EditText etNationalId, EditText etIssueDate, EditText etExpiryDate,
+                                      AlertDialog scannerDialog) {
+        if (!isScanning) { image.close(); return; }
+        if (image.getImage() == null) { image.close(); return; }
+        
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastProcessTime < MIN_PROCESS_INTERVAL_MS) {
+            image.close();
+            return;
+        }
+        
+        frameCounter++;
+        lastProcessTime = currentTime;
+        
+        int rotationDegrees = image.getImageInfo().getRotationDegrees();
+        InputImage inputImage = InputImage.fromMediaImage(image.getImage(), rotationDegrees);
+        
+        textRecognizer.process(inputImage)
+                .addOnSuccessListener(text -> {
+                    if (text != null && isScanning) {
+                        // Extract and correct MRZ text using same logic as CustomerManagementActivity
+                        String mrzText = extractAndCorrectMRZ(text);
+                        if (mrzText != null && !mrzText.trim().isEmpty() && isValidMRZ(mrzText)) {
+                            String normalizedMRZ = normalizeMRZ(mrzText);
+                            isScanning = false;
+                            runOnUiThread(() -> {
+                                Toast.makeText(this, "Processing MRZ...", Toast.LENGTH_SHORT).show();
+                                processMRZDataForDialog(normalizedMRZ, parentDialog, etFullName, etDateOfBirth, 
+                                        spinnerDocumentType, documentTypes, etNationalId, etIssueDate, etExpiryDate);
+                                scannerDialog.dismiss();
+                                stopBarcodeScanning();
+                            });
+                        }
+                    }
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "MRZ text recognition failed", e))
+                .addOnCompleteListener(result -> image.close());
+    }
+    
+    // === MRZ extraction and validation (shared behavior with CustomerManagementActivity) ===
+
+    private String normalizeMRZ(String mrz) {
+        if (mrz == null) return "";
+        return mrz.toUpperCase().trim()
+                .replaceAll("\\r\\n", "\n")
+                .replaceAll("\\r", "\n");
+    }
+
+    private String extractAndCorrectMRZ(Text text) {
+        if (text == null) {
+            return null;
+        }
+
+        String rawMRZ = extractMRZText(text);
+        if (rawMRZ == null || rawMRZ.trim().isEmpty()) {
+            return null;
+        }
+
+        return correctMRZOCRErrors(rawMRZ);
+    }
+
+    private String extractMRZText(Text text) {
+        if (text == null) {
+            Log.w(TAG, "Text recognition returned null");
+            return null;
+        }
+
+        String allText = text.getText();
+        Log.d(TAG, "========== RECOGNIZED TEXT (Sale MRZ) ==========");
+        Log.d(TAG, "Full text: " + allText);
+
+        java.util.List<String> mrzLines = new java.util.ArrayList<>();
+
+        for (Text.TextBlock block : text.getTextBlocks()) {
+            for (Text.Line line : block.getLines()) {
+                String lineText = line.getText().trim();
+                lineText = lineText.toUpperCase();
+
+                String normalized = lineText
+                        .replaceAll("\\|+", "<")
+                        .replaceAll("[/\\\\]+", "<")
+                        .replaceAll("\\s+", "")
+                        .replaceAll("[^A-Z0-9<]", "");
+
+                if ((normalized.length() >= 28 && normalized.length() <= 32) ||
+                    (normalized.length() >= 42 && normalized.length() <= 46)) {
+
+                    long alphanumericCount = normalized.chars()
+                            .filter(c -> (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '<')
+                            .count();
+
+                    double alphanumericRatio = (double) alphanumericCount / normalized.length();
+
+                    if (alphanumericRatio >= 0.90) {
+                        boolean looksLikeMRZ = false;
+
+                        if (normalized.length() >= 2) {
+                            char firstChar = normalized.charAt(0);
+                            char secondChar = normalized.length() > 1 ? normalized.charAt(1) : ' ';
+
+                            if ((firstChar == 'I' || firstChar == 'P' || firstChar == 'A' || firstChar == 'C') &&
+                                    (secondChar == '<' || secondChar == 'D' || secondChar == 'P')) {
+                                if (normalized.length() >= 5) {
+                                    String possibleCountry = normalized.substring(2, 5);
+                                    if (possibleCountry.matches("[A-Z]{3}")) {
+                                        looksLikeMRZ = true;
+                                    }
+                                }
+                            } else if (Character.isDigit(firstChar) && normalized.length() >= 14) {
+                                String first6 = normalized.substring(0, 6);
+                                if (first6.matches("\\d{6}") || first6.replaceAll("[OIL]", "").matches("\\d+")) {
+                                    if (normalized.length() > 7) {
+                                        char genderPos = normalized.charAt(7);
+                                        if (genderPos == 'M' || genderPos == 'F' || genderPos == 'X' || genderPos == 'H' || genderPos == 'N') {
+                                            looksLikeMRZ = true;
+                                        }
+                                    }
+                                }
+                            } else if (normalized.length() >= 42 && normalized.length() <= 46) {
+                                int sixDigitSequences = 0;
+                                for (int i = 0; i <= normalized.length() - 6; i++) {
+                                    String sub = normalized.substring(i, i + 6);
+                                    if (sub.matches("\\d{6}")) {
+                                        sixDigitSequences++;
+                                        if (sixDigitSequences >= 2) break;
+                                    }
+                                }
+
+                                if (sixDigitSequences >= 2) {
+                                    looksLikeMRZ = true;
+                                }
+                            } else if (normalized.contains("<<")) {
+                                long letterCount = normalized.chars().filter(c -> c >= 'A' && c <= 'Z').count();
+                                long fillerCount = normalized.chars().filter(c -> c == '<').count();
+                                if (letterCount >= 10 && (letterCount + fillerCount) >= normalized.length() * 0.95) {
+                                    looksLikeMRZ = true;
+                                }
+                            }
+                        }
+
+                        if (looksLikeMRZ) {
+                            mrzLines.add(normalized);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (mrzLines.size() == 3 || mrzLines.size() == 2) {
+            return String.join("\n", mrzLines);
+        }
+
+        return null;
+    }
+
+    private String correctMRZOCRErrors(String mrz) {
+        if (mrz == null) return null;
+
+        String[] lines = mrz.split("\n");
+        StringBuilder corrected = new StringBuilder();
+
+        boolean isTD3 = (lines.length == 2 && lines[0].length() >= 42);
+        boolean isTD1 = (lines.length == 3 && lines[0].length() >= 28 && lines[0].length() <= 32);
+
+        for (int lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+            String line = lines[lineIdx].toUpperCase();
+            StringBuilder correctedLine = new StringBuilder();
+
+            for (int i = 0; i < line.length(); i++) {
+                char c = line.charAt(i);
+                char correctedChar = c;
+
+                if (isTD1) {
+                    if (lineIdx == 0) {
+                        if (i == 0) {
+                            if (c == '1' || c == 'L' || c == 'J') correctedChar = 'I';
+                            else if (c == '0' || c == 'O' || c == 'D') correctedChar = 'O';
+                        } else if (i >= 2 && i <= 4) {
+                            correctedChar = correctToLetter(c);
+                        } else if (i >= 5 && i <= 14) {
+                            if (c == 'O') correctedChar = '0';
+                            else if (c == 'I' && i > 5) correctedChar = '1';
+                        }
+                    } else if (lineIdx == 1) {
+                        if (i >= 0 && i <= 5) {
+                            correctedChar = correctToDigit(c);
+                        } else if (i == 7) {
+                            if (c == 'N' || c == 'H') correctedChar = 'M';
+                            else if (c == 'E' || c == 'P') correctedChar = 'F';
+                        } else if (i >= 8 && i <= 13) {
+                            correctedChar = correctToDigit(c);
+                        } else if (i >= 15 && i <= 17) {
+                            correctedChar = correctToLetter(c);
+                        }
+                    } else if (lineIdx == 2) {
+                        if (c != '<') {
+                            correctedChar = correctToLetter(c);
+                        }
+                    }
+                } else if (isTD3) {
+                    if (lineIdx == 0) {
+                        if (i == 0) {
+                            if (c == '0' || c == 'O' || c == 'D' || c == '1' || c == 'I' || c == 'L') correctedChar = 'P';
+                        } else if (i >= 2 && i <= 4) {
+                            correctedChar = correctToLetter(c);
+                        } else if (i >= 5) {
+                            if (c != '<' && !Character.isLetter(c)) {
+                                correctedChar = correctToLetter(c);
+                            }
+                        }
+                    } else if (lineIdx == 1) {
+                        if (i >= 13 && i <= 18) {
+                            correctedChar = correctToDigit(c);
+                        } else if (i == 20) {
+                            if (c == 'N' || c == 'H') correctedChar = 'M';
+                            else if (c == 'E' || c == 'P') correctedChar = 'F';
+                        } else if (i >= 21 && i <= 26) {
+                            correctedChar = correctToDigit(c);
+                        } else if (i >= 10 && i <= 12) {
+                            correctedChar = correctToLetter(c);
+                        }
+                    }
+                }
+
+                if (correctedChar == c) {
+                    switch (c) {
+                        case '|': case '/': case '\\': case 'l': case 'L': case '!': case '1':
+                            if ((i > 0 && line.charAt(i-1) == '<') ||
+                                (i < line.length()-1 && line.charAt(i+1) == '<') ||
+                                i >= line.length() - 15) {
+                                correctedChar = '<';
+                            }
+                            break;
+                    }
+                }
+
+                correctedLine.append(correctedChar);
+            }
+
+            if (lineIdx > 0) corrected.append('\n');
+            corrected.append(correctedLine);
+        }
+
+        return corrected.toString();
+    }
+
+    private char correctToDigit(char c) {
+        switch (c) {
+            case 'O': case 'Q': case 'D': return '0';
+            case 'I': case 'L': case 'l': case '|': return '1';
+            case 'Z': case 'z': return '2';
+            case 'S': case 's': return '5';
+            case 'G': case 'g': return '6';
+            case 'T': case 't': return '7';
+            case 'B': return '8';
+            default: return c;
+        }
+    }
+
+    private char correctToLetter(char c) {
+        switch (c) {
+            case '0': return 'O';
+            case '1': return 'I';
+            case '2': return 'Z';
+            case '5': return 'S';
+            case '6': return 'G';
+            case '7': return 'T';
+            case '8': return 'B';
+            default: return Character.isLetter(c) ? Character.toUpperCase(c) : c;
+        }
+    }
+
+    private boolean isValidMRZ(String mrzText) {
+        if (mrzText == null || mrzText.trim().isEmpty()) {
+            return false;
+        }
+
+        String[] lines = mrzText.split("\n");
+
+        if (lines.length != 2 && lines.length != 3) {
+            return false;
+        }
+
+        for (String line : lines) {
+            String l = line.trim();
+            if (l.length() < 28) {
+                return false;
+            }
+
+            long validChars = l.chars()
+                    .filter(c -> (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '<')
+                    .count();
+            double ratio = (double) validChars / l.length();
+            if (ratio < 0.95) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+    
+    private void processMRZDataForDialog(String mrzText, AlertDialog parentDialog, EditText etFullName, 
+                                         EditText etDateOfBirth, Spinner spinnerDocumentType, String[] documentTypes,
+                                         EditText etNationalId, EditText etIssueDate, EditText etExpiryDate) {
+        try {
+            MRZParser.MRZData mrzData = MRZParser.parseMRZ(mrzText);
+            if (mrzData == null || !mrzData.isValid()) {
+                Toast.makeText(this, "Unable to read MRZ data. Please try again.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            
+            // Populate form fields
+            if (mrzData.fullName != null) etFullName.setText(mrzData.fullName);
+            if (mrzData.nationalIdNumber != null) {
+                etNationalId.setText(mrzData.nationalIdNumber);
+            } else if (mrzData.documentNumber != null) {
+                etNationalId.setText(mrzData.documentNumber);
+            }
+            
+            // Convert dates from YYYY-MM-DD to DD-MM-YYYY for display
+            if (mrzData.dateOfBirth != null) {
+                String dobDisplay = convertDateToDDMMYYYY(mrzData.dateOfBirth);
+                etDateOfBirth.setText(dobDisplay);
+            }
+            // Note: MRZ doesn't contain issue date, only expiry date
+            if (mrzData.expiryDate != null) {
+                String expiryDisplay = convertDateToDDMMYYYY(mrzData.expiryDate);
+                etExpiryDate.setText(expiryDisplay);
+            }
+            
+            // Set document type
+            if (mrzData.documentTypeName != null) {
+                for (int i = 0; i < documentTypes.length; i++) {
+                    if (documentTypes[i].equalsIgnoreCase(mrzData.documentTypeName)) {
+                        spinnerDocumentType.setSelection(i);
+                        break;
+                    }
+                }
+            }
+            
+            Toast.makeText(this, "MRZ data loaded successfully", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing MRZ data", e);
+            Toast.makeText(this, "Error processing MRZ data", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private String convertDateToDDMMYYYY(String date) {
+        if (date == null || date.trim().isEmpty()) return "";
+        try {
+            String cleanDate = date.trim();
+            if (cleanDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                String[] parts = cleanDate.split("-");
+                return parts[2] + "-" + parts[1] + "-" + parts[0];
+            }
+            return date;
+        } catch (Exception e) {
+            return date;
+        }
+    }
+    
+    private void stopBarcodeScanning() {
+        isScanning = false;
+        if (cameraPreviewCard != null) {
+            cameraPreviewCard.setVisibility(View.GONE);
+        }
+        if (previewView != null) {
+            previewView.setVisibility(View.GONE);
+        }
+        mrzDetectionCounts.clear();
+        detectionAttempts = 0;
+        frameCounter = 0;
+        lastProcessTime = 0;
+        scanningStartTime = 0;
+        lastDetectedMRZ = null;
+        try {
+            if (cameraProvider != null) {
+                cameraProvider.unbindAll();
+            }
+        } catch (Exception ignored) {}
+        camera = null;
+    }
+    
+    // Date formatting method - DD-MM-YYYY format
     private void setupDateOfBirthFormatting(EditText etDateOfBirth) {
         etDateOfBirth.addTextChangedListener(new android.text.TextWatcher() {
             private boolean isFormatting = false;
@@ -673,6 +1399,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 String input = s.toString().replaceAll("[^\\d]", "");
                 StringBuilder formatted = new StringBuilder();
                 
+                // Format as DD-MM-YYYY
                 for (int i = 0; i < input.length() && i < 8; i++) {
                     if (i == 2 || i == 4) {
                         formatted.append("-");
@@ -694,33 +1421,139 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         });
     }
     
+    private void setupDateFormatting(EditText etDate) {
+        etDate.addTextChangedListener(new android.text.TextWatcher() {
+            private boolean isFormatting = false;
+            
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (isFormatting) return;
+                isFormatting = true;
+                
+                String input = s.toString().replaceAll("[^\\d]", "");
+                StringBuilder formatted = new StringBuilder();
+                
+                // Format as DD-MM-YYYY
+                for (int i = 0; i < input.length() && i < 8; i++) {
+                    if (i == 2 || i == 4) {
+                        formatted.append("-");
+                    }
+                    formatted.append(input.charAt(i));
+                }
+                
+                int cursorPos = formatted.length();
+                if (cursorPos > 10) cursorPos = 10;
+                
+                etDate.setText(formatted.toString());
+                etDate.setSelection(Math.min(cursorPos, formatted.length()));
+                
+                isFormatting = false;
+            }
+            
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+    }
+    
+    private void showDuplicatePhoneDialogInTransaction(CustomerEntity existingCustomer, CustomerEntity newCustomer,
+                                                       EditText etFullName, EditText etDateOfBirth,
+                                                       Spinner spinnerDocumentType, String[] documentTypes,
+                                                       EditText etNationalId, EditText etIssueDate,
+                                                       EditText etExpiryDate, EditText etPhoneNumber,
+                                                       EditText etAddress, EditText etEmail) {
+        String customerName = existingCustomer.getFullName() != null ? existingCustomer.getFullName() : "N/A";
+        String customerPhone = existingCustomer.getPhoneNumber() != null ? existingCustomer.getPhoneNumber() : "N/A";
+        String message = String.format(getString(R.string.customer_exists_phone_message), customerName, customerPhone);
+        
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.select_existing_customer))
+                .setMessage(message)
+                .setPositiveButton(getString(R.string.select_customer), (dialog, which) -> {
+                    // Select the existing customer in the spinner
+                    selectExistingCustomerInTransaction(existingCustomer);
+                })
+                .setNegativeButton(getString(R.string.cancel), null)
+                .show();
+    }
+    
+    private void selectExistingCustomerInTransaction(CustomerEntity customer) {
+        // Reload customers to ensure the list is up to date
+        loadCustomers();
+        
+        // After customers are loaded, select the existing customer
+        new android.os.Handler().postDelayed(() -> {
+            // Find the customer in the list
+            int position = -1;
+            for (int i = 0; i < customers.size(); i++) {
+                if (customers.get(i).getId().equals(customer.getId())) {
+                    position = i + 1; // +1 because position 0 is "Add Customer" option
+                    break;
+                }
+            }
+            
+            if (position > 0 && position <= spinnerCustomer.getCount()) {
+                // Temporarily remove listener to prevent triggering on programmatic selection
+                AdapterView.OnItemSelectedListener currentListener = spinnerCustomer.getOnItemSelectedListener();
+                spinnerCustomer.setOnItemSelectedListener(null);
+                
+                // Select the customer
+                spinnerCustomer.setSelection(position);
+                selectedCustomer = customer;
+                
+                // Restore listener
+                spinnerCustomer.setOnItemSelectedListener(currentListener);
+                
+                Toast.makeText(this, getString(R.string.customer_saved), Toast.LENGTH_SHORT).show();
+            }
+        }, 300); // Small delay to ensure customers list is updated
+    }
+    
     private boolean validateAndSaveCustomer(CustomerEntity customer, EditText etFullName, EditText etDateOfBirth,
             Spinner spinnerDocumentType, String[] documentTypes, EditText etNationalId, EditText etIssueDate,
             EditText etExpiryDate, EditText etPhoneNumber, EditText etAddress, EditText etEmail) {
-        // Basic validation
+        // Basic validation - Mandatory fields: Name, Document number, Phone number
         if (TextUtils.isEmpty(etFullName.getText())) {
             etFullName.setError(getString(R.string.required_fields_missing));
-            return false;
-        }
-        if (TextUtils.isEmpty(etDateOfBirth.getText())) {
-            etDateOfBirth.setError(getString(R.string.required_fields_missing));
             return false;
         }
         if (TextUtils.isEmpty(etNationalId.getText())) {
             etNationalId.setError(getString(R.string.required_fields_missing));
             return false;
         }
+        if (TextUtils.isEmpty(etPhoneNumber.getText())) {
+            etPhoneNumber.setError(getString(R.string.required_fields_missing));
+            return false;
+        }
         
         // Save customer in background thread
         new Thread(() -> {
             try {
+                String phoneNumber = etPhoneNumber.getText().toString().trim();
+                
                 // Check if customer with same National ID already exists
-                CustomerEntity existingCustomer = database.customerDao().getCustomerByNationalId(etNationalId.getText().toString());
-                if (existingCustomer != null) {
+                CustomerEntity existingCustomerById = database.customerDao().getCustomerByNationalId(etNationalId.getText().toString());
+                if (existingCustomerById != null) {
                     runOnUiThread(() -> {
                         Toast.makeText(this, getString(R.string.customer_already_exists), Toast.LENGTH_SHORT).show();
                     });
                     return;
+                }
+                
+                // Check if customer with same phone number already exists for this agent (for new customers only)
+                if (phoneNumber != null && !phoneNumber.isEmpty() && currentUserEntity != null) {
+                    CustomerEntity existingCustomerByPhone = database.customerDao().getCustomerByPhoneNumberAndUser(phoneNumber, currentUserEntity.getUid());
+                    if (existingCustomerByPhone != null) {
+                        // Show dialog offering to select existing customer
+                        CustomerEntity finalExistingCustomer = existingCustomerByPhone;
+                        runOnUiThread(() -> {
+                            showDuplicatePhoneDialogInTransaction(finalExistingCustomer, customer, etFullName, etDateOfBirth,
+                                    spinnerDocumentType, documentTypes, etNationalId, etIssueDate, etExpiryDate, etPhoneNumber, etAddress, etEmail);
+                        });
+                        return;
+                    }
                 }
                 
                 // Set customer data
@@ -776,7 +1609,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             return;
         }
 
-        double amount = Double.parseDouble(etAmount.getText().toString());
+        double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(etAmount.getText().toString());
         
         Log.d(TAG, "Transaction amount: " + amount);
         Log.d(TAG, "Available credit: " + availableCredit);
@@ -832,7 +1665,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         }
 
         try {
-            double amount = Double.parseDouble(amountStr);
+            double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(amountStr);
             if (amount <= 0) {
                 Toast.makeText(this, getString(R.string.invalid_amount), Toast.LENGTH_SHORT).show();
                 return false;
@@ -850,9 +1683,16 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         String transactionType = detectTransactionType();
         
         // For deposits, user needs credit
+        // For transfers, user needs credit (base amount + fees)
         // For withdrawals, user gains credit
         if ("deposit".equalsIgnoreCase(transactionType)) {
             return availableCredit >= amount;
+        } else if ("transfer".equalsIgnoreCase(transactionType)) {
+            // Transfer needs credit for base amount + fees
+            double transferRate = selectedOperator.getTransferRate();
+            double transferFee = amount * (transferRate / 100.0);
+            double totalAmount = amount + transferFee;
+            return availableCredit >= totalAmount;
         }
         
         return true; // Withdrawals don't need credit check
@@ -870,7 +1710,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             return "withdrawal";
         }
         
-        // Default to deposit for all other actions (deposit, transfer, bills, etc.)
+        // Check for transfer keywords
+        if (actionName.contains("transfer") || 
+            actionName.contains("virement") || 
+            actionName.contains("transfert")) {
+            return "transfer";
+        }
+        
+        // Default to deposit for all other actions (deposit, bills, etc.)
         return "deposit";
     }
 
@@ -950,13 +1797,23 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             transaction.setUserRole(currentUserEntity.getRole());
         }
         
-        transaction.setCreditBefore(availableCredit);
+        // Get current operator-specific balance
+        double currentOperatorBalance = balanceHelper.getBalance(activeUserId, selectedOperator.getId());
+        transaction.setCreditBefore(currentOperatorBalance);
         
-        // Calculate credit after
-        double creditAfter = availableCredit;
-        if ("deposit".equals(transaction.getTransactionType())) {
+        // Calculate credit after based on transaction type
+        double creditAfter = currentOperatorBalance;
+        String transactionType = transaction.getTransactionType();
+        
+        if ("deposit".equals(transactionType)) {
             creditAfter -= amount; // Deposit subtracts credit
-        } else {
+        } else if ("transfer".equals(transactionType)) {
+            // Transfer: debit amount + fees from operator credit
+            double transferRate = selectedOperator.getTransferRate();
+            double transferFee = amount * (transferRate / 100.0);
+            double totalAmount = amount + transferFee;
+            creditAfter -= totalAmount; // Debit total amount (base + fees)
+        } else if ("withdrawal".equals(transactionType)) {
             creditAfter += amount; // Withdrawal adds credit
         }
         transaction.setCreditAfter(creditAfter);
@@ -966,6 +1823,18 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             String note = etNote.getText().toString().trim();
             if (!note.isEmpty()) {
                 transaction.setNotes(note);
+            }
+        }
+        
+        // Set account number if provided (append to notes)
+        if (etAccountNumber != null && etAccountNumber.getText() != null) {
+            String accountNumber = etAccountNumber.getText().toString().trim();
+            if (!accountNumber.isEmpty()) {
+                String existingNotes = transaction.getNotes() != null ? transaction.getNotes() : "";
+                String newNotes = existingNotes.isEmpty() 
+                    ? "Account Number: " + accountNumber 
+                    : existingNotes + "\nAccount Number: " + accountNumber;
+                transaction.setNotes(newNotes);
             }
         }
         
@@ -1129,51 +1998,112 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     }
 
     private void updateUserCredit(TransactionEntity transaction) {
-        if (activeUserId == null || currentUserEntity == null) {
-            Log.e(TAG, "Cannot update credit: currentUser or currentUserEntity is null");
+        if (activeUserId == null || selectedOperator == null) {
+            Log.e(TAG, "Cannot update credit: activeUserId or selectedOperator is null");
             return;
         }
 
         double newCredit = transaction.getCreditAfter();
+        double amount = transaction.getAmount();
+        String transactionType = transaction.getTransactionType().toLowerCase();
+        String operatorId = selectedOperator.getId();
         
         // Update local database
         new Thread(() -> {
             try {
-                currentUserEntity.setVirtualCredit(newCredit);
-                currentUserEntity.setCreditUpdatedAt(System.currentTimeMillis());
-                
-                // Update tracking fields
-                if ("deposit".equals(transaction.getTransactionType())) {
-                    currentUserEntity.setTotalCreditUsed(
-                        currentUserEntity.getTotalCreditUsed() + transaction.getAmount());
-                } else {
-                    currentUserEntity.setTotalCreditEarned(
-                        currentUserEntity.getTotalCreditEarned() + transaction.getAmount());
+                // Refresh user data to get current cash balance
+                UserEntity user = database.userDao().getUserById(activeUserId);
+                if (user == null) {
+                    Log.e(TAG, "User not found for credit/cash update");
+                    return;
                 }
                 
-                database.userDao().updateUser(currentUserEntity);
+                double currentCashBalance = user.getCashBalance();
+                double newCashBalance = currentCashBalance;
+                
+                // Update cash balance based on transaction type
+                // Deposit: customer gives cash to agent, so cash balance increases
+                // Transfer: customer gives cash to agent (base amount + fees), so cash balance increases by total
+                // Withdrawal: agent gives cash to customer, so cash balance decreases
+                if ("deposit".equalsIgnoreCase(transactionType)) {
+                    newCashBalance = currentCashBalance + amount; // Increase cash (customer gives cash)
+                    Log.d(TAG, "Deposit: Cash balance increased by " + amount + " (from " + currentCashBalance + " to " + newCashBalance + ")");
+                } else if ("transfer".equalsIgnoreCase(transactionType)) {
+                    // Transfer: cash balance increases by base amount + fees
+                    // Need to get the operator to calculate fees
+                    OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                    if (operator != null) {
+                        double transferRate = operator.getTransferRate();
+                        double transferFee = amount * (transferRate / 100.0);
+                        double totalAmount = amount + transferFee;
+                        newCashBalance = currentCashBalance + totalAmount; // Increase cash by total (base + fees)
+                        Log.d(TAG, "Transfer: Cash balance increased by " + totalAmount + " (base: " + amount + ", fee: " + transferFee + ") from " + currentCashBalance + " to " + newCashBalance);
+                    } else {
+                        // Fallback: if operator not found, just use base amount
+                        newCashBalance = currentCashBalance + amount;
+                        Log.d(TAG, "Transfer: Operator not found, using base amount. Cash balance increased by " + amount);
+                    }
+                } else if (transactionType.contains("withdrawal")) {
+                    newCashBalance = currentCashBalance - amount; // Decrease cash (agent gives cash)
+                    Log.d(TAG, "Withdrawal: Cash balance decreased by " + amount + " (from " + currentCashBalance + " to " + newCashBalance + ")");
+                }
+                
+                // Update operator-specific balance using OperatorBalanceHelper
+                balanceHelper.updateBalance(activeUserId, operatorId, newCredit);
+                
+                // Update tracking fields in operator balance entity
+                if ("deposit".equalsIgnoreCase(transactionType)) {
+                    balanceHelper.incrementCreditUsed(activeUserId, operatorId, amount);
+                } else if ("transfer".equalsIgnoreCase(transactionType)) {
+                    // For transfers, track the total amount debited (base + fees)
+                    OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                    double trackedAmount = amount;
+                    if (operator != null) {
+                        double transferRate = operator.getTransferRate();
+                        double transferFee = amount * (transferRate / 100.0);
+                        trackedAmount = amount + transferFee; // Track total debited
+                    }
+                    balanceHelper.incrementCreditUsed(activeUserId, operatorId, trackedAmount);
+                } else {
+                    balanceHelper.incrementCreditEarned(activeUserId, operatorId, amount);
+                }
+                
+                // Update cash balance (cash balance is still global per user, not per operator)
+                user.setCashBalance(newCashBalance);
+                database.userDao().updateUser(user);
+                currentUserEntity = user; // Update reference
                 
                 availableCredit = newCredit;
                 runOnUiThread(() -> updateCreditDisplay());
                 
-                Log.d(TAG, "Credit updated locally: " + newCredit);
+                Log.d(TAG, "Operator-specific balance updated for " + selectedOperator.getName() + ": " + newCredit + ", Cash balance updated: " + newCashBalance);
             } catch (Exception e) {
-                Log.e(TAG, "Error updating credit locally", e);
+                Log.e(TAG, "Error updating credit/cash locally", e);
             }
         }).start();
-
-        // Try to update Firestore in background (don't block on this)
-        updateCreditInFirestoreBackground(newCredit, transaction);
     }
     
-    private void updateCreditInFirestoreBackground(double newCredit, TransactionEntity transaction) {
+    private void updateCreditInFirestoreBackground(double newCredit, TransactionEntity transaction, double newCashBalance) {
         try {
             Map<String, Object> updates = new HashMap<>();
             updates.put("virtualCredit", newCredit);
+            updates.put("cashBalance", newCashBalance);
             updates.put("creditUpdatedAt", com.google.firebase.firestore.FieldValue.serverTimestamp());
             
-            if ("deposit".equals(transaction.getTransactionType())) {
+            String txType = transaction.getTransactionType();
+            if ("deposit".equals(txType)) {
                 updates.put("totalCreditUsed", com.google.firebase.firestore.FieldValue.increment(transaction.getAmount()));
+            } else if ("transfer".equals(txType)) {
+                // For transfers, increment by total amount (base + fees)
+                // Need to get operator to calculate fees
+                OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                double incrementAmount = transaction.getAmount();
+                if (operator != null) {
+                    double transferRate = operator.getTransferRate();
+                    double transferFee = transaction.getAmount() * (transferRate / 100.0);
+                    incrementAmount = transaction.getAmount() + transferFee;
+                }
+                updates.put("totalCreditUsed", com.google.firebase.firestore.FieldValue.increment(incrementAmount));
             } else {
                 updates.put("totalCreditEarned", com.google.firebase.firestore.FieldValue.increment(transaction.getAmount()));
             }
@@ -1189,6 +2119,27 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.d(TAG, "Background Firestore sync failed (offline mode): " + e.getMessage());
         }
+    }
+    
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_PERMISSION_REQUEST) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Camera permission granted. Please try scanning again.", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Camera permission is required for barcode scanning", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (textRecognizer != null) {
+            textRecognizer.close();
+        }
+        stopBarcodeScanning();
     }
     
 }

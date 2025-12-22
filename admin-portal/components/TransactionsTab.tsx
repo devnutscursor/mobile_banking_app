@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import dayjs from 'dayjs';
 import { exportTransactionsToExcel } from '@/lib/exportUtils';
+import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
 
 const { RangePicker } = DatePicker;
 
@@ -178,7 +179,7 @@ export default function TransactionsTab() {
       dataIndex: 'amount',
       key: 'amount',
       align: 'right' as const,
-      render: (v: number) => <Typography.Text strong>${v.toFixed(2)}</Typography.Text>,
+      render: (v: number) => <Typography.Text strong>{formatCurrencyWithSymbol(v)}</Typography.Text>,
     },
     {
       title: 'Status',
@@ -295,6 +296,8 @@ export default function TransactionsTab() {
                 style={{ width: '100%' }}
                 prefix="$"
                 min={0}
+                formatter={(value) => value !== null && value !== undefined ? value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+                parser={(value) => value ? value.replace(/,/g, '') : ''}
               />
             </Col>
             <Col xs={12} sm={6} md={6} lg={4}>
@@ -305,6 +308,8 @@ export default function TransactionsTab() {
                 style={{ width: '100%' }}
                 prefix="$"
                 min={0}
+                formatter={(value) => value !== null && value !== undefined ? value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+                parser={(value) => value ? value.replace(/,/g, '') : ''}
               />
             </Col>
             <Col xs={24} sm={12} md={12} lg={5}>

@@ -81,8 +81,8 @@ public class OperatorActionsActivity extends AppCompatActivity {
         EditText etCode = v.findViewById(R.id.etActionCode);
         CheckBox cbDisableUssd = v.findViewById(R.id.cbDisableUssd);
         
-        // Setup action name spinner with Deposit/Withdrawal
-        String[] actionNames = new String[]{"Deposit", "Withdrawal"};
+        // Setup action name spinner with Deposit/Withdrawal/Transfer
+        String[] actionNames = new String[]{"Deposit", "Withdrawal", "Transfer"};
         android.widget.ArrayAdapter<String> nameAdapter = new android.widget.ArrayAdapter<>(
                 this, android.R.layout.simple_spinner_item, actionNames);
         nameAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -91,10 +91,17 @@ public class OperatorActionsActivity extends AppCompatActivity {
         if (existing != null) {
             // Set spinner selection based on existing name
             String existingName = existing.getName();
-            if (existingName != null && existingName.toLowerCase().contains("withdraw")) {
-                spinnerName.setSelection(1); // Withdrawal
+            if (existingName != null) {
+                String lowerName = existingName.toLowerCase();
+                if (lowerName.contains("withdraw")) {
+                    spinnerName.setSelection(1); // Withdrawal
+                } else if (lowerName.contains("transfer")) {
+                    spinnerName.setSelection(2); // Transfer
+                } else {
+                    spinnerName.setSelection(0); // Deposit
+                }
             } else {
-                spinnerName.setSelection(0); // Deposit
+                spinnerName.setSelection(0); // Default to Deposit
             }
             etCode.setText(existing.getActionCode());
             cbDisableUssd.setChecked(existing.isDisableUssd());
@@ -106,7 +113,8 @@ public class OperatorActionsActivity extends AppCompatActivity {
                     String name = (String) spinnerName.getSelectedItem();
                     String actionCode = etCode.getText().toString().trim();
                     boolean disableUssd = cbDisableUssd.isChecked();
-                    if (TextUtils.isEmpty(name) || TextUtils.isEmpty(actionCode)) {
+                    // Action code is now optional
+                    if (TextUtils.isEmpty(name)) {
                         Toast.makeText(this, R.string.required_fields_missing, Toast.LENGTH_SHORT).show(); return;
                     }
                     new Thread(() -> {
@@ -118,7 +126,8 @@ public class OperatorActionsActivity extends AppCompatActivity {
                         } catch (Exception ignore) {}
                         OperatorActionEntity a = existing != null ? existing : new OperatorActionEntity(UUID.randomUUID().toString(), operatorId, name, derivedType, null, null, uid);
                         a.setName(name); a.setType(derivedType); a.setAddedBy(uid);
-                        a.setActionCode(actionCode);
+                        // Set action code only if provided (optional field)
+                        a.setActionCode(TextUtils.isEmpty(actionCode) ? null : actionCode);
                         a.setDisableUssd(disableUssd);
                         a.setUpdatedAt(System.currentTimeMillis()); a.setNeedsSync(true);
                         db.operatorActionDao().insertAction(a);

@@ -220,6 +220,7 @@ public class SyncManager {
                             op.setAddedBy((String)m.get("addedBy"));
                             op.setCode((String)m.get("code"));
                             op.setColor((String)m.get("color"));
+                            Object tr=m.get("transferRate"); op.setTransferRate(tr instanceof Number ? ((Number)tr).doubleValue() : 0.0);
                             Object ia=m.get("isActive"); op.setActive(!(ia instanceof Boolean) || (Boolean)ia);
                             op.setNeedsSync(false);
                             // Skip overwrite if local pending change

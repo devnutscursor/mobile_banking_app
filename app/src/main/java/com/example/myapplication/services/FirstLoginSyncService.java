@@ -424,6 +424,8 @@ public class FirstLoginSyncService {
                                 newOperator.setCode(doc.getString("code"));
                                 newOperator.setType(doc.getString("type"));
                                 newOperator.setColor(doc.getString("color"));
+                                Double transferRate = doc.getDouble("transferRate");
+                                newOperator.setTransferRate(transferRate != null ? transferRate : 0.0);
                                 newOperator.setEnabled(doc.getBoolean("enabled") != null ? doc.getBoolean("enabled") : true);
                                 newOperator.setAddedBy(doc.getString("addedBy"));  // Fixed: use "addedBy"
                                 newOperator.setCreatedAt(getTimestampAsMillis(doc, "createdAt"));
@@ -464,6 +466,8 @@ public class FirstLoginSyncService {
                                 newOperator.setCode(doc.getString("code"));
                                 newOperator.setType(doc.getString("type"));
                                 newOperator.setColor(doc.getString("color"));
+                                Double transferRate = doc.getDouble("transferRate");
+                                newOperator.setTransferRate(transferRate != null ? transferRate : 0.0);
                                 newOperator.setEnabled(doc.getBoolean("enabled") != null ? doc.getBoolean("enabled") : true);
                                 String owner = doc.getString("addedBy");
                                 if (owner == null || owner.isEmpty()) owner = doc.getString("userId");

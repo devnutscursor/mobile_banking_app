@@ -208,6 +208,9 @@ public class AddCreditsActivity extends AppCompatActivity {
         tvCurrentCredit.setText(getString(R.string.current_credit_label) + ": " + 
                 currencyFormat.format(agent.getVirtualCredit()));
         
+        // Add thousands separator to amount field
+        com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etCreditAmount);
+        
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(getString(R.string.add_credits))
                 .setView(dialogView)
@@ -224,7 +227,7 @@ public class AddCreditsActivity extends AppCompatActivity {
                 }
                 
                 try {
-                    double amount = Double.parseDouble(amountStr);
+                    double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(amountStr);
                     if (amount <= 0) {
                         etCreditAmount.setError(getString(R.string.invalid_amount));
                         return;

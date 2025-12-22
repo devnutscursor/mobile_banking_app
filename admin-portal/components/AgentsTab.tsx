@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, updateDoc, doc, setDoc, Timestamp, query, where } from 'firebase/firestore';
+import { License } from '@/lib/types';
 import { createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
 import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag, Typography, App, Skeleton } from 'antd';
 import { PlusOutlined, EditOutlined, DollarOutlined, UserOutlined, PhoneOutlined, MailOutlined, ApartmentOutlined, CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons';
@@ -9,6 +10,7 @@ import { db, getSecondaryAuth, signOutSecondary } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
+import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
 
 interface AgentsTabProps {
   onUpdate: () => void;
@@ -49,9 +51,80 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
     }
   };
 
+  const checkLicenseLimit = async (dealerId: string | null, isNewAgent: boolean, currentAgentDealerId?: string | null): Promise<boolean> => {
+    if (!dealerId) return true; // No dealer assigned, no limit check needed
+    
+    try {
+      // Find license assigned to this dealer
+      const licensesSnapshot = await getDocs(
+        query(collection(db, 'licenses'), where('assignedToUserId', '==', dealerId))
+      );
+      
+      let maxAgentCount: number | null = null;
+      
+      if (!licensesSnapshot.empty) {
+        const licenseDoc = licensesSnapshot.docs[0];
+        const licenseData = licenseDoc.data() as License;
+        maxAgentCount = licenseData.maxAgentCount ?? null;
+      }
+
+      if (maxAgentCount === null) return true; // Unlimited
+
+      // Count current agents for this dealer
+      const agentsSnapshot = await getDocs(
+        query(
+          collection(db, 'users'),
+          where('role', '==', 'agent'),
+          where('dealerId', '==', dealerId)
+        )
+      );
+      
+      let currentCount = 1 + agentsSnapshot.size; // dealer (1) + agents
+      
+      // If editing and changing dealer, adjust counts
+      if (!isNewAgent && currentAgentDealerId !== dealerId) {
+        // If moving from another dealer to this dealer, we need to check the new dealer's limit
+        // Current count doesn't include the agent being moved (it's still assigned to old dealer)
+        // We're adding 1 agent (the one being moved), so check: (currentCount + 1) <= maxAgentCount
+        if (currentCount + 1 > maxAgentCount) {
+          const maxAgents = maxAgentCount - 1;
+          message.error(`Cannot assign agent to this dealer. License limit reached (${maxAgents} agents allowed, ${maxAgentCount} total users including dealer).`);
+          return false;
+        }
+      } else if (isNewAgent) {
+        // Creating new agent - check if we can add one more
+        // Current count includes dealer + existing agents, adding 1 more agent
+        if (currentCount + 1 > maxAgentCount) {
+          const maxAgents = maxAgentCount - 1;
+          message.error(`Cannot create agent for this dealer. License limit reached (${maxAgents} agents allowed, ${maxAgentCount} total users including dealer).`);
+          return false;
+        }
+      }
+      // If editing same dealer, no limit check needed (not adding new agent)
+      
+      return true;
+    } catch (error) {
+      console.error('Error checking license limit:', error);
+      return true; // Allow on error to not block operations
+    }
+  };
+
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      
+      // Check license limit if assigning to a dealer
+      if (values.dealerId) {
+        const canProceed = await checkLicenseLimit(
+          values.dealerId, 
+          !editingAgent,
+          editingAgent?.dealerId
+        );
+        if (!canProceed) {
+          return; // Error message already shown
+        }
+      }
+      
       if (editingAgent) {
         const agentRef = doc(db, 'users', editingAgent.uid);
         await updateDoc(agentRef, {
@@ -182,7 +255,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
       render: (v: number) => (
         <Space>
           <DollarOutlined />
-          <Typography.Text style={{ color: colors.beige[500] }}>${v || 0}</Typography.Text>
+          <Typography.Text style={{ color: colors.beige[500] }}>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
         </Space>
       ),
     },
@@ -191,14 +264,14 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
       dataIndex: 'totalCreditUsed',
       key: 'used',
       align: 'right' as const,
-      render: (v: number) => <Typography.Text>${v || 0}</Typography.Text>,
+      render: (v: number) => <Typography.Text>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>,
     },
     {
       title: 'Earned',
       dataIndex: 'totalCreditEarned',
       key: 'earned',
       align: 'right' as const,
-      render: (v: number) => <Typography.Text>${v || 0}</Typography.Text>,
+      render: (v: number) => <Typography.Text>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>,
     },
     {
       title: 'Status',
@@ -251,7 +324,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
         onCancel={() => { setIsModalOpen(false); setEditingAgent(null); }}
         onOk={handleSubmit}
         okText={editingAgent ? 'Update' : 'Create'}
-        destroyOnHidden
+        destroyOnClose
       >
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="email" label="Email" rules={[{ required: !editingAgent, type: 'email' }]}>
@@ -276,7 +349,12 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
             />
           </Form.Item>
           <Form.Item name="virtualCredit" label="Virtual Credit" rules={[{ type: 'number', min: 0 }]}> 
-            <InputNumber addonBefore="$" style={{ width: '100%' }} />
+            <InputNumber 
+              addonBefore="$" 
+              style={{ width: '100%' }}
+              formatter={(value) => value !== null && value !== undefined ? value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+              parser={(value) => value ? value.replace(/,/g, '') : ''}
+            />
           </Form.Item>
           <Form.Item name="disabled" label="Disable User"> 
             <Switch />

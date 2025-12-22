@@ -22,6 +22,7 @@ public class OperatorEntity {
     private boolean enabled; // business status toggle
     private String code; // base operator code/prefix, e.g., "*144*" (optional for non-USSD)
     private String color; // one of: orange,purple,blue,green,amber,red,teal,indigo
+    private double transferRate = 0.0; // Transfer fee rate as percentage (e.g., 1.0 for 1%), defaults to 0.0
 
     // Ownership
     private String addedBy; // userId of creator
@@ -44,6 +45,7 @@ public class OperatorEntity {
         this.addedBy = addedBy;
         this.code = null;
         this.color = "orange";
+        this.transferRate = 0.0; // Default transfer rate
         long now = System.currentTimeMillis();
         this.createdAt = now;
         this.updatedAt = now;
@@ -88,6 +90,9 @@ public class OperatorEntity {
 
     public boolean isNeedsSync() { return needsSync; }
     public void setNeedsSync(boolean needsSync) { this.needsSync = needsSync; }
+
+    public double getTransferRate() { return transferRate; }
+    public void setTransferRate(double transferRate) { this.transferRate = transferRate; }
 }
 
 

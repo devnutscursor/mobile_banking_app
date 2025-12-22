@@ -50,6 +50,34 @@
                 android:paddingBottom="4dp"
                 android:layout_marginEnd="8dp" />
 
+            <!-- Print Ticket Button -->
+            <ImageView
+                android:id="@+id/ivPrintTicket"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_print"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="4dp"
+                android:layout_marginEnd="8dp"
+                app:tint="@color/text_secondary" />
+
+            <!-- USSD Retry Button (only for USSD transactions) -->
+            <ImageView
+                android:id="@+id/ivUssdRetry"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@android:drawable/ic_menu_call"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="6dp"
+                android:contentDescription="Retry USSD"
+                android:visibility="gone"
+                app:tint="@color/primary_green"
+                android:layout_marginEnd="8dp" />
+
             <!-- Edit Icon -->
             <ImageView
                 android:id="@+id/ivEdit"

@@ -308,7 +308,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
                 
                 if (localUser != null) {
                     double localCashBalance = localUser.getCashBalance();
-                    String display = String.format(java.util.Locale.getDefault(), "%.0f", localCashBalance);
+                    String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(localCashBalance);
                     runOnUiThread(() -> {
                         if (tvCashBalance != null) {
                             tvCashBalance.setText(display);
@@ -362,30 +362,50 @@ public class AgentDashboardActivity extends AppCompatActivity {
             }
         }).start();
 
-        // Load virtual credit from local database first (offline-first approach)
+        // Load total operator balance (sum of all operator balances) from local database
         new Thread(() -> {
             try {
                 com.example.myapplication.database.AppDatabase database = 
                     com.example.myapplication.database.AppDatabase.getDatabase(this);
-                com.example.myapplication.database.entities.UserEntity localUser = database.userDao().getUserById(currentUser.getUid());
+                com.example.myapplication.utils.OperatorBalanceHelper balanceHelper = 
+                    new com.example.myapplication.utils.OperatorBalanceHelper(database);
                 
-                if (localUser != null) {
-                    double localCredit = localUser.getVirtualCredit();
-                    String display = String.format(java.util.Locale.getDefault(), "%.0f", localCredit);
-                    runOnUiThread(() -> {
-                        tvVirtualBalance.setText(display);
-                        cachedVirtualBalance = display;
-                    });
-                    android.util.Log.d("AgentDashboard", "Loaded credit from local DB: " + localCredit);
-                } else {
-                    runOnUiThread(() -> {
-                        tvVirtualBalance.setText("0");
-                        cachedVirtualBalance = "0";
-                    });
+                // Use DAO method to get total balance (more efficient and accurate)
+                double totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
+                
+                // Check if we need to recalculate balances from existing transactions
+                java.util.List<com.example.myapplication.database.entities.TransactionEntity> transactions = 
+                    database.transactionDao().getTransactionsByUser(currentUser.getUid());
+                
+                // Always recalculate if there are transactions - this ensures balances are always correct
+                // The recalculation will preserve purchases/adjustments while fixing transaction-based calculations
+                if (transactions != null && !transactions.isEmpty()) {
+                    // Count successful/completed transactions
+                    int successfulTransactions = 0;
+                    for (com.example.myapplication.database.entities.TransactionEntity tx : transactions) {
+                        String status = tx.getStatus();
+                        if (status != null && (status.equalsIgnoreCase("successful") || status.equalsIgnoreCase("completed"))) {
+                            successfulTransactions++;
+                        }
+                    }
+                    
+                    // If there are successful transactions, always recalculate to ensure accuracy
+                    if (successfulTransactions > 0) {
+                        android.util.Log.d("AgentDashboard", "Found " + successfulTransactions + " successful transactions. Recalculating balances to ensure accuracy.");
+                        balanceHelper.recalculateBalancesFromTransactions(currentUser.getUid());
+                        // Re-fetch total balance after recalculation
+                        totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
+                    }
                 }
                 
+                String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(totalBalance);
+                runOnUiThread(() -> {
+                    tvVirtualBalance.setText(display);
+                    cachedVirtualBalance = display;
+                });
+                android.util.Log.d("AgentDashboard", "Loaded total operator balance from local DB: " + totalBalance);
             } catch (Exception e) {
-                android.util.Log.e("AgentDashboard", "Error loading credit from local DB", e);
+                android.util.Log.e("AgentDashboard", "Error loading total operator balance from local DB", e);
                 runOnUiThread(() -> {
                     tvVirtualBalance.setText("0");
                     cachedVirtualBalance = "0";
@@ -522,6 +542,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
         
         // Clear cached data to force fresh load
         cachedCashBalance = "";
+        cachedVirtualBalance = ""; // Clear virtual balance cache to refresh total credit
         // Refresh stats when returning
         loadAgentCardStats();
         // Refresh license expiry date

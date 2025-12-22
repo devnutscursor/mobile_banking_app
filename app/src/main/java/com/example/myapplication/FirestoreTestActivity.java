@@ -45,6 +45,9 @@ public class FirestoreTestActivity extends AppCompatActivity {
         btnAddCustomer.setOnClickListener(v -> addCustomer());
         btnReadCustomers.setOnClickListener(v -> readCustomers());
         btnAddTransaction.setOnClickListener(v -> addTransaction());
+        
+        // Add thousands separator to amount field
+        com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etAmount);
     }
 
     private void addCustomer() {
@@ -118,7 +121,7 @@ public class FirestoreTestActivity extends AppCompatActivity {
         }
 
         try {
-            double amount = Double.parseDouble(amountStr);
+            double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(amountStr);
             FirebaseUser user = mAuth.getCurrentUser();
             if (user == null) {
                 showLog("Not logged in");

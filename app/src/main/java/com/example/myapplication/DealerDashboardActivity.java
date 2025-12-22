@@ -13,11 +13,18 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
+import com.example.myapplication.database.AppDatabase;
+import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.AuthManager;
+import com.example.myapplication.utils.OperatorBalanceHelper;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.LanguageManager;
+
+import java.util.List;
 import com.example.myapplication.adapters.LanguageSpinnerAdapter;
 import com.example.myapplication.services.DataSyncService;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -52,6 +59,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
     private Button btnLogout;
     private ImageView btnMenu, btnSync;
     private Spinner spinnerLanguage;
+    private View headerLayout;
     private AuthManager authManager;
     private SessionManager sessionManager;
     private LanguageManager languageManager;
@@ -78,6 +86,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         firestore = FirebaseFirestore.getInstance();
 
         initViews();
+        setupSystemWindowInsets();
         setupLanguageSpinner();
         setupClickListeners();
         loadUserData();
@@ -108,6 +117,33 @@ public class DealerDashboardActivity extends AppCompatActivity {
         btnMenu = findViewById(R.id.btnMenu);
         btnSync = findViewById(R.id.btnSync);
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
+        headerLayout = findViewById(R.id.headerLayout);
+    }
+    
+    /**
+     * Setup system window insets to handle notch area padding on initial load
+     * This ensures the header has proper top padding to avoid collision with notch/status bar
+     */
+    private void setupSystemWindowInsets() {
+        if (headerLayout != null) {
+            // Post to ensure view is measured
+            headerLayout.post(() -> {
+                ViewCompat.setOnApplyWindowInsetsListener(headerLayout, (v, insets) -> {
+                    int topInset = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top;
+                    // Base padding from XML is 24dp (convert to pixels)
+                    int basePaddingTop = (int) (24 * getResources().getDisplayMetrics().density);
+                    
+                    // Set padding: base padding + system bar inset
+                    v.setPadding(v.getPaddingLeft(), topInset + basePaddingTop, 
+                               v.getPaddingRight(), v.getPaddingBottom());
+                    
+                    return insets;
+                });
+                
+                // Request to apply window insets
+                ViewCompat.requestApplyInsets(headerLayout);
+            });
+        }
     }
 
     private void setupLanguageSpinner() {
@@ -304,7 +340,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
                 
                 if (localUser != null) {
                     double localCashBalance = localUser.getCashBalance();
-                    String display = String.format(java.util.Locale.getDefault(), "%.0f", localCashBalance);
+                    String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(localCashBalance);
                     runOnUiThread(() -> {
                         if (tvCashBalance != null) {
                             tvCashBalance.setText(display);
@@ -358,34 +394,50 @@ public class DealerDashboardActivity extends AppCompatActivity {
             }
         }).start();
 
-        // Load virtual credit from local database first (offline-first approach)
+        // Load total operator balance (sum of all operator balances) from local database
         new Thread(() -> {
             try {
-                com.example.myapplication.database.AppDatabase database = 
-                    com.example.myapplication.database.AppDatabase.getDatabase(this);
-                com.example.myapplication.database.entities.UserEntity localUser = database.userDao().getUserById(currentUser.getUid());
+                AppDatabase database = AppDatabase.getDatabase(this);
+                OperatorBalanceHelper balanceHelper = new OperatorBalanceHelper(database);
                 
-                if (localUser != null) {
-                    double localCredit = localUser.getVirtualCredit();
-                    String display = String.format(java.util.Locale.getDefault(), "%.0f", localCredit);
-                    runOnUiThread(() -> {
-                        if (tvVirtualBalance != null) {
-                            tvVirtualBalance.setText(display);
+                // Use DAO method to get total balance (more efficient and accurate)
+                double totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
+                
+                // Check if we need to recalculate balances from existing transactions
+                List<com.example.myapplication.database.entities.TransactionEntity> transactions = 
+                    database.transactionDao().getTransactionsByUser(currentUser.getUid());
+                
+                // Always recalculate if there are transactions - this ensures balances are always correct
+                // The recalculation will preserve purchases/adjustments while fixing transaction-based calculations
+                if (transactions != null && !transactions.isEmpty()) {
+                    // Count successful/completed transactions
+                    int successfulTransactions = 0;
+                    for (com.example.myapplication.database.entities.TransactionEntity tx : transactions) {
+                        String status = tx.getStatus();
+                        if (status != null && (status.equalsIgnoreCase("successful") || status.equalsIgnoreCase("completed"))) {
+                            successfulTransactions++;
                         }
-                        cachedVirtualBalance = display;
-                    });
-                    android.util.Log.d("DealerDashboard", "Loaded credit from local DB: " + localCredit);
-                } else {
-                    runOnUiThread(() -> {
-                        if (tvVirtualBalance != null) {
-                            tvVirtualBalance.setText("0");
-                        }
-                        cachedVirtualBalance = "0";
-                    });
+                    }
+                    
+                    // If there are successful transactions, always recalculate to ensure accuracy
+                    if (successfulTransactions > 0) {
+                        android.util.Log.d("DealerDashboard", "Found " + successfulTransactions + " successful transactions. Recalculating balances to ensure accuracy.");
+                        balanceHelper.recalculateBalancesFromTransactions(currentUser.getUid());
+                        // Re-fetch total balance after recalculation
+                        totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
+                    }
                 }
                 
+                String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(totalBalance);
+                runOnUiThread(() -> {
+                    if (tvVirtualBalance != null) {
+                        tvVirtualBalance.setText(display);
+                    }
+                    cachedVirtualBalance = display;
+                });
+                android.util.Log.d("DealerDashboard", "Loaded total operator balance from local DB: " + totalBalance);
             } catch (Exception e) {
-                android.util.Log.e("DealerDashboard", "Error loading credit from local DB", e);
+                android.util.Log.e("DealerDashboard", "Error loading total operator balance from local DB", e);
                 runOnUiThread(() -> {
                     if (tvVirtualBalance != null) {
                         tvVirtualBalance.setText("0");
@@ -506,6 +558,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         
         // Clear cached data to force fresh load
         cachedCashBalance = "";
+        cachedVirtualBalance = ""; // Clear virtual balance cache to refresh total credit
         // Refresh stats when returning
         loadDealerCardStats();
         // Refresh license expiry date

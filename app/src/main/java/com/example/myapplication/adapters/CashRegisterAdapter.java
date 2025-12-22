@@ -32,12 +32,22 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         void onTransactionClick(TransactionEntity transaction);
     }
     
+    public interface OnUssdRetryClickListener {
+        void onUssdRetryClick(TransactionEntity transaction);
+    }
+    
     public CashRegisterAdapter(Context context, OnTransactionClickListener listener) {
         this.context = context;
         this.transactions = new ArrayList<>();
         this.listener = listener;
         this.dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
     }
+    
+    public void setUssdRetryListener(OnUssdRetryClickListener ussdRetryListener) {
+        this.ussdRetryListener = ussdRetryListener;
+    }
+    
+    private OnUssdRetryClickListener ussdRetryListener;
     
     public void setTransactions(List<TransactionEntity> transactions) {
         this.transactions = transactions;
@@ -55,24 +65,31 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
     public void onBindViewHolder(@NonNull TransactionViewHolder holder, int position) {
         TransactionEntity transaction = transactions.get(position);
         
-        // Transaction code (first 8 characters of ID)
-        holder.tvTransactionCode.setText(transaction.getId().substring(0, 8).toUpperCase());
+        // Transaction code - show full ID
+        String transactionId = transaction.getId();
+        holder.tvTransactionCode.setText(transactionId.toUpperCase());
         
         // Customer name
         holder.tvCustomerName.setText(transaction.getCustomerName());
         
-        // Operator and action
-        holder.tvOperatorAction.setText(transaction.getOperatorName() + " - " + transaction.getActionName());
+        // Operator and action - localize action name
+        String actionName = transaction.getActionName();
+        String localizedActionName = getLocalizedActionName(actionName);
+        holder.tvOperatorAction.setText(transaction.getOperatorName() + " - " + localizedActionName);
         
-        // Amount
-        holder.tvAmount.setText(String.format("%.2f XAF", transaction.getAmount()));
+        // Amount with thousands separator
+        String formattedAmount = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(transaction.getAmount());
+        holder.tvAmount.setText(formattedAmount + " F");
         
-        // Transaction type
-        holder.tvType.setText(transaction.getTransactionType());
+        // Transaction type - use localized string
+        String transactionType = transaction.getTransactionType();
+        String localizedType = getLocalizedTransactionType(transactionType);
+        holder.tvType.setText(localizedType);
         
-        // Status with proper colors
+        // Status with proper colors and localized text
         String status = transaction.getStatus().toLowerCase();
-        holder.tvStatus.setText(transaction.getStatus());
+        String localizedStatus = getLocalizedStatus(status);
+        holder.tvStatus.setText(localizedStatus);
         
         // Set status background color based on status
         int statusBackgroundRes;
@@ -114,6 +131,46 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
             }
         });
         
+        // USSD retry button - show for USSD transactions or if channel is null (for backward compatibility)
+        String channel = transaction.getChannel();
+        android.util.Log.d("CashRegisterAdapter", "Transaction " + transaction.getId() + " - Channel: " + channel + ", Operator: " + transaction.getOperatorName());
+        
+        // Show button if channel is USSD, or if channel is null but we can infer it's USSD from operator type
+        boolean isUssdTransaction = "USSD".equalsIgnoreCase(channel);
+        
+        // If channel is null, check operator type (for backward compatibility with old transactions)
+        if (channel == null || channel.isEmpty()) {
+            // Try to infer from operator - this is a fallback for old transactions
+            // We'll show the button and let the activity handle the check
+            isUssdTransaction = true; // Show button, let activity decide
+        }
+        
+        if (isUssdTransaction) {
+            holder.ivUssdRetry.setVisibility(View.VISIBLE);
+            holder.ivUssdRetry.setClickable(true);
+            holder.ivUssdRetry.setFocusable(true);
+            holder.ivUssdRetry.setEnabled(true);
+            
+            // Clear any previous listener to avoid issues with view recycling
+            holder.ivUssdRetry.setOnClickListener(null);
+            
+            // Set new listener
+            holder.ivUssdRetry.setOnClickListener(v -> {
+                android.util.Log.d("CashRegisterAdapter", "USSD retry button clicked for transaction: " + transaction.getId());
+                if (ussdRetryListener != null) {
+                    android.util.Log.d("CashRegisterAdapter", "Calling ussdRetryListener.onUssdRetryClick");
+                    ussdRetryListener.onUssdRetryClick(transaction);
+                } else {
+                    android.util.Log.e("CashRegisterAdapter", "ussdRetryListener is null!");
+                    android.widget.Toast.makeText(context, "USSD retry listener not set", android.widget.Toast.LENGTH_SHORT).show();
+                }
+            });
+        } else {
+            holder.ivUssdRetry.setVisibility(View.GONE);
+            holder.ivUssdRetry.setClickable(false);
+            holder.ivUssdRetry.setOnClickListener(null);
+        }
+        
         // Remove card click listener - now only edit icon opens details
         holder.cardView.setOnClickListener(null);
     }
@@ -121,6 +178,72 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
     @Override
     public int getItemCount() {
         return transactions.size();
+    }
+    
+    /**
+     * Get localized transaction type string
+     */
+    private String getLocalizedTransactionType(String type) {
+        if (type == null) return "";
+        
+        String typeLower = type.toLowerCase();
+        switch (typeLower) {
+            case "deposit":
+                return context.getString(R.string.deposit);
+            case "withdrawal":
+                return context.getString(R.string.withdrawal);
+            case "transfer":
+                return context.getString(R.string.transfer);
+            default:
+                return type; // Return original if no translation found
+        }
+    }
+    
+    /**
+     * Get localized action name string
+     * Actions like "Transfer", "Deposit", "Withdrawal" should be translated
+     */
+    private String getLocalizedActionName(String actionName) {
+        if (actionName == null) return "";
+        
+        String actionLower = actionName.toLowerCase().trim();
+        
+        // Check for common transaction action names and translate them
+        if (actionLower.equals("transfer") || actionLower.equals("transfert")) {
+            return context.getString(R.string.transfer);
+        } else if (actionLower.equals("deposit") || actionLower.equals("dépôt")) {
+            return context.getString(R.string.deposit);
+        } else if (actionLower.equals("withdrawal") || actionLower.equals("retrait")) {
+            return context.getString(R.string.withdrawal);
+        }
+        
+        // Return original if no translation found
+        return actionName;
+    }
+    
+    /**
+     * Get localized status string
+     */
+    private String getLocalizedStatus(String status) {
+        if (status == null) return "";
+        
+        String statusLower = status.toLowerCase();
+        switch (statusLower) {
+            case "successful":
+            case "success":
+                return context.getString(R.string.status_successful);
+            case "pending":
+            case "processing":
+                return context.getString(R.string.status_pending);
+            case "failed":
+            case "failure":
+                return context.getString(R.string.status_failed);
+            case "canceled":
+            case "cancelled":
+                return context.getString(R.string.status_cancelled);
+            default:
+                return status; // Return original if no translation found
+        }
     }
     
     static class TransactionViewHolder extends RecyclerView.ViewHolder {
@@ -133,6 +256,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         TextView tvStatus;
         TextView tvDate;
         ImageView ivEdit;
+        ImageView ivUssdRetry;
         
         public TransactionViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -145,6 +269,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
             tvStatus = itemView.findViewById(R.id.tvStatus);
             tvDate = itemView.findViewById(R.id.tvDate);
             ivEdit = itemView.findViewById(R.id.ivEdit);
+            ivUssdRetry = itemView.findViewById(R.id.ivUssdRetry);
         }
     }
 }

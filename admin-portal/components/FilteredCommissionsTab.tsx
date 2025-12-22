@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import { exportCommissionsToExcel, exportCommissionSummaryToExcel } from '@/lib/exportUtils';
 import { useAuth } from '@/lib/authContext';
+import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
 
 interface FilteredCommissionsTabProps {
   allowedUserIds?: string[];
@@ -167,7 +168,7 @@ export default function FilteredCommissionsTab({ allowedUserIds, showExport = tr
       key: 'totalCommission',
       render: (amt: number) => (
         <Typography.Text strong style={{ color: colors.beige[500] }}>
-          ${amt.toFixed(2)}
+          {formatCurrencyWithSymbol(amt)}
         </Typography.Text>
       ),
     },
@@ -202,7 +203,7 @@ export default function FilteredCommissionsTab({ allowedUserIds, showExport = tr
       title: 'Transaction Amount',
       dataIndex: 'transactionAmount',
       key: 'transactionAmount',
-      render: (amt: number) => `$${amt.toFixed(2)}`,
+      render: (amt: number) => formatCurrencyWithSymbol(amt),
     },
     {
       title: 'Commission Rate (%)',
@@ -216,7 +217,7 @@ export default function FilteredCommissionsTab({ allowedUserIds, showExport = tr
       key: 'totalCommission',
       render: (amt: number) => (
         <Typography.Text strong style={{ color: colors.beige[500] }}>
-          ${amt.toFixed(2)}
+          {formatCurrencyWithSymbol(amt)}
         </Typography.Text>
       ),
     },
@@ -237,6 +238,19 @@ export default function FilteredCommissionsTab({ allowedUserIds, showExport = tr
         background: colors.midnight_green[400],
         border: `1px solid ${colors.air_force_blue[300]}40`,
       }}
+      extra={showExport ? (
+        <Button
+          type="primary"
+          icon={<DownloadOutlined />}
+          onClick={handleExport}
+          style={{
+            background: `linear-gradient(135deg, ${colors.midnight_green[600]}, ${colors.air_force_blue[600]})`,
+            border: 'none',
+          }}
+        >
+          Export to Excel
+        </Button>
+      ) : null}
     >
       {/* Filters */}
       <Space direction="vertical" size="middle" style={{ width: '100%', marginBottom: 16 }}>

@@ -57,6 +57,20 @@ public interface CustomerDao {
     
     @Query("UPDATE customers SET needsSync = 0, lastSyncAt = :syncTime WHERE id = :customerId")
     void markAsSynced(String customerId, long syncTime);
+    
+    /**
+     * Find customer by phone number for a specific agent (createdBy)
+     * Used to prevent duplicate phone numbers per agent
+     */
+    @Query("SELECT * FROM customers WHERE phoneNumber = :phoneNumber AND createdBy = :userId AND isActive = 1")
+    CustomerEntity getCustomerByPhoneNumberAndUser(String phoneNumber, String userId);
+    
+    /**
+     * Find customer by phone number for a specific agent, excluding a specific customer ID
+     * Used when editing an existing customer to allow keeping the same phone number
+     */
+    @Query("SELECT * FROM customers WHERE phoneNumber = :phoneNumber AND createdBy = :userId AND id != :excludeId AND isActive = 1")
+    CustomerEntity getCustomerByPhoneNumberAndUserExcluding(String phoneNumber, String userId, String excludeId);
 }
 
 

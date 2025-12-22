@@ -27,9 +27,9 @@ public class CommissionEntity {
     // Commission calculation
     private double commissionRate; // Base rate used (exclusive of tax)
     private double taxRate; // Tax rate used
-    private double commissionAmount; // Commission without tax
-    private double taxAmount; // Tax on commission
-    private double totalCommission; // Commission with tax (total earned)
+    private double commissionAmount; // Gross commission (before tax deduction)
+    private double taxAmount; // Tax on commission (to be deducted)
+    private double totalCommission; // Net commission after tax deduction (total earned)
     
     // Period tracking
     private long commissionDate; // Date of commission (timestamp for day)
@@ -70,14 +70,15 @@ public class CommissionEntity {
         this.commissionRate = commissionRate;
         this.taxRate = taxRate;
         
-        // Calculate commission without tax
+        // Calculate gross commission (before tax deduction)
         this.commissionAmount = transactionAmount * (commissionRate / 100.0);
         
-        // Calculate tax on commission
+        // Calculate tax on commission (to be deducted)
         this.taxAmount = this.commissionAmount * (taxRate / 100.0);
         
-        // Calculate total commission (with tax)
-        this.totalCommission = this.commissionAmount + this.taxAmount;
+        // Calculate net commission after tax deduction
+        // Example: 25,000F × 0.2% = 50F gross, tax = 50F × 15% = 7.5F, net = 50F - 7.5F = 42.5F
+        this.totalCommission = this.commissionAmount - this.taxAmount;
     }
     
     // Getters and Setters

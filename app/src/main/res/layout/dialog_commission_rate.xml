@@ -130,6 +130,15 @@
         android:text="@string/withdrawal"
         android:textSize="14sp"
         android:textColor="@color/black"
+        android:layout_marginBottom="2dp" />
+
+    <CheckBox
+        android:id="@+id/cbTransfer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/transfer"
+        android:textSize="14sp"
+        android:textColor="@color/black"
         android:layout_marginBottom="16dp" />
 
     <!-- Buttons -->

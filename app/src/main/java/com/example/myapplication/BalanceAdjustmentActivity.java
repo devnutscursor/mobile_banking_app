@@ -21,12 +21,17 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.myapplication.adapters.BalanceAdjustmentAdapter;
 import com.example.myapplication.database.AppDatabase;
 import com.example.myapplication.database.entities.BalanceAdjustmentEntity;
+import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.LanguageManager;
+import com.example.myapplication.utils.OperatorBalanceHelper;
 import com.example.myapplication.utils.SessionManager;
 import com.google.firebase.firestore.FirebaseFirestore;
 
-import java.text.NumberFormat;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +50,7 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
     private EditText etReason;
     private Button btnApplyAdjustment;
     private RecyclerView rvAdjustmentHistory;
+    private Spinner spinnerOperator;
     
     private AppDatabase database;
     private SessionManager sessionManager;
@@ -52,6 +58,9 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
     private UserEntity currentUser;
     private BalanceAdjustmentAdapter adapter;
     private List<BalanceAdjustmentEntity> adjustmentHistory = new ArrayList<>();
+    private OperatorBalanceHelper balanceHelper;
+    private List<OperatorEntity> operators = new ArrayList<>();
+    private OperatorEntity selectedOperator;
     
     @Override
     protected void attachBaseContext(Context newBase) {
@@ -81,6 +90,7 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
         sessionManager = new SessionManager(this);
         firestore = FirebaseFirestore.getInstance();
         currentUser = sessionManager.getCurrentUser();
+        balanceHelper = new OperatorBalanceHelper(database);
         
         if (currentUser == null) {
             Toast.makeText(this, "No active user", Toast.LENGTH_SHORT).show();
@@ -89,8 +99,77 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
         }
         
         initViews();
+        loadOperators();
         loadBalances();
         loadAdjustmentHistory();
+    }
+    
+    private void loadOperators() {
+        new Thread(() -> {
+            try {
+                if (currentUser != null) {
+                    operators = database.operatorDao().getActiveForUser(currentUser.getUid());
+                } else {
+                    operators = new ArrayList<>();
+                }
+                
+                runOnUiThread(() -> {
+                    updateOperatorSpinner();
+                    if (!operators.isEmpty()) {
+                        selectedOperator = operators.get(0);
+                        loadBalances();
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading operators", e);
+            }
+        }).start();
+    }
+    
+    private void updateOperatorSpinner() {
+        List<String> operatorNames = new ArrayList<>();
+        for (OperatorEntity operator : operators) {
+            operatorNames.add(operator.getName());
+        }
+        
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(
+            this,
+            android.R.layout.simple_spinner_item,
+            operatorNames
+        ) {
+            @Override
+            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                TextView view = (TextView) super.getView(position, convertView, parent);
+                view.setTextColor(getResources().getColor(R.color.black, null));
+                return view;
+            }
+            
+            @Override
+            public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
+                TextView view = (TextView) super.getDropDownView(position, convertView, parent);
+                view.setTextColor(getResources().getColor(R.color.primary_orange, null));
+                return view;
+            }
+        };
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerOperator.setAdapter(adapter);
+        
+        spinnerOperator.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position >= 0 && position < operators.size()) {
+                    selectedOperator = operators.get(position);
+                    loadBalances();
+                } else {
+                    selectedOperator = null;
+                }
+            }
+            
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                selectedOperator = null;
+            }
+        });
     }
     
     private void initViews() {
@@ -108,6 +187,7 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
         etReason = findViewById(R.id.etReason);
         btnApplyAdjustment = findViewById(R.id.btnApplyAdjustment);
         rvAdjustmentHistory = findViewById(R.id.rvAdjustmentHistory);
+        spinnerOperator = findViewById(R.id.spinnerOperator);
         
         // Setup RecyclerView for history
         rvAdjustmentHistory.setLayoutManager(new LinearLayoutManager(this));
@@ -116,6 +196,9 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
         
         // Default to operator balance
         rbOperatorBalance.setChecked(true);
+        
+        // Add thousands separator to amount field
+        com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etAdjustmentAmount);
         
         // Apply adjustment button
         btnApplyAdjustment.setOnClickListener(v -> applyAdjustment());
@@ -133,14 +216,44 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
                     return;
                 }
                 
-                double operatorBalance = currentUser.getVirtualCredit();
-                double cashBalance = currentUser.getCashBalance();
+                // Ensure balances are recalculated from transactions if needed
+                final OperatorEntity finalSelectedOperator = selectedOperator;
+                if (finalSelectedOperator != null && currentUser != null) {
+                    // Check if there are transactions that need to be accounted for
+                    List<com.example.myapplication.database.entities.TransactionEntity> transactions = 
+                        database.transactionDao().getTransactionsByUser(currentUser.getUid());
+                    
+                    // If there are transactions, ensure balances are up to date
+                    if (transactions != null && !transactions.isEmpty()) {
+                        // Check if this operator has a balance record
+                        com.example.myapplication.database.entities.OperatorBalanceEntity existingBalance = 
+                            database.operatorBalanceDao().getBalance(currentUser.getUid(), finalSelectedOperator.getId());
+                        
+                        // If no balance exists or balance seems incorrect, trigger recalculation
+                        // (The recalculation will run in background and update all operators)
+                        if (existingBalance == null) {
+                            Log.d(TAG, "No balance record found for operator " + finalSelectedOperator.getName() + ", triggering recalculation");
+                            balanceHelper.recalculateBalancesFromTransactions(currentUser.getUid());
+                        }
+                    }
+                }
                 
-                NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.getDefault());
+                // Get operator-specific balance (after ensuring it's calculated)
+                double operatorBalance = 0.0;
+                if (finalSelectedOperator != null && currentUser != null) {
+                    operatorBalance = balanceHelper.getBalance(currentUser.getUid(), finalSelectedOperator.getId());
+                    Log.d(TAG, "Loaded balance for operator " + finalSelectedOperator.getName() + " (ID: " + finalSelectedOperator.getId() + "): " + operatorBalance);
+                }
+                
+                final double finalOperatorBalance = operatorBalance;
+                double cashBalance = currentUser.getCashBalance();
+                final double finalCashBalance = cashBalance;
                 
                 runOnUiThread(() -> {
-                    tvCurrentOperatorBalance.setText(currencyFormat.format(operatorBalance));
-                    tvCurrentCashBalance.setText(currencyFormat.format(cashBalance));
+                    String formattedOperatorBalance = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(finalOperatorBalance);
+                    String formattedCashBalance = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(finalCashBalance);
+                    tvCurrentOperatorBalance.setText(formattedOperatorBalance + " F");
+                    tvCurrentCashBalance.setText(formattedCashBalance + " F");
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading balances", e);
@@ -183,13 +296,19 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
         }
         
         try {
-            double amount = Double.parseDouble(amountStr);
+            double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(amountStr);
             if (amount == 0) {
                 etAdjustmentAmount.setError(getString(R.string.invalid_amount));
                 return;
             }
             
             String adjustmentType = rbOperatorBalance.isChecked() ? "operator" : "cash";
+            
+            // Validate operator selection for operator balance adjustments
+            if ("operator".equals(adjustmentType) && selectedOperator == null) {
+                Toast.makeText(this, "Please select an operator", Toast.LENGTH_SHORT).show();
+                return;
+            }
             
             new AlertDialog.Builder(this)
                     .setTitle(getString(R.string.adjust_balance))
@@ -219,6 +338,9 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
                 double balanceBefore;
                 double balanceAfter;
                 
+                // Store selectedOperator in final variable for lambda
+                final OperatorEntity finalSelectedOperator = selectedOperator;
+                
                 // Create adjustment record
                 BalanceAdjustmentEntity adjustment = new BalanceAdjustmentEntity();
                 adjustment.setUserId(user.getUid());
@@ -229,10 +351,16 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
                 
                 // Apply adjustment
                 if ("operator".equals(adjustmentType)) {
-                    balanceBefore = user.getVirtualCredit();
+                    if (finalSelectedOperator == null) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(this, "Please select an operator", Toast.LENGTH_SHORT).show();
+                        });
+                        return;
+                    }
+                    // Use operator-specific balance
+                    balanceBefore = balanceHelper.getBalance(user.getUid(), finalSelectedOperator.getId());
                     balanceAfter = balanceBefore + amount;
-                    user.setVirtualCredit(balanceAfter);
-                    user.setCreditUpdatedAt(System.currentTimeMillis());
+                    balanceHelper.updateBalance(user.getUid(), finalSelectedOperator.getId(), balanceAfter);
                 } else {
                     balanceBefore = user.getCashBalance();
                     balanceAfter = balanceBefore + amount;
@@ -246,7 +374,10 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
                 // Save adjustment and update user
                 database.balanceAdjustmentDao().insertAdjustment(adjustment);
                 user.setUpdatedAt(System.currentTimeMillis());
-                database.userDao().updateUser(user);
+                // Only update user if cash balance was changed (operator balance is handled separately)
+                if (!"operator".equals(adjustmentType)) {
+                    database.userDao().updateUser(user);
+                }
                 
                 // Update current user reference
                 currentUser = user;
@@ -305,20 +436,22 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
     
     private void syncBalancesToFirestore(UserEntity user) {
         try {
+            // Sync cash balance (still global per user)
             Map<String, Object> updates = new HashMap<>();
-            updates.put("virtualCredit", user.getVirtualCredit());
             updates.put("cashBalance", user.getCashBalance());
-            updates.put("creditUpdatedAt", user.getCreditUpdatedAt());
             updates.put("updatedAt", com.google.firebase.Timestamp.now());
             
             firestore.collection("users").document(user.getUid())
                     .update(updates)
                     .addOnSuccessListener(aVoid -> {
-                        Log.d(TAG, "Balances synced to Firestore");
+                        Log.d(TAG, "Cash balance synced to Firestore");
                     })
                     .addOnFailureListener(e -> {
                         Log.e(TAG, "Failed to sync balances to Firestore", e);
                     });
+            
+            // Note: Operator-specific balances are stored in operator_balances collection
+            // They should be synced separately if needed
         } catch (Exception e) {
             Log.e(TAG, "Error syncing balances to Firestore", e);
         }

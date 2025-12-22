@@ -158,6 +158,7 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
         TextView tvCommissionWithTax = dialogView.findViewById(R.id.tvCommissionWithTax);
         CheckBox cbDeposit = dialogView.findViewById(R.id.cbDeposit);
         CheckBox cbWithdrawal = dialogView.findViewById(R.id.cbWithdrawal);
+        CheckBox cbTransfer = dialogView.findViewById(R.id.cbTransfer);
         Button btnSave = dialogView.findViewById(R.id.btnSave);
         Button btnCancel = dialogView.findViewById(R.id.btnCancel);
         TextView tvDialogTitle = dialogView.findViewById(R.id.tvDialogTitle);
@@ -220,6 +221,7 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
                         String types = existing.getTransactionTypes();
                         cbDeposit.setChecked(types != null && types.contains("deposit"));
                         cbWithdrawal.setChecked(types != null && types.contains("withdrawal"));
+                        cbTransfer.setChecked(types != null && types.contains("transfer"));
                     }
                 });
             } catch (Exception e) {
@@ -287,7 +289,7 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
                 return;
             }
             
-            if (!cbDeposit.isChecked() && !cbWithdrawal.isChecked()) {
+            if (!cbDeposit.isChecked() && !cbWithdrawal.isChecked() && !cbTransfer.isChecked()) {
                 Toast.makeText(this, getString(R.string.select_at_least_one_transaction_type), Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -312,6 +314,7 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
                 List<String> types = new ArrayList<>();
                 if (cbDeposit.isChecked()) types.add("deposit");
                 if (cbWithdrawal.isChecked()) types.add("withdrawal");
+                if (cbTransfer.isChecked()) types.add("transfer");
                 String transactionTypes = TextUtils.join(",", types);
                 
                 // Create or update commission rate

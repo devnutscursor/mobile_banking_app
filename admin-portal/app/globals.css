@@ -77,6 +77,23 @@ body {
     sans-serif;
 }
 
+/* Ensure inputs are visible when keyboard is open */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  /* Prevent layout shift when keyboard appears */
+  position: relative;
+}
+
+/* Ensure modals and forms are scrollable */
+.ant-modal-body,
+.ant-form {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

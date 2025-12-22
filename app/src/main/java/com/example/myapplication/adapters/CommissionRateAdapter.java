@@ -56,13 +56,16 @@ public class CommissionRateAdapter extends RecyclerView.Adapter<CommissionRateAd
         
         // Display transaction types
         String types = rate.getTransactionTypes();
-        if (types != null) {
-            if (types.contains("deposit") && types.contains("withdrawal")) {
-                holder.tvTransactionTypes.setText("Deposit & Withdrawal");
-            } else if (types.contains("deposit")) {
-                holder.tvTransactionTypes.setText("Deposit");
-            } else if (types.contains("withdrawal")) {
-                holder.tvTransactionTypes.setText("Withdrawal");
+        if (types != null && !types.isEmpty()) {
+            java.util.List<String> typeList = new java.util.ArrayList<>();
+            android.content.Context context = holder.itemView.getContext();
+            if (types.contains("deposit")) typeList.add(context.getString(R.string.deposit));
+            if (types.contains("withdrawal")) typeList.add(context.getString(R.string.withdrawal));
+            if (types.contains("transfer")) typeList.add(context.getString(R.string.transfer));
+            
+            if (!typeList.isEmpty()) {
+                // Join with comma and space for better readability
+                holder.tvTransactionTypes.setText(android.text.TextUtils.join(", ", typeList));
             } else {
                 holder.tvTransactionTypes.setText(types);
             }

@@ -638,6 +638,7 @@ public class DataSyncService {
                 operatorData.put("enabled", operator.isEnabled());
                 operatorData.put("code", operator.getCode());
                 operatorData.put("color", operator.getColor());
+                operatorData.put("transferRate", operator.getTransferRate());
                 operatorData.put("isActive", operator.isActive());
                 operatorData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(operator.getCreatedAt())));
                 operatorData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(operator.getUpdatedAt())));
@@ -688,6 +689,8 @@ public class DataSyncService {
                                 newOperator.setEnabled(doc.getBoolean("enabled") != null ? doc.getBoolean("enabled") : true);
                                 newOperator.setCode(doc.getString("code"));
                                 newOperator.setColor(doc.getString("color"));
+                                Double transferRate = doc.getDouble("transferRate");
+                                newOperator.setTransferRate(transferRate != null ? transferRate : 0.0);
                                 newOperator.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
                                 // Robust timestamp parsing for createdAt/updatedAt
                                 Long oCreatedAt = null;
@@ -805,6 +808,8 @@ public class DataSyncService {
                                 newOperator.setCode(doc.getString("code"));
                                 newOperator.setType(doc.getString("type"));
                                 newOperator.setColor(doc.getString("color"));
+                                Double transferRate = doc.getDouble("transferRate");
+                                newOperator.setTransferRate(transferRate != null ? transferRate : 0.0);
                                 newOperator.setEnabled(doc.getBoolean("enabled") != null ? doc.getBoolean("enabled") : true);
                                 newOperator.setAddedBy(doc.getString("addedBy"));
                                 newOperator.setActive(doc.getBoolean("isActive") != null ? doc.getBoolean("isActive") : true);
