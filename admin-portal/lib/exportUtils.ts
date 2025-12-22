@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { Transaction, Customer, Commission, User, License, Operator, OperatorAction } from './types';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 
 /**
@@ -70,12 +70,24 @@ export function exportCustomersToExcel(
 ) {
   const data = customers.map(customer => {
     const addedByUser = users[customer.addedBy];
-    const createdAt = customer.createdAt instanceof Timestamp 
-      ? customer.createdAt.toDate() 
-      : new Date(customer.createdAt as any);
-    const dateOfBirth = customer.dateOfBirth instanceof Timestamp
-      ? customer.dateOfBirth.toDate()
-      : customer.dateOfBirth ? new Date(customer.dateOfBirth as any) : null;
+
+    // Safely normalise createdAt
+    let createdAt: Date | null = null;
+    if (customer.createdAt instanceof Timestamp) {
+      createdAt = customer.createdAt.toDate();
+    } else if (customer.createdAt) {
+      const parsed = new Date(customer.createdAt as any);
+      createdAt = isValid(parsed) ? parsed : null;
+    }
+
+    // Safely normalise dateOfBirth (can be missing / invalid)
+    let dateOfBirth: Date | null = null;
+    if (customer.dateOfBirth instanceof Timestamp) {
+      dateOfBirth = customer.dateOfBirth.toDate();
+    } else if (customer.dateOfBirth) {
+      const parsedDob = new Date(customer.dateOfBirth as any);
+      dateOfBirth = isValid(parsedDob) ? parsedDob : null;
+    }
     
     return {
       'Full Name': customer.fullName,
@@ -85,7 +97,7 @@ export function exportCustomersToExcel(
       'Added By': addedByUser?.name || 'N/A',
       'Added By Email': addedByUser?.email || 'N/A',
       'Added By Role': addedByUser?.role || 'N/A',
-      'Date Added': format(createdAt, 'yyyy-MM-dd HH:mm:ss'),
+      'Date Added': createdAt ? format(createdAt, 'yyyy-MM-dd HH:mm:ss') : '',
     };
   });
 

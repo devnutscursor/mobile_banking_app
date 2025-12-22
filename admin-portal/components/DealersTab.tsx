@@ -232,7 +232,7 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
         onCancel={() => { setIsModalOpen(false); setEditingDealer(null); }}
         onOk={handleSubmit}
         okText={editingDealer ? 'Update' : 'Create'}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false}>
           {!editingDealer && (

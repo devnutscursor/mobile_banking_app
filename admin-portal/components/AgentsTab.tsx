@@ -324,7 +324,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
         onCancel={() => { setIsModalOpen(false); setEditingAgent(null); }}
         onOk={handleSubmit}
         okText={editingAgent ? 'Update' : 'Create'}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item name="email" label="Email" rules={[{ required: !editingAgent, type: 'email' }]}>
