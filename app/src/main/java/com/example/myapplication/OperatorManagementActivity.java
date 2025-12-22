@@ -185,13 +185,15 @@ public class OperatorManagementActivity extends AppCompatActivity {
                         Toast.makeText(this, "Invalid transfer rate", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    if (TextUtils.isEmpty(name) || TextUtils.isEmpty(code)) { 
+                    // Operator code is now optional
+                    if (TextUtils.isEmpty(name)) { 
                         Toast.makeText(this, R.string.required_fields_missing, Toast.LENGTH_SHORT).show(); return; 
                     }
                     new Thread(() -> {
                         OperatorEntity op = existing != null ? existing : new OperatorEntity(UUID.randomUUID().toString(), name, type, enabled, currentUser.getUid());
                         op.setName(name); op.setType(type); op.setEnabled(enabled); op.setAddedBy(currentUser.getUid());
-                        op.setCode(code);
+                        // Set code only if provided (optional field)
+                        op.setCode(TextUtils.isEmpty(code) ? null : code);
                         op.setColor(color);
                         op.setTransferRate(transferRate);
                         op.setUpdatedAt(System.currentTimeMillis()); op.setNeedsSync(true);

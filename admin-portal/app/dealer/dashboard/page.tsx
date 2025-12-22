@@ -318,30 +318,49 @@ export default function DealerDashboardPage() {
       const allUserIds = [currentUser.uid, ...affiliatedAgentIds];
 
       // Load all related data
-      const [transactionsSnapshot, customersSnapshot, commissionsSnapshot, usersSnapshot] = await Promise.all([
-        getDocs(query(collection(db, 'transactions'), where('userId', 'in', allUserIds.length > 10 ? allUserIds.slice(0, 10) : allUserIds))),
-        getDocs(query(collection(db, 'customers'), where('addedBy', 'in', allUserIds.length > 10 ? allUserIds.slice(0, 10) : allUserIds))),
-        getDocs(query(collection(db, 'commissions'), where('userId', 'in', allUserIds.length > 10 ? allUserIds.slice(0, 10) : allUserIds))),
+      const [usersSnapshot, allCustomersSnapshot] = await Promise.all([
         getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'customers')), // Load all customers for client-side filtering
       ]);
 
-      // Handle batch queries if more than 10 users
+      // Handle batch queries for transactions
       let transactions: Transaction[] = [];
-      let customers: Customer[] = [];
-      let commissions: Commission[] = [];
-
       if (allUserIds.length <= 10) {
+        const transactionsSnapshot = await getDocs(query(collection(db, 'transactions'), where('userId', 'in', allUserIds)));
         transactions = transactionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Transaction));
-        customers = customersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Customer));
-        commissions = commissionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
       } else {
-        // Batch queries for transactions
+        const batches: string[][] = [];
         for (let i = 0; i < allUserIds.length; i += 10) {
-          const batch = allUserIds.slice(i, i + 10);
+          batches.push(allUserIds.slice(i, i + 10));
+        }
+        for (const batch of batches) {
           const batchSnapshot = await getDocs(query(collection(db, 'transactions'), where('userId', 'in', batch)));
           transactions.push(...batchSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Transaction)));
         }
-        // Similar for customers and commissions...
+      }
+
+      // Handle customers - check multiple field names (addedBy, userId, createdBy)
+      const allCustomers = allCustomersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      const customers = allCustomers.filter((c: any) => {
+        return allUserIds.includes(c.addedBy) || 
+               allUserIds.includes(c.userId) || 
+               allUserIds.includes(c.createdBy);
+      }) as Customer[];
+
+      // Handle batch queries for commissions
+      let commissions: Commission[] = [];
+      if (allUserIds.length <= 10) {
+        const commissionsSnapshot = await getDocs(query(collection(db, 'commissions'), where('userId', 'in', allUserIds)));
+        commissions = commissionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission));
+      } else {
+        const batches: string[][] = [];
+        for (let i = 0; i < allUserIds.length; i += 10) {
+          batches.push(allUserIds.slice(i, i + 10));
+        }
+        for (const batch of batches) {
+          const batchSnapshot = await getDocs(query(collection(db, 'commissions'), where('userId', 'in', batch)));
+          commissions.push(...batchSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Commission)));
+        }
       }
 
       const users = usersSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as UserType));
@@ -349,15 +368,13 @@ export default function DealerDashboardPage() {
       users.forEach(u => { usersMap[u.uid] = u; });
 
       // Load related data for transactions
-      const [operatorsSnapshot, actionsSnapshot, allCustomersSnapshot] = await Promise.all([
+      const [operatorsSnapshot, actionsSnapshot] = await Promise.all([
         getDocs(collection(db, 'operators')),
         getDocs(collection(db, 'operator_actions')),
-        getDocs(collection(db, 'customers')),
       ]);
 
       const operators = operatorsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
       const actions = actionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
-      const allCustomers = allCustomersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Customer));
 
       const operatorsMap: { [key: string]: any } = {};
       operators.forEach(op => { operatorsMap[op.id || ''] = op; });
@@ -365,8 +382,9 @@ export default function DealerDashboardPage() {
       const actionsMap: { [key: string]: any } = {};
       actions.forEach(action => { actionsMap[action.id || ''] = action; });
 
+      // Use all customers for the customers map (needed for transaction export to reference customer details)
       const customersMap: { [key: string]: Customer } = {};
-      allCustomers.forEach(c => { customersMap[c.id || ''] = c; });
+      allCustomers.forEach((c: any) => { customersMap[c.id || ''] = c as Customer; });
 
       message.loading({ content: 'Generating Excel files...', key: 'export' });
 

@@ -76,7 +76,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public static void destroyInstance() {
         if (INSTANCE != null) {
             INSTANCE.close();
-            INSTANCE = null;
+        INSTANCE = null;
         }
     }
     

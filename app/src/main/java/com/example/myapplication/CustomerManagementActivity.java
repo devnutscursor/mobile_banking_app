@@ -498,12 +498,17 @@ public class CustomerManagementActivity extends AppCompatActivity {
     /**
      * Aggressive OCR error correction specifically for MRZ format
      * MRZ contains only: A-Z, 0-9, and < (filler)
+     * Supports both TD1 (3 lines) and TD3 (2 lines) formats
      */
     private String correctMRZOCRErrors(String mrz) {
         if (mrz == null) return null;
         
         String[] lines = mrz.split("\n");
         StringBuilder corrected = new StringBuilder();
+        
+        // Determine format: TD1 (3 lines) or TD3 (2 lines)
+        boolean isTD3 = (lines.length == 2 && lines[0].length() >= 42);
+        boolean isTD1 = (lines.length == 3 && lines[0].length() >= 28 && lines[0].length() <= 32);
         
         for (int lineIdx = 0; lineIdx < lines.length; lineIdx++) {
             String line = lines[lineIdx].toUpperCase();
@@ -513,43 +518,82 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 char c = line.charAt(i);
                 char correctedChar = c;
                 
-                // Context-aware correction based on position and surrounding characters
-                if (lineIdx == 0) {
-                    // Line 1: I<BFAB213719491<<<<<<<<<<<<<<<
-                    if (i == 0) {
-                        // First char should be document type (I, P, A, C)
-                        if (c == '1' || c == 'L' || c == 'J') correctedChar = 'I';
-                        else if (c == '0' || c == 'O' || c == 'D') correctedChar = 'O'; // Might be part of IO
-                    } else if (i >= 2 && i <= 4) {
-                        // Country code (3 letters) - positions 2-4
-                        correctedChar = correctToLetter(c);
-                    } else if (i >= 5 && i <= 14) {
-                        // Document number (can be letters and numbers)
-                        // Keep as-is unless it's obviously wrong
-                        if (c == 'O') correctedChar = '0'; // O in document number likely 0
-                        else if (c == 'I' && i > 5) correctedChar = '1'; // I after position 5 likely 1
+                // Context-aware correction based on format and position
+                if (isTD1) {
+                    // TD1 Format (ID Cards - 3 lines of ~30 chars)
+                    if (lineIdx == 0) {
+                        // Line 1: I<BFAB213719491<<<<<<<<<<<<<<<
+                        if (i == 0) {
+                            // First char should be document type (I, P, A, C)
+                            if (c == '1' || c == 'L' || c == 'J') correctedChar = 'I';
+                            else if (c == '0' || c == 'O' || c == 'D') correctedChar = 'O'; // Might be part of IO
+                        } else if (i >= 2 && i <= 4) {
+                            // Country code (3 letters) - positions 2-4
+                            correctedChar = correctToLetter(c);
+                        } else if (i >= 5 && i <= 14) {
+                            // Document number (can be letters and numbers)
+                            if (c == 'O') correctedChar = '0'; // O in document number likely 0
+                            else if (c == 'I' && i > 5) correctedChar = '1'; // I after position 5 likely 1
+                        }
+                    } else if (lineIdx == 1) {
+                        // Line 2: 0001085M3504244BFA<<<<<<<<<<<4
+                        if (i >= 0 && i <= 5) {
+                            // Date of birth (6 digits) - positions 0-5
+                            correctedChar = correctToDigit(c);
+                        } else if (i == 7) {
+                            // Gender (M/F/X) - position 7
+                            if (c == 'N' || c == 'H') correctedChar = 'M';
+                            else if (c == 'E' || c == 'P') correctedChar = 'F';
+                        } else if (i >= 8 && i <= 13) {
+                            // Expiry date (6 digits) - positions 8-13
+                            correctedChar = correctToDigit(c);
+                        } else if (i >= 15 && i <= 17) {
+                            // Nationality (3 letters) - positions 15-17
+                            correctedChar = correctToLetter(c);
+                        }
+                    } else if (lineIdx == 2) {
+                        // Line 3: TIEMA<<DANLE<CHEICK<ABOUBACA<S
+                        // Names - should be all letters or <
+                        if (c != '<') {
+                            correctedChar = correctToLetter(c);
+                        }
                     }
-                } else if (lineIdx == 1) {
-                    // Line 2: 0001085M3504244BFA<<<<<<<<<<<4
-                    if (i >= 0 && i <= 5) {
-                        // Date of birth (6 digits) - positions 0-5
-                        correctedChar = correctToDigit(c);
-                    } else if (i == 7) {
-                        // Gender (M/F/X) - position 7
-                        if (c == 'N' || c == 'H') correctedChar = 'M';
-                        else if (c == 'E' || c == 'P') correctedChar = 'F';
-                    } else if (i >= 8 && i <= 13) {
-                        // Expiry date (6 digits) - positions 8-13
-                        correctedChar = correctToDigit(c);
-                    } else if (i >= 15 && i <= 17) {
-                        // Nationality (3 letters) - positions 15-17
-                        correctedChar = correctToLetter(c);
-                    }
-                } else if (lineIdx == 2) {
-                    // Line 3: TIEMA<<DANLE<CHEICK<ABOUBACA<S
-                    // Names - should be all letters or <
-                    if (c != '<') {
-                        correctedChar = correctToLetter(c);
+                } else if (isTD3) {
+                    // TD3 Format (Passports - 2 lines of ~44 chars)
+                    if (lineIdx == 0) {
+                        // Line 1: P<BFATIEMA<<DANLE<CHEICK<ABOUBACAR<SIDIK<<<<<<<<
+                        if (i == 0) {
+                            // First char should be 'P' for passport
+                            if (c == '0' || c == 'O' || c == 'D') correctedChar = 'P';
+                            else if (c == '1' || c == 'I' || c == 'L') correctedChar = 'P';
+                        } else if (i >= 2 && i <= 4) {
+                            // Country code (3 letters) - positions 2-4
+                            correctedChar = correctToLetter(c);
+                        } else if (i >= 5) {
+                            // Names (rest of line) - should be letters or <
+                            if (c != '<' && !Character.isLetter(c)) {
+                                correctedChar = correctToLetter(c);
+                            }
+                        }
+                    } else if (lineIdx == 1) {
+                        // Line 2: A4001733<2BFA0001085M2909222<<<<<<<<<<<<<<<<06
+                        if (i >= 0 && i <= 8) {
+                            // Document number (9 chars, can be letters and numbers)
+                            // Keep as-is, mixed alphanumeric
+                        } else if (i >= 13 && i <= 18) {
+                            // Date of birth (6 digits) - positions 13-18
+                            correctedChar = correctToDigit(c);
+                        } else if (i == 20) {
+                            // Gender (M/F/X) - position 20
+                            if (c == 'N' || c == 'H') correctedChar = 'M';
+                            else if (c == 'E' || c == 'P') correctedChar = 'F';
+                        } else if (i >= 21 && i <= 26) {
+                            // Expiry date (6 digits) - positions 21-26
+                            correctedChar = correctToDigit(c);
+                        } else if (i >= 10 && i <= 12) {
+                            // Nationality (3 letters) - positions 10-12
+                            correctedChar = correctToLetter(c);
+                        }
                     }
                 }
                 
@@ -663,8 +707,11 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 // MRZ lines are long (30+ chars) and contain mix of letters/numbers
                 // They may or may not have < characters (OCR might miss them)
                 
-                // Check if line is long enough (28-32 chars for TD1, which is most common)
-                if (normalized.length() >= 28 && normalized.length() <= 32) {
+                // Check if line is long enough for MRZ formats:
+                // TD1 (ID cards): 30 chars (allow 28-32 for OCR tolerance)
+                // TD3 (Passports): 44 chars (allow 42-46 for OCR tolerance)
+                if ((normalized.length() >= 28 && normalized.length() <= 32) || 
+                    (normalized.length() >= 42 && normalized.length() <= 46)) {
                     // Check if it contains mostly alphanumeric (and possibly <)
                     long alphanumericCount = normalized.chars()
                         .filter(c -> (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '<')
@@ -694,7 +741,7 @@ public class CustomerManagementActivity extends AppCompatActivity {
                                     }
                                 }
                             }
-                            // Line 2: Starts with digit (date of birth YYMMDD)
+                            // TD1 Line 2: Starts with digit (date of birth YYMMDD)
                             else if (Character.isDigit(firstChar) && normalized.length() >= 14) {
                                 // Check if first 6 chars look like a date (YYMMDD)
                                 String first6 = normalized.substring(0, 6);
@@ -704,9 +751,26 @@ public class CustomerManagementActivity extends AppCompatActivity {
                                         char genderPos = normalized.charAt(7);
                                         if (genderPos == 'M' || genderPos == 'F' || genderPos == 'X' || genderPos == 'H' || genderPos == 'N') {
                                             looksLikeMRZ = true;
-                                            Log.d(TAG, "✓ MRZ Line 2 pattern detected: " + normalized.substring(0, Math.min(30, normalized.length())));
+                                            Log.d(TAG, "✓ MRZ TD1 Line 2 pattern detected: " + normalized.substring(0, Math.min(30, normalized.length())));
                                         }
                                     }
+                                }
+                            }
+                            // TD3 Line 2 (Passports): document number + dates, may start with letter (e.g., A4001733<2BFA0001085M2909222...)
+                            else if (normalized.length() >= 42 && normalized.length() <= 46) {
+                                // Heuristic: TD3 line 2 should contain at least two 6‑digit date-like segments (DOB and expiry)
+                                int sixDigitSequences = 0;
+                                for (int i = 0; i <= normalized.length() - 6; i++) {
+                                    String sub = normalized.substring(i, i + 6);
+                                    if (sub.matches("\\d{6}")) {
+                                        sixDigitSequences++;
+                                        if (sixDigitSequences >= 2) break;
+                                    }
+                                }
+                                
+                                if (sixDigitSequences >= 2) {
+                                    looksLikeMRZ = true;
+                                    Log.d(TAG, "✓ MRZ TD3 Line 2 pattern detected: " + normalized.substring(0, Math.min(30, normalized.length())));
                                 }
                             }
                             // Line 3: Name line - should have << separator
@@ -737,40 +801,78 @@ public class CustomerManagementActivity extends AppCompatActivity {
             Log.d(TAG, "MRZ Line " + (i + 1) + ": " + mrzLines.get(i));
         }
         
-        // For TD1 format (ID cards), we need EXACTLY 3 lines
-        // Reject if we have more or less to avoid false positives from card text
+        // Support both TD1 (3 lines, ~30 chars) and TD3 (2 lines, ~44 chars)
         if (mrzLines.size() == 3) {
-            // Verify the 3 lines match TD1 pattern
+            // TD1 format (ID cards) - 3 lines of ~30 characters
             String line1 = mrzLines.get(0);
             String line2 = mrzLines.get(1);
             String line3 = mrzLines.get(2);
             
-            // Line 1 should start with document type
-            boolean line1Valid = line1.length() >= 5 && 
-                                 (line1.charAt(0) == 'I' || line1.charAt(0) == 'P' || line1.charAt(0) == 'A' || line1.charAt(0) == 'C');
+            // Verify all lines are TD1 length (28-32 chars)
+            if (line1.length() >= 28 && line1.length() <= 32 &&
+                line2.length() >= 28 && line2.length() <= 32 &&
+                line3.length() >= 28 && line3.length() <= 32) {
+                
+                // Line 1 should start with document type
+                boolean line1Valid = line1.length() >= 5 && 
+                                     (line1.charAt(0) == 'I' || line1.charAt(0) == 'P' || line1.charAt(0) == 'A' || line1.charAt(0) == 'C');
+                
+                // Line 2 should start with digits (date)
+                boolean line2Valid = line2.length() >= 6 && Character.isDigit(line2.charAt(0));
+                
+                // Line 3 should contain << (name separator)
+                boolean line3Valid = line3.contains("<<");
+                
+                if (line1Valid && line2Valid && line3Valid) {
+                    String result = String.join("\n", mrzLines);
+                    Log.d(TAG, "✓ Valid TD1 MRZ with 3 lines (ID card)");
+                    return result;
+                } else {
+                    Log.w(TAG, "✗ Found 3 lines but TD1 pattern validation failed: L1=" + line1Valid + ", L2=" + line2Valid + ", L3=" + line3Valid);
+                    return null;
+                }
+            }
+        } else if (mrzLines.size() == 2) {
+            // TD3 format (Passports) - 2 lines of ~44 characters
+            String line1 = mrzLines.get(0);
+            String line2 = mrzLines.get(1);
             
-            // Line 2 should start with digits (date)
-            boolean line2Valid = line2.length() >= 6 && Character.isDigit(line2.charAt(0));
-            
-            // Line 3 should contain << (name separator)
-            boolean line3Valid = line3.contains("<<");
-            
-            if (line1Valid && line2Valid && line3Valid) {
-                String result = String.join("\n", mrzLines);
-                Log.d(TAG, "✓ Valid TD1 MRZ with 3 lines");
-                return result;
-            } else {
-                Log.w(TAG, "✗ Found 3 lines but pattern validation failed: L1=" + line1Valid + ", L2=" + line2Valid + ", L3=" + line3Valid);
-                return null;
+            // Verify both lines are TD3 length (42-46 chars)
+            if (line1.length() >= 42 && line1.length() <= 46 &&
+                line2.length() >= 42 && line2.length() <= 46) {
+                
+                // Line 1 should start with P< for passports (or PP)
+                // Format: P<BFATIEMA<<DANLE<CHEICK<ABOUBACAR<SIDIK<<<<<<<<
+                boolean line1Valid = line1.length() >= 5 && 
+                                     line1.charAt(0) == 'P' &&
+                                     (line1.charAt(1) == '<' || line1.charAt(1) == 'P') &&
+                                     line1.contains("<<"); // Name separator
+                
+                // Line 2 should contain document number and dates
+                // Format: A4001733<2BFA0001085M2909222<<<<<<<<<<<<<<<<06
+                boolean line2Valid = line2.length() >= 20 && 
+                                     (Character.isLetterOrDigit(line2.charAt(0)) || line2.charAt(0) == '<');
+                
+                if (line1Valid && line2Valid) {
+                    String result = String.join("\n", mrzLines);
+                    Log.d(TAG, "✓ Valid TD3 MRZ with 2 lines (Passport)");
+                    return result;
+                } else {
+                    Log.w(TAG, "✗ Found 2 lines but TD3 pattern validation failed: L1=" + line1Valid + ", L2=" + line2Valid);
+                    Log.w(TAG, "Line 1: " + line1.substring(0, Math.min(10, line1.length())));
+                    Log.w(TAG, "Line 2: " + line2.substring(0, Math.min(10, line2.length())));
+                    return null;
+                }
             }
         }
         
-        Log.w(TAG, "✗ Invalid MRZ line count (found " + mrzLines.size() + ", need exactly 3 for TD1)");
+        Log.w(TAG, "✗ Invalid MRZ line count (found " + mrzLines.size() + ", need 2 for TD3/Passport or 3 for TD1/ID card)");
         return null;
     }
     
     /**
      * Validate MRZ format to ensure it's a complete and well-formed MRZ before processing
+     * Supports both TD1 (3 lines) and TD3 (2 lines) formats
      */
     private boolean isValidMRZ(String mrzText) {
         if (mrzText == null || mrzText.trim().isEmpty()) {
@@ -779,9 +881,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
         
         String[] lines = mrzText.split("\n");
         
-        // For TD1 (ID cards), must have EXACTLY 3 lines
-        if (lines.length != 3) {
-            Log.d(TAG, "MRZ validation failed: expected 3 lines for TD1, got " + lines.length);
+        // Must have either 2 lines (TD3 Passport) or 3 lines (TD1 ID card)
+        if (lines.length != 2 && lines.length != 3) {
+            Log.d(TAG, "MRZ validation failed: expected 2 (TD3/Passport) or 3 (TD1/ID card) lines, got " + lines.length);
             return false;
         }
         
@@ -789,7 +891,7 @@ public class CustomerManagementActivity extends AppCompatActivity {
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
             
-            // Each line must be reasonably long (at least 28 chars for TD1/TD2/TD3)
+            // Each line must be reasonably long (at least 28 chars)
             if (line.length() < 28) {
                 Log.d(TAG, "MRZ validation failed: line " + (i+1) + " too short (" + line.length() + " chars)");
                 return false;
@@ -908,12 +1010,19 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 return;
             }
             
-            // Show parsed preview
+            // Show parsed preview (dates in DD-MM-YYYY format for user readability)
+            String dobDisplay = customer.getDateOfBirth() != null
+                    ? convertDateToDDMMYYYY(customer.getDateOfBirth())
+                    : "";
+            String expiryDisplay = customer.getExpiryDate() != null
+                    ? convertDateToDDMMYYYY(customer.getExpiryDate())
+                    : "";
+            
             String preview = "Name: " + (customer.getFullName() != null ? customer.getFullName() : "") +
-                    "\nDOB: " + (customer.getDateOfBirth() != null ? customer.getDateOfBirth() : "") +
+                    "\nDOB: " + dobDisplay +
                     "\nID: " + (customer.getNationalIdNumber() != null ? customer.getNationalIdNumber() : "") +
                     "\nDocument Type: " + (customer.getDocumentType() != null ? customer.getDocumentType() : "") +
-                    "\nExpiry: " + (customer.getExpiryDate() != null ? customer.getExpiryDate() : "");
+                    "\nExpiry: " + expiryDisplay;
             
             runOnUiThread(() -> {
             new android.app.AlertDialog.Builder(this)
@@ -940,7 +1049,7 @@ public class CustomerManagementActivity extends AppCompatActivity {
     }
     
     /**
-     * Setup automatic date formatting for YYYY-MM-DD format with dashes
+     * Setup automatic date formatting for DD-MM-YYYY format with dashes
      */
     private void setupDateOfBirthFormatting(EditText etDateOfBirth) {
         etDateOfBirth.addTextChangedListener(new android.text.TextWatcher() {
@@ -957,9 +1066,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 String input = s.toString().replaceAll("[^\\d]", ""); // Remove non-digits
                 StringBuilder formatted = new StringBuilder();
                 
-                // Format as YYYY-MM-DD
+                // Format as DD-MM-YYYY
                 for (int i = 0; i < input.length() && i < 8; i++) {
-                    if (i == 4 || i == 6) {
+                    if (i == 2 || i == 4) {
                         formatted.append("-");
                     }
                     formatted.append(input.charAt(i));
@@ -967,7 +1076,7 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 
                 // Update cursor position
                 int cursorPos = formatted.length();
-                if (cursorPos > 10) cursorPos = 10; // Max length YYYY-MM-DD
+                if (cursorPos > 10) cursorPos = 10; // Max length DD-MM-YYYY
                 
                 etDateOfBirth.setText(formatted.toString());
                 etDateOfBirth.setSelection(Math.min(cursorPos, formatted.length()));
@@ -981,38 +1090,84 @@ public class CustomerManagementActivity extends AppCompatActivity {
     }
     
     /**
-     * Convert date from various formats to YYYY-MM-DD format for display
+     * Setup automatic date formatting for DD-MM-YYYY format with dashes (for issue/expiry dates)
      */
-    private String convertDateToYYYYMMDD(String date) {
+    private void setupDateFormatting(EditText etDate) {
+        etDate.addTextChangedListener(new android.text.TextWatcher() {
+            private boolean isFormatting = false;
+            
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (isFormatting) return;
+                isFormatting = true;
+                
+                String input = s.toString().replaceAll("[^\\d]", ""); // Remove non-digits
+                StringBuilder formatted = new StringBuilder();
+                
+                // Format as DD-MM-YYYY
+                for (int i = 0; i < input.length() && i < 8; i++) {
+                    if (i == 2 || i == 4) {
+                        formatted.append("-");
+                    }
+                    formatted.append(input.charAt(i));
+                }
+                
+                // Update cursor position
+                int cursorPos = formatted.length();
+                if (cursorPos > 10) cursorPos = 10; // Max length DD-MM-YYYY
+                
+                etDate.setText(formatted.toString());
+                etDate.setSelection(Math.min(cursorPos, formatted.length()));
+                
+                isFormatting = false;
+            }
+            
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+    }
+    
+    /**
+     * Convert date from stored YYYY-MM-DD format to DD-MM-YYYY format for display
+     */
+    private String convertDateToDDMMYYYY(String date) {
         if (date == null || date.trim().isEmpty()) return "";
         
         try {
             String cleanDate = date.trim();
             
-            // If already in YYYY-MM-DD format
-            if (cleanDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            // If already in DD-MM-YYYY format, return as-is
+            if (cleanDate.matches("\\d{2}-\\d{2}-\\d{4}")) {
                 return cleanDate;
             }
             
-            // If in DD-MM-YYYY format
-            if (cleanDate.matches("\\d{2}-\\d{2}-\\d{4}")) {
+            // If in YYYY-MM-DD format (stored format), convert to DD-MM-YYYY
+            if (cleanDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
                 String[] parts = cleanDate.split("-");
-                return parts[2] + "-" + parts[1] + "-" + parts[0]; // YYYY-MM-DD
+                return parts[2] + "-" + parts[1] + "-" + parts[0]; // DD-MM-YYYY
             }
             
             // If in YYYYMMDD format
             if (cleanDate.matches("\\d{8}")) {
-                return cleanDate.substring(0, 4) + "-" + cleanDate.substring(4, 6) + "-" + cleanDate.substring(6, 8);
+                String year = cleanDate.substring(0, 4);
+                String month = cleanDate.substring(4, 6);
+                String day = cleanDate.substring(6, 8);
+                return day + "-" + month + "-" + year; // DD-MM-YYYY
             }
             
             // If in YYMMDD format
             if (cleanDate.matches("\\d{6}")) {
                 int year = Integer.parseInt(cleanDate.substring(0, 2));
                 String fullYear = (year >= 0 && year <= 30) ? "20" + String.format("%02d", year) : "19" + String.format("%02d", year);
-                return fullYear + "-" + cleanDate.substring(2, 4) + "-" + cleanDate.substring(4, 6);
+                String month = cleanDate.substring(2, 4);
+                String day = cleanDate.substring(4, 6);
+                return day + "-" + month + "-" + fullYear; // DD-MM-YYYY
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error converting date to YYYY-MM-DD: " + date, e);
+            Log.e(TAG, "Error converting date to DD-MM-YYYY: " + date, e);
         }
         
         return date; // Return as-is if conversion fails
@@ -1165,14 +1320,16 @@ public class CustomerManagementActivity extends AppCompatActivity {
         styledAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerDocumentType.setAdapter(styledAdapter);
         
-        // Setup date of birth auto-formatting (DD-MM-YYYY with automatic dashes)
+        // Setup date auto-formatting (DD-MM-YYYY with automatic dashes)
         setupDateOfBirthFormatting(etDateOfBirth);
+        setupDateFormatting(etIssueDate);
+        setupDateFormatting(etExpiryDate);
         
         // Pre-fill data if from barcode OR editing existing customer
         if (fromBarcode || customer.getId() != null) {
             etFullName.setText(customer.getFullName());
-            // Convert date from stored format (could be YYYY-MM-DD or DD-MM-YYYY) to DD-MM-YYYY for display
-            String dobDisplay = convertDateToYYYYMMDD(customer.getDateOfBirth());
+            // Convert date from stored format (YYYY-MM-DD) to DD-MM-YYYY for display
+            String dobDisplay = convertDateToDDMMYYYY(customer.getDateOfBirth());
             etDateOfBirth.setText(dobDisplay);
             
             // Set document type spinner
@@ -1187,8 +1344,11 @@ public class CustomerManagementActivity extends AppCompatActivity {
             }
             
             etNationalId.setText(customer.getNationalIdNumber());
-            etIssueDate.setText(customer.getIssueDate());
-            etExpiryDate.setText(customer.getExpiryDate());
+            // Convert dates from stored format (YYYY-MM-DD) to DD-MM-YYYY for display
+            String issueDisplay = convertDateToDDMMYYYY(customer.getIssueDate());
+            etIssueDate.setText(issueDisplay);
+            String expiryDisplay = convertDateToDDMMYYYY(customer.getExpiryDate());
+            etExpiryDate.setText(expiryDisplay);
             etPhoneNumber.setText(customer.getPhoneNumber());
             etAddress.setText(customer.getAddress());
             etEmail.setText(customer.getEmail());
@@ -1233,16 +1393,16 @@ public class CustomerManagementActivity extends AppCompatActivity {
             return false;
         }
         
-        // Validate date formats - All dates use YYYY-MM-DD format
-        if (!TextUtils.isEmpty(etDateOfBirth.getText()) && !isValidDateFormatYYYYMMDD(etDateOfBirth.getText().toString())) {
+        // Validate date formats - All dates use DD-MM-YYYY format for input
+        if (!TextUtils.isEmpty(etDateOfBirth.getText()) && !isValidDateFormat(etDateOfBirth.getText().toString())) {
             etDateOfBirth.setError(getString(R.string.invalid_date_format));
             return false;
         }
-        if (!TextUtils.isEmpty(etIssueDate.getText()) && !isValidDateFormatYYYYMMDD(etIssueDate.getText().toString())) {
+        if (!TextUtils.isEmpty(etIssueDate.getText()) && !isValidDateFormat(etIssueDate.getText().toString())) {
             etIssueDate.setError(getString(R.string.invalid_date_format));
             return false;
         }
-        if (!TextUtils.isEmpty(etExpiryDate.getText()) && !isValidDateFormatYYYYMMDD(etExpiryDate.getText().toString())) {
+        if (!TextUtils.isEmpty(etExpiryDate.getText()) && !isValidDateFormat(etExpiryDate.getText().toString())) {
             etExpiryDate.setError(getString(R.string.invalid_date_format));
             return false;
         }
@@ -1297,8 +1457,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
     }
     
     /**
-     * Normalizes date format to YYYY-MM-DD with zero-padding
-     * Handles formats like: 2003-9-9, 2003-09-9, 2003-9-09, 2003-09-09
+     * Normalizes date format to YYYY-MM-DD with zero-padding for storage
+     * Handles input formats: DD-MM-YYYY, YYYY-MM-DD, YYYYMMDD, YYMMDD
+     * Returns: YYYY-MM-DD (for database storage)
      */
     private String normalizeDateFormat(String date) {
         if (date == null || date.trim().isEmpty()) {
@@ -1309,7 +1470,19 @@ public class CustomerManagementActivity extends AppCompatActivity {
             // Remove any extra spaces
             String cleanDate = date.trim();
             
-            // Handle different date formats
+            // Handle DD-MM-YYYY format (user input format)
+            if (cleanDate.matches("\\d{2}-\\d{1,2}-\\d{4}")) {
+                // Format: DD-M-YYYY, DD-MM-YYYY
+                String[] parts = cleanDate.split("-");
+                if (parts.length == 3) {
+                    String day = String.format("%02d", Integer.parseInt(parts[0]));
+                    String month = String.format("%02d", Integer.parseInt(parts[1]));
+                    String year = parts[2];
+                    return year + "-" + month + "-" + day; // Convert to YYYY-MM-DD
+                }
+            }
+            
+            // Handle YYYY-MM-DD format (already in storage format)
             if (cleanDate.matches("\\d{4}-\\d{1,2}-\\d{1,2}")) {
                 // Format: YYYY-M-D, YYYY-MM-D, YYYY-M-DD, YYYY-MM-DD
                 String[] parts = cleanDate.split("-");
@@ -1320,26 +1493,45 @@ public class CustomerManagementActivity extends AppCompatActivity {
                     return year + "-" + month + "-" + day;
                 }
             } else if (cleanDate.matches("\\d{8}")) {
-                // Format: YYYYMMDD
+                // Format: YYYYMMDD or DDMMYYYY (try both)
+                // Check if first 4 digits look like a year (1900-2100)
+                int firstFour = Integer.parseInt(cleanDate.substring(0, 4));
+                if (firstFour >= 1900 && firstFour <= 2100) {
+                    // YYYYMMDD format
                 return cleanDate.substring(0, 4) + "-" + 
                        cleanDate.substring(4, 6) + "-" + 
                        cleanDate.substring(6, 8);
+                } else {
+                    // DDMMYYYY format
+                    String day = cleanDate.substring(0, 2);
+                    String month = cleanDate.substring(2, 4);
+                    String year = cleanDate.substring(4, 8);
+                    return year + "-" + month + "-" + day; // Convert to YYYY-MM-DD
+                }
             } else if (cleanDate.matches("\\d{6}")) {
-                // Format: YYMMDD (assume 20xx)
-                String year = "20" + cleanDate.substring(0, 2);
+                // Format: YYMMDD (assume 20xx for years 00-30, 19xx for 31-99)
+                int year = Integer.parseInt(cleanDate.substring(0, 2));
+                String fullYear = (year >= 0 && year <= 30) ? "20" + String.format("%02d", year) : "19" + String.format("%02d", year);
                 String month = cleanDate.substring(2, 4);
                 String day = cleanDate.substring(4, 6);
-                return year + "-" + month + "-" + day;
+                return fullYear + "-" + month + "-" + day;
             }
             
-            // If none of the patterns match, try to parse as-is
+            // If none of the patterns match, try to parse as DD-MM-YYYY first, then YYYY-MM-DD
+            try {
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy", Locale.getDefault());
+                inputFormat.setLenient(false);
+                java.util.Date parsedDate = inputFormat.parse(cleanDate);
+                SimpleDateFormat outputFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+                return outputFormat.format(parsedDate);
+            } catch (Exception e1) {
+                // Try YYYY-MM-DD format
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
             sdf.setLenient(true);
             java.util.Date parsedDate = sdf.parse(cleanDate);
-            
-            // If parsing succeeded, format it properly
             SimpleDateFormat outputFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
             return outputFormat.format(parsedDate);
+            }
             
         } catch (Exception e) {
             Log.w(TAG, "Could not normalize date format: " + date, e);
@@ -1557,10 +1749,16 @@ public class CustomerManagementActivity extends AppCompatActivity {
     
     private void showCustomerDetailsDialog(CustomerEntity customer) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        // Convert dates from stored format (YYYY-MM-DD) to DD-MM-YYYY for display
+        String dobDisplay = convertDateToDDMMYYYY(customer.getDateOfBirth());
+        String issueDisplay = convertDateToDDMMYYYY(customer.getIssueDate());
+        String expiryDisplay = convertDateToDDMMYYYY(customer.getExpiryDate());
         builder.setTitle(getString(R.string.customer_details))
                 .setMessage("Name: " + customer.getFullName() + "\n" +
                            "National ID: " + customer.getNationalIdNumber() + "\n" +
-                           "Date of Birth: " + customer.getDateOfBirth() + "\n" +
+                           "Date of Birth: " + dobDisplay + "\n" +
+                           "Issue Date: " + issueDisplay + "\n" +
+                           "Expiry Date: " + expiryDisplay + "\n" +
                            "Phone: " + customer.getPhoneNumber() + "\n" +
                            "Email: " + customer.getEmail())
                 .setPositiveButton(getString(android.R.string.ok), null)

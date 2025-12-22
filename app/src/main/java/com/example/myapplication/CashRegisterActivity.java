@@ -24,6 +24,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.myapplication.adapters.CashRegisterAdapter;
 import com.example.myapplication.database.AppDatabase;
 import com.example.myapplication.database.entities.OperatorEntity;
+import com.example.myapplication.database.entities.OperatorActionEntity;
 import com.example.myapplication.database.entities.TransactionEntity;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.CommissionCalculator;
@@ -33,7 +34,6 @@ import com.example.myapplication.utils.SessionManager;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
-import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -108,7 +108,19 @@ public class CashRegisterActivity extends AppCompatActivity {
         
         // Setup RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new CashRegisterAdapter(this, transaction -> showTransactionDetailsDialog(transaction));
+        adapter = new CashRegisterAdapter(this, 
+            transaction -> showTransactionDetailsDialog(transaction));
+        // Set USSD retry listener separately
+        adapter.setUssdRetryListener(transaction -> {
+            Log.d(TAG, "USSD retry listener called from adapter for transaction: " + (transaction != null ? transaction.getId() : "null"));
+            try {
+                executeUssdRetry(transaction);
+            } catch (Exception e) {
+                Log.e(TAG, "Exception in executeUssdRetry", e);
+                e.printStackTrace();
+                Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
         recyclerView.setAdapter(adapter);
         
         // Setup search
@@ -285,11 +297,14 @@ public class CashRegisterActivity extends AppCompatActivity {
         Button btnCancelTransaction = dialogView.findViewById(R.id.btnCancelTransaction);
         
         // Populate transaction details
-        tvTransactionCode.setText(transaction.getId().substring(0, 8).toUpperCase());
+        // Transaction code - show full ID
+        String transactionId = transaction.getId();
+        tvTransactionCode.setText(transactionId.toUpperCase());
         tvCustomerName.setText(transaction.getCustomerName() + " (" + transaction.getCustomerPhone() + ")");
         tvOperator.setText(transaction.getOperatorName());
         tvAction.setText(transaction.getActionName());
-        tvAmount.setText(NumberFormat.getCurrencyInstance(Locale.getDefault()).format(transaction.getAmount()));
+        String formattedAmount = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(transaction.getAmount());
+        tvAmount.setText(formattedAmount + " F");
         tvType.setText(transaction.getTransactionType());
         // Display localized status value
         tvCurrentStatus.setText(convertStatusToDisplayValue(transaction.getStatus()));
@@ -875,6 +890,161 @@ public class CashRegisterActivity extends AppCompatActivity {
                     });
         } catch (Exception e) {
             Log.e(TAG, "Error syncing credit to Firestore", e);
+        }
+    }
+    
+    /**
+     * Execute USSD code retry for a transaction.
+     * This opens the dialer with the USSD code without affecting balances.
+     */
+    private void executeUssdRetry(TransactionEntity transaction) {
+        Log.d(TAG, "=== executeUssdRetry METHOD ENTERED ===");
+        Log.d(TAG, "executeUssdRetry called for transaction: " + (transaction != null ? transaction.getId() : "null"));
+        
+        if (transaction == null) {
+            Log.e(TAG, "Transaction is null");
+            Toast.makeText(this, "Transaction not found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        String channel = transaction.getChannel();
+        Log.d(TAG, "Transaction channel: " + channel);
+        
+        // If channel is null, try to infer from operator type
+        if (channel == null || channel.isEmpty()) {
+            Log.d(TAG, "Channel is null, checking operator type");
+            OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+            if (operator != null && "USSD".equalsIgnoreCase(operator.getType())) {
+                Log.d(TAG, "Inferred USSD from operator type");
+                channel = "USSD";
+            } else {
+                Log.w(TAG, "Cannot infer USSD, operator type: " + (operator != null ? operator.getType() : "null"));
+                Toast.makeText(this, "This transaction is not a USSD transaction", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+        
+        // Only allow retry for USSD transactions
+        if (!"USSD".equalsIgnoreCase(channel)) {
+            Log.w(TAG, "Transaction is not USSD, channel: " + channel);
+            Toast.makeText(this, "This transaction is not a USSD transaction", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // Generate USSD code from transaction data
+        new Thread(() -> {
+            try {
+                // Get operator and action from database
+                OperatorEntity operator = database.operatorDao().getById(transaction.getOperatorId());
+                OperatorActionEntity action = null;
+                if (transaction.getActionId() != null) {
+                    action = database.operatorActionDao().getById(transaction.getActionId());
+                }
+                
+                if (operator == null) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "Operator not found", Toast.LENGTH_SHORT).show();
+                    });
+                    return;
+                }
+                
+                // Generate USSD code
+                String ussdCode = generateUssdCodeFromTransaction(transaction, operator, action);
+                
+                if (ussdCode == null || ussdCode.isEmpty()) {
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "Unable to generate USSD code", Toast.LENGTH_SHORT).show();
+                    });
+                    return;
+                }
+                
+                // Launch dialer on UI thread
+                runOnUiThread(() -> {
+                    launchUssdDialer(ussdCode);
+                });
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Error generating USSD code for retry", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        }).start();
+    }
+    
+    /**
+     * Generate USSD code from transaction data
+     */
+    private String generateUssdCodeFromTransaction(TransactionEntity transaction, 
+            OperatorEntity operator, 
+            OperatorActionEntity action) {
+        
+        String operatorCode = operator.getCode();
+        String actionCode = action != null ? action.getActionCode() : null;
+        String customerPhone = transaction.getCustomerPhone();
+        double amount = transaction.getAmount();
+        
+        Log.d(TAG, "Generating USSD code - Operator: " + operator.getName() + ", Code: " + operatorCode);
+        if (action != null) {
+            Log.d(TAG, "Action: " + action.getName() + ", Code: " + actionCode);
+        }
+        
+        // Build USSD code using actual codes from database
+        String ussdCode;
+        
+        if (operatorCode != null && !operatorCode.isEmpty()) {
+            // Use actual operator code from database
+            if (actionCode != null && !actionCode.isEmpty()) {
+                // Use actual action code from database
+                ussdCode = "*" + operatorCode + "*" + actionCode + "*" + customerPhone + "*" + (int)amount + "#";
+            } else {
+                // Fallback: use action name to determine code
+                String actionName = action != null ? action.getName().toLowerCase() : 
+                    (transaction.getActionName() != null ? transaction.getActionName().toLowerCase() : "");
+                String defaultActionCode = actionName.contains("deposit") ? "1" : "2";
+                ussdCode = "*" + operatorCode + "*" + defaultActionCode + "*" + customerPhone + "*" + (int)amount + "#";
+            }
+        } else {
+            // Fallback: use operator name to determine code
+            String operatorName = operator.getName().toLowerCase();
+            String defaultOperatorCode;
+            
+            if (operatorName.contains("airtel")) {
+                defaultOperatorCode = "144";
+            } else if (operatorName.contains("mtn")) {
+                defaultOperatorCode = "165";
+            } else {
+                defaultOperatorCode = "144"; // Default fallback
+            }
+            
+            String actionName = action != null ? action.getName().toLowerCase() : 
+                (transaction.getActionName() != null ? transaction.getActionName().toLowerCase() : "");
+            String defaultActionCode = actionName.contains("deposit") ? "1" : "2";
+            
+            ussdCode = "*" + defaultOperatorCode + "*" + defaultActionCode + "*" + customerPhone + "*" + (int)amount + "#";
+        }
+        
+        Log.d(TAG, "Generated USSD code for retry: " + ussdCode);
+        
+        // URL encode for dialer intent
+        return android.net.Uri.encode(ussdCode);
+    }
+    
+    /**
+     * Launch USSD dialer (does not affect balances)
+     */
+    private void launchUssdDialer(String ussdCode) {
+        try {
+            // Open dialer app with USSD code pre-filled (don't call directly)
+            Intent intent = new Intent(Intent.ACTION_DIAL);
+            intent.setData(android.net.Uri.parse("tel:" + ussdCode));
+            startActivity(intent);
+            
+            Toast.makeText(this, "USSD code opened in dialer. This will not affect your balance.", Toast.LENGTH_LONG).show();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error opening USSD dialer", e);
+            Toast.makeText(this, "Failed to open dialer: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 }

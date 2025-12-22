@@ -32,7 +32,6 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -217,23 +216,44 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
                     return;
                 }
                 
-                // Get operator-specific balance
-                double operatorBalance = 0.0;
+                // Ensure balances are recalculated from transactions if needed
                 final OperatorEntity finalSelectedOperator = selectedOperator;
                 if (finalSelectedOperator != null && currentUser != null) {
+                    // Check if there are transactions that need to be accounted for
+                    List<com.example.myapplication.database.entities.TransactionEntity> transactions = 
+                        database.transactionDao().getTransactionsByUser(currentUser.getUid());
+                    
+                    // If there are transactions, ensure balances are up to date
+                    if (transactions != null && !transactions.isEmpty()) {
+                        // Check if this operator has a balance record
+                        com.example.myapplication.database.entities.OperatorBalanceEntity existingBalance = 
+                            database.operatorBalanceDao().getBalance(currentUser.getUid(), finalSelectedOperator.getId());
+                        
+                        // If no balance exists or balance seems incorrect, trigger recalculation
+                        // (The recalculation will run in background and update all operators)
+                        if (existingBalance == null) {
+                            Log.d(TAG, "No balance record found for operator " + finalSelectedOperator.getName() + ", triggering recalculation");
+                            balanceHelper.recalculateBalancesFromTransactions(currentUser.getUid());
+                        }
+                    }
+                }
+                
+                // Get operator-specific balance (after ensuring it's calculated)
+                double operatorBalance = 0.0;
+                if (finalSelectedOperator != null && currentUser != null) {
                     operatorBalance = balanceHelper.getBalance(currentUser.getUid(), finalSelectedOperator.getId());
+                    Log.d(TAG, "Loaded balance for operator " + finalSelectedOperator.getName() + " (ID: " + finalSelectedOperator.getId() + "): " + operatorBalance);
                 }
                 
                 final double finalOperatorBalance = operatorBalance;
                 double cashBalance = currentUser.getCashBalance();
                 final double finalCashBalance = cashBalance;
                 
-                NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.getDefault());
-                final NumberFormat finalCurrencyFormat = currencyFormat;
-                
                 runOnUiThread(() -> {
-                    tvCurrentOperatorBalance.setText(finalCurrencyFormat.format(finalOperatorBalance));
-                    tvCurrentCashBalance.setText(finalCurrencyFormat.format(finalCashBalance));
+                    String formattedOperatorBalance = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(finalOperatorBalance);
+                    String formattedCashBalance = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(finalCashBalance);
+                    tvCurrentOperatorBalance.setText(formattedOperatorBalance + " F");
+                    tvCurrentCashBalance.setText(formattedCashBalance + " F");
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading balances", e);

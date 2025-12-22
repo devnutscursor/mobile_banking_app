@@ -370,15 +370,32 @@ public class AgentDashboardActivity extends AppCompatActivity {
                 com.example.myapplication.utils.OperatorBalanceHelper balanceHelper = 
                     new com.example.myapplication.utils.OperatorBalanceHelper(database);
                 
-                // Get all operators for this user
-                java.util.List<com.example.myapplication.database.entities.OperatorEntity> operators = 
-                    database.operatorDao().getActiveForUser(currentUser.getUid());
+                // Use DAO method to get total balance (more efficient and accurate)
+                double totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
                 
-                // Calculate total balance across all operators
-                double totalBalance = 0.0;
-                for (com.example.myapplication.database.entities.OperatorEntity operator : operators) {
-                    double operatorBalance = balanceHelper.getBalance(currentUser.getUid(), operator.getId());
-                    totalBalance += operatorBalance;
+                // Check if we need to recalculate balances from existing transactions
+                java.util.List<com.example.myapplication.database.entities.TransactionEntity> transactions = 
+                    database.transactionDao().getTransactionsByUser(currentUser.getUid());
+                
+                // Always recalculate if there are transactions - this ensures balances are always correct
+                // The recalculation will preserve purchases/adjustments while fixing transaction-based calculations
+                if (transactions != null && !transactions.isEmpty()) {
+                    // Count successful/completed transactions
+                    int successfulTransactions = 0;
+                    for (com.example.myapplication.database.entities.TransactionEntity tx : transactions) {
+                        String status = tx.getStatus();
+                        if (status != null && (status.equalsIgnoreCase("successful") || status.equalsIgnoreCase("completed"))) {
+                            successfulTransactions++;
+                        }
+                    }
+                    
+                    // If there are successful transactions, always recalculate to ensure accuracy
+                    if (successfulTransactions > 0) {
+                        android.util.Log.d("AgentDashboard", "Found " + successfulTransactions + " successful transactions. Recalculating balances to ensure accuracy.");
+                        balanceHelper.recalculateBalancesFromTransactions(currentUser.getUid());
+                        // Re-fetch total balance after recalculation
+                        totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
+                    }
                 }
                 
                 String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(totalBalance);
@@ -386,7 +403,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
                     tvVirtualBalance.setText(display);
                     cachedVirtualBalance = display;
                 });
-                android.util.Log.d("AgentDashboard", "Loaded total operator balance from local DB: " + totalBalance + " (across " + operators.size() + " operators)");
+                android.util.Log.d("AgentDashboard", "Loaded total operator balance from local DB: " + totalBalance);
             } catch (Exception e) {
                 android.util.Log.e("AgentDashboard", "Error loading total operator balance from local DB", e);
                 runOnUiThread(() -> {

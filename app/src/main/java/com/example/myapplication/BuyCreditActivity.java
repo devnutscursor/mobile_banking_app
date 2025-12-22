@@ -28,7 +28,6 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 
-import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -221,12 +220,11 @@ public class BuyCreditActivity extends AppCompatActivity {
                 double cashBalance = currentUser.getCashBalance();
                 final double finalCashBalance = cashBalance;
                 
-                NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.getDefault());
-                final NumberFormat finalCurrencyFormat = currencyFormat;
-                
                 runOnUiThread(() -> {
-                    tvOperatorBalance.setText(finalCurrencyFormat.format(finalOperatorBalance));
-                    tvCashBalance.setText(finalCurrencyFormat.format(finalCashBalance));
+                    String formattedOperatorBalance = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(finalOperatorBalance);
+                    String formattedCashBalance = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(finalCashBalance);
+                    tvOperatorBalance.setText(formattedOperatorBalance + " F");
+                    tvCashBalance.setText(formattedCashBalance + " F");
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading balances", e);

@@ -13,6 +13,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.example.myapplication.database.AppDatabase;
 import com.example.myapplication.database.entities.OperatorEntity;
@@ -57,6 +59,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
     private Button btnLogout;
     private ImageView btnMenu, btnSync;
     private Spinner spinnerLanguage;
+    private View headerLayout;
     private AuthManager authManager;
     private SessionManager sessionManager;
     private LanguageManager languageManager;
@@ -83,6 +86,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         firestore = FirebaseFirestore.getInstance();
 
         initViews();
+        setupSystemWindowInsets();
         setupLanguageSpinner();
         setupClickListeners();
         loadUserData();
@@ -113,6 +117,33 @@ public class DealerDashboardActivity extends AppCompatActivity {
         btnMenu = findViewById(R.id.btnMenu);
         btnSync = findViewById(R.id.btnSync);
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
+        headerLayout = findViewById(R.id.headerLayout);
+    }
+    
+    /**
+     * Setup system window insets to handle notch area padding on initial load
+     * This ensures the header has proper top padding to avoid collision with notch/status bar
+     */
+    private void setupSystemWindowInsets() {
+        if (headerLayout != null) {
+            // Post to ensure view is measured
+            headerLayout.post(() -> {
+                ViewCompat.setOnApplyWindowInsetsListener(headerLayout, (v, insets) -> {
+                    int topInset = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top;
+                    // Base padding from XML is 24dp (convert to pixels)
+                    int basePaddingTop = (int) (24 * getResources().getDisplayMetrics().density);
+                    
+                    // Set padding: base padding + system bar inset
+                    v.setPadding(v.getPaddingLeft(), topInset + basePaddingTop, 
+                               v.getPaddingRight(), v.getPaddingBottom());
+                    
+                    return insets;
+                });
+                
+                // Request to apply window insets
+                ViewCompat.requestApplyInsets(headerLayout);
+            });
+        }
     }
 
     private void setupLanguageSpinner() {
@@ -369,14 +400,32 @@ public class DealerDashboardActivity extends AppCompatActivity {
                 AppDatabase database = AppDatabase.getDatabase(this);
                 OperatorBalanceHelper balanceHelper = new OperatorBalanceHelper(database);
                 
-                // Get all operators for this user
-                List<OperatorEntity> operators = database.operatorDao().getActiveForUser(currentUser.getUid());
+                // Use DAO method to get total balance (more efficient and accurate)
+                double totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
                 
-                // Calculate total balance across all operators
-                double totalBalance = 0.0;
-                for (OperatorEntity operator : operators) {
-                    double operatorBalance = balanceHelper.getBalance(currentUser.getUid(), operator.getId());
-                    totalBalance += operatorBalance;
+                // Check if we need to recalculate balances from existing transactions
+                List<com.example.myapplication.database.entities.TransactionEntity> transactions = 
+                    database.transactionDao().getTransactionsByUser(currentUser.getUid());
+                
+                // Always recalculate if there are transactions - this ensures balances are always correct
+                // The recalculation will preserve purchases/adjustments while fixing transaction-based calculations
+                if (transactions != null && !transactions.isEmpty()) {
+                    // Count successful/completed transactions
+                    int successfulTransactions = 0;
+                    for (com.example.myapplication.database.entities.TransactionEntity tx : transactions) {
+                        String status = tx.getStatus();
+                        if (status != null && (status.equalsIgnoreCase("successful") || status.equalsIgnoreCase("completed"))) {
+                            successfulTransactions++;
+                        }
+                    }
+                    
+                    // If there are successful transactions, always recalculate to ensure accuracy
+                    if (successfulTransactions > 0) {
+                        android.util.Log.d("DealerDashboard", "Found " + successfulTransactions + " successful transactions. Recalculating balances to ensure accuracy.");
+                        balanceHelper.recalculateBalancesFromTransactions(currentUser.getUid());
+                        // Re-fetch total balance after recalculation
+                        totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
+                    }
                 }
                 
                 String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(totalBalance);
@@ -386,7 +435,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
                     }
                     cachedVirtualBalance = display;
                 });
-                android.util.Log.d("DealerDashboard", "Loaded total operator balance from local DB: " + totalBalance + " (across " + operators.size() + " operators)");
+                android.util.Log.d("DealerDashboard", "Loaded total operator balance from local DB: " + totalBalance);
             } catch (Exception e) {
                 android.util.Log.e("DealerDashboard", "Error loading total operator balance from local DB", e);
                 runOnUiThread(() -> {

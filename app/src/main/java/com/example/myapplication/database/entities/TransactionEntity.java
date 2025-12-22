@@ -3,6 +3,7 @@ package com.example.myapplication.database.entities;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 import androidx.annotation.NonNull;
+import java.util.UUID;
 
 @Entity(tableName = "transactions")
 public class TransactionEntity {
@@ -43,7 +44,8 @@ public class TransactionEntity {
 
     // Default constructor
     public TransactionEntity() {
-        this.id = "txn_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000);
+        // Use UUID for guaranteed uniqueness
+        this.id = "txn_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         this.status = "pending";
         this.needsSync = true;
         long now = System.currentTimeMillis();

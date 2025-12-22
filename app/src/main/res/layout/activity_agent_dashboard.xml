@@ -13,8 +13,10 @@
         android:background="@drawable/gradient_primary"
         android:orientation="horizontal"
         android:padding="16dp"
+        android:paddingTop="24dp"
         android:gravity="center_vertical"
-        android:layout_alignParentTop="true">
+        android:layout_alignParentTop="true"
+        android:fitsSystemWindows="true">
 
         <!-- Menu Button -->
         <ImageView

@@ -7,8 +7,15 @@
     <string name="welcome_back">Welcome Back</string>
     <string name="sign_in_subtitle">Sign in to your account</string>
     <string name="email_hint">Email Address</string>
+    <string name="phone_hint">Phone Number</string>
     <string name="password_hint">Password</string>
+    <string name="password_pin_hint">6-Digit PIN</string>
     <string name="login_button">Sign In</string>
+    <string name="login_with_email">Login with Email</string>
+    <string name="login_with_phone">Login with Phone</string>
+    <string name="invalid_phone_number">Invalid phone number</string>
+    <string name="invalid_pin">PIN must be 6 digits</string>
+    <string name="user_not_found_phone">No user found with this phone number</string>
     <string name="login_successful">Login successful!</string>
     <string name="login_failed">Login failed</string>
     <string name="fill_all_fields">Please fill all fields</string>
@@ -184,7 +191,7 @@
     <string name="select_existing_customer">Select Existing Customer</string>
     <string name="customer_exists_phone_message">A customer with this phone number already exists.\n\nName: %1$s\nPhone: %2$s\n\nWould you like to select this customer instead?</string>
     <string name="required_fields_missing">Please fill all required fields</string>
-    <string name="invalid_phone_number">Invalid phone number format</string>
+    <!-- Reuse login-level invalid_phone_number string; removing duplicate here -->
     <string name="invalid_email">Invalid email format</string>
     <string name="expired_id">This ID has expired</string>
     <string name="my_customers">My Customers</string>
@@ -220,14 +227,14 @@
     <string name="edit_operator">Edit Operator</string>
     <string name="delete_operator">Delete Operator</string>
     <string name="operators_empty">No operators yet</string>
-    <string name="operator_code">Operator Code/Prefix</string>
+    <string name="operator_code">Operator Code/Prefix (Optional)</string>
     <string name="transfer_rate">Transfer Rate (%)</string>
     <string name="transfer">Transfer</string>
 
     <!-- Operator Actions -->
     <string name="operator_actions">Operator Actions</string>
     <string name="search_operators">Search Operators</string>
-    <string name="action_code">Action Code</string>
+    <string name="action_code">Action Code (Optional)</string>
     <string name="add_action">Add Action</string>
     <string name="action_name">Action Name</string>
     <string name="action_type">Action Type</string>
@@ -289,6 +296,7 @@
     <string name="cancel_transaction_confirmation">Are you sure you want to cancel this transaction? The balance will be reversed.</string>
     <string name="search_transactions">Search transactions...</string>
     <string name="adjust_balance">Adjust Balance</string>
+    <string name="adjustment_form">Adjustment Form</string>
     <string name="adjust_operator_balance">Adjust Operator Balance</string>
     <string name="adjust_cash_balance">Adjust Cash Balance</string>
     <string name="adjustment_reason">Reason for adjustment</string>
@@ -371,6 +379,10 @@
     <string name="select_period">Select Period</string>
     <string name="select_month">Select Month</string>
     <string name="select_year">Select Year</string>
+    <string name="select_day">Select Day</string>
+    <string name="breakdown_by_operator">Breakdown by Operator</string>
+    <string name="breakdown_by_action">Breakdown by Action</string>
+    <string name="no_data_available">No data available</string>
     <string name="no_commission_data">No commission data available</string>
     <string name="commission_calculated">Commission calculated: %1$s</string>
     <string name="commission_summary">Commission Summary</string>
@@ -411,4 +423,16 @@
     <string name="operator_saved">Operator saved successfully</string>
     <string name="operator_updated">Operator updated successfully</string>
     <string name="operator_deleted">Operator deleted successfully</string>
+    
+    <!-- Terms and Privacy Policy -->
+    <string name="terms_and_privacy_title">Terms of Use &amp; Privacy Policy</string>
+    <string name="terms_and_privacy_message">Please read and accept our Terms of Use and Privacy Policy to continue using the application.</string>
+    <string name="terms_of_use">Terms of Use</string>
+    <string name="terms_content">By using this mobile banking application, you agree to the following terms:\n\n1. You are responsible for maintaining the confidentiality of your account credentials.\n\n2. All transactions performed through this application are subject to verification and approval.\n\n3. You must use the application in compliance with all applicable laws and regulations.\n\n4. The application provider reserves the right to modify or discontinue services at any time.\n\n5. You agree not to use the application for any illegal or unauthorized purposes.\n\n6. All financial transactions are subject to the terms and conditions of your financial institution.\n\n7. The application provider is not liable for any losses resulting from unauthorized access to your account.\n\n8. You must report any suspicious activity immediately to your financial institution.</string>
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="privacy_content">Your privacy is important to us. This privacy policy explains how we collect, use, and protect your information:\n\n1. Information Collection: We collect information you provide directly, including personal details, transaction data, and device information.\n\n2. Data Usage: Your information is used to provide banking services, process transactions, improve our services, and comply with legal obligations.\n\n3. Data Security: We implement industry-standard security measures to protect your personal and financial information.\n\n4. Data Sharing: We may share your information with financial institutions, service providers, and as required by law.\n\n5. Data Retention: We retain your information as long as necessary to provide services and comply with legal requirements.\n\n6. Your Rights: You have the right to access, correct, or delete your personal information, subject to legal and operational requirements.\n\n7. Third-Party Services: Our application may contain links to third-party services with their own privacy policies.\n\n8. Updates: This privacy policy may be updated periodically. Continued use of the application constitutes acceptance of changes.</string>
+    <string name="i_accept_terms_and_privacy">I accept the Terms of Use and Privacy Policy</string>
+    <string name="accept">Accept</string>
+    <string name="decline">Decline</string>
+    <string name="must_accept_terms">You must accept the terms to continue</string>
 </resources>

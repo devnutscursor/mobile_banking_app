@@ -48,7 +48,7 @@ public class CommissionCalculator {
                     .getCommissionRateByUserAndOperator(user.getUid(), transaction.getOperatorId());
             
             if (rate == null) {
-                Log.d(TAG, "No commission rate found for user " + user.getUid() + " and operator " + transaction.getOperatorId());
+                Log.w(TAG, "No commission rate found for user " + user.getUid() + " (role: " + user.getRole() + ") and operator " + transaction.getOperatorId() + ". Commission will not be calculated. Please configure commission rates in Commission Configuration.");
                 return null;
             }
             
@@ -87,8 +87,14 @@ public class CommissionCalculator {
             double taxRate = rate.getTaxRate();
             commission.calculateCommission(commissionBaseAmount, commissionRate, taxRate);
             
-            // Set commission date
+            // Set commission date (this will also update year, month, day fields)
             commission.setCommissionDate(transaction.getCreatedAt());
+            // Ensure date fields are set correctly
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+            cal.setTimeInMillis(transaction.getCreatedAt());
+            commission.setYear(cal.get(java.util.Calendar.YEAR));
+            commission.setMonth(cal.get(java.util.Calendar.MONTH) + 1); // Calendar.MONTH is 0-based
+            commission.setDay(cal.get(java.util.Calendar.DAY_OF_MONTH));
             commission.setUpdatedAt(System.currentTimeMillis());
             commission.setNeedsSync(true);
             
@@ -99,9 +105,12 @@ public class CommissionCalculator {
                 database.commissionDao().updateCommission(commission);
             }
             
-            Log.d(TAG, "Commission calculated: " + commission.getTotalCommission() + 
+            Log.d(TAG, "Commission calculated for user " + user.getUid() + " (role: " + user.getRole() + "): " + commission.getTotalCommission() + 
                   " (Base: " + commission.getCommissionAmount() + 
-                  ", Tax: " + commission.getTaxAmount() + ")");
+                  ", Tax: " + commission.getTaxAmount() + 
+                  ", Year: " + commission.getYear() + 
+                  ", Month: " + commission.getMonth() + 
+                  ", Day: " + commission.getDay() + ")");
             
             return commission;
             

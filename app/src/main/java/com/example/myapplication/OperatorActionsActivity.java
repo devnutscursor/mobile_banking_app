@@ -113,7 +113,8 @@ public class OperatorActionsActivity extends AppCompatActivity {
                     String name = (String) spinnerName.getSelectedItem();
                     String actionCode = etCode.getText().toString().trim();
                     boolean disableUssd = cbDisableUssd.isChecked();
-                    if (TextUtils.isEmpty(name) || TextUtils.isEmpty(actionCode)) {
+                    // Action code is now optional
+                    if (TextUtils.isEmpty(name)) {
                         Toast.makeText(this, R.string.required_fields_missing, Toast.LENGTH_SHORT).show(); return;
                     }
                     new Thread(() -> {
@@ -125,7 +126,8 @@ public class OperatorActionsActivity extends AppCompatActivity {
                         } catch (Exception ignore) {}
                         OperatorActionEntity a = existing != null ? existing : new OperatorActionEntity(UUID.randomUUID().toString(), operatorId, name, derivedType, null, null, uid);
                         a.setName(name); a.setType(derivedType); a.setAddedBy(uid);
-                        a.setActionCode(actionCode);
+                        // Set action code only if provided (optional field)
+                        a.setActionCode(TextUtils.isEmpty(actionCode) ? null : actionCode);
                         a.setDisableUssd(disableUssd);
                         a.setUpdatedAt(System.currentTimeMillis()); a.setNeedsSync(true);
                         db.operatorActionDao().insertAction(a);

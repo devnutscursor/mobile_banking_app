@@ -11,6 +11,35 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Scan Barcode Button -->
+        <LinearLayout
+            android:id="@+id/btnScanBarcode"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/button_primary"
+            android:layout_marginBottom="16dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_barcode"
+                app:tint="@color/white"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/scan_barcode"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
         <!-- Full Name -->
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
@@ -116,7 +145,7 @@
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
             app:boxCornerRadiusBottomEnd="8dp"
-            app:placeholderText="YYYY-MM-DD"
+            app:placeholderText="DD-MM-YYYY"
             app:boxStrokeColor="@color/primary_purple"
             app:hintTextColor="@color/primary_purple">
 
@@ -141,7 +170,7 @@
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
             app:boxCornerRadiusBottomEnd="8dp"
-            app:placeholderText="YYYY-MM-DD"
+            app:placeholderText="DD-MM-YYYY"
             app:boxStrokeColor="@color/primary_purple"
             app:hintTextColor="@color/primary_purple">
 
@@ -166,7 +195,7 @@
             app:boxCornerRadiusTopEnd="8dp"
             app:boxCornerRadiusBottomStart="8dp"
             app:boxCornerRadiusBottomEnd="8dp"
-            app:placeholderText="YYYY-MM-DD"
+            app:placeholderText="DD-MM-YYYY"
             app:boxStrokeColor="@color/primary_purple"
             app:hintTextColor="@color/primary_purple">
 

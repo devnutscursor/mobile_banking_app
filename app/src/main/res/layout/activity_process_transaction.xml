@@ -241,6 +241,28 @@
                         android:textColorHint="@color/text_secondary"
                         android:layout_marginBottom="16dp" />
 
+                    <!-- Account Number (Optional) -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Account Number (Optional)"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="8dp" />
+
+                    <EditText
+                        android:id="@+id/etAccountNumber"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:background="@drawable/edittext_background"
+                        android:hint="Enter account number"
+                        android:inputType="text"
+                        android:padding="16dp"
+                        android:textSize="16sp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_secondary"
+                        android:layout_marginBottom="16dp" />
+
                     <!-- Note Input -->
                     <TextView
                         android:layout_width="wrap_content"

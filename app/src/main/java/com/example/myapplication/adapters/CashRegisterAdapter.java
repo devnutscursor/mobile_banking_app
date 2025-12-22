@@ -32,12 +32,22 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         void onTransactionClick(TransactionEntity transaction);
     }
     
+    public interface OnUssdRetryClickListener {
+        void onUssdRetryClick(TransactionEntity transaction);
+    }
+    
     public CashRegisterAdapter(Context context, OnTransactionClickListener listener) {
         this.context = context;
         this.transactions = new ArrayList<>();
         this.listener = listener;
         this.dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
     }
+    
+    public void setUssdRetryListener(OnUssdRetryClickListener ussdRetryListener) {
+        this.ussdRetryListener = ussdRetryListener;
+    }
+    
+    private OnUssdRetryClickListener ussdRetryListener;
     
     public void setTransactions(List<TransactionEntity> transactions) {
         this.transactions = transactions;
@@ -55,8 +65,9 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
     public void onBindViewHolder(@NonNull TransactionViewHolder holder, int position) {
         TransactionEntity transaction = transactions.get(position);
         
-        // Transaction code (first 8 characters of ID)
-        holder.tvTransactionCode.setText(transaction.getId().substring(0, 8).toUpperCase());
+        // Transaction code - show full ID
+        String transactionId = transaction.getId();
+        holder.tvTransactionCode.setText(transactionId.toUpperCase());
         
         // Customer name
         holder.tvCustomerName.setText(transaction.getCustomerName());
@@ -68,7 +79,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         
         // Amount with thousands separator
         String formattedAmount = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(transaction.getAmount());
-        holder.tvAmount.setText(formattedAmount + " XAF");
+        holder.tvAmount.setText(formattedAmount + " F");
         
         // Transaction type - use localized string
         String transactionType = transaction.getTransactionType();
@@ -119,6 +130,46 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
                 listener.onTransactionClick(transaction);
             }
         });
+        
+        // USSD retry button - show for USSD transactions or if channel is null (for backward compatibility)
+        String channel = transaction.getChannel();
+        android.util.Log.d("CashRegisterAdapter", "Transaction " + transaction.getId() + " - Channel: " + channel + ", Operator: " + transaction.getOperatorName());
+        
+        // Show button if channel is USSD, or if channel is null but we can infer it's USSD from operator type
+        boolean isUssdTransaction = "USSD".equalsIgnoreCase(channel);
+        
+        // If channel is null, check operator type (for backward compatibility with old transactions)
+        if (channel == null || channel.isEmpty()) {
+            // Try to infer from operator - this is a fallback for old transactions
+            // We'll show the button and let the activity handle the check
+            isUssdTransaction = true; // Show button, let activity decide
+        }
+        
+        if (isUssdTransaction) {
+            holder.ivUssdRetry.setVisibility(View.VISIBLE);
+            holder.ivUssdRetry.setClickable(true);
+            holder.ivUssdRetry.setFocusable(true);
+            holder.ivUssdRetry.setEnabled(true);
+            
+            // Clear any previous listener to avoid issues with view recycling
+            holder.ivUssdRetry.setOnClickListener(null);
+            
+            // Set new listener
+            holder.ivUssdRetry.setOnClickListener(v -> {
+                android.util.Log.d("CashRegisterAdapter", "USSD retry button clicked for transaction: " + transaction.getId());
+                if (ussdRetryListener != null) {
+                    android.util.Log.d("CashRegisterAdapter", "Calling ussdRetryListener.onUssdRetryClick");
+                    ussdRetryListener.onUssdRetryClick(transaction);
+                } else {
+                    android.util.Log.e("CashRegisterAdapter", "ussdRetryListener is null!");
+                    android.widget.Toast.makeText(context, "USSD retry listener not set", android.widget.Toast.LENGTH_SHORT).show();
+                }
+            });
+        } else {
+            holder.ivUssdRetry.setVisibility(View.GONE);
+            holder.ivUssdRetry.setClickable(false);
+            holder.ivUssdRetry.setOnClickListener(null);
+        }
         
         // Remove card click listener - now only edit icon opens details
         holder.cardView.setOnClickListener(null);
@@ -205,6 +256,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         TextView tvStatus;
         TextView tvDate;
         ImageView ivEdit;
+        ImageView ivUssdRetry;
         
         public TransactionViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -217,6 +269,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
             tvStatus = itemView.findViewById(R.id.tvStatus);
             tvDate = itemView.findViewById(R.id.tvDate);
             ivEdit = itemView.findViewById(R.id.ivEdit);
+            ivUssdRetry = itemView.findViewById(R.id.ivUssdRetry);
         }
     }
 }

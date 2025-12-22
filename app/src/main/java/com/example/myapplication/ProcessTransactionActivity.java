@@ -1,7 +1,9 @@
 package com.example.myapplication;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -16,7 +18,10 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.text.TextUtils;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -42,16 +47,51 @@ import java.util.Locale;
 
 import com.example.myapplication.adapters.CustomSpinnerAdapter;
 import com.example.myapplication.adapters.CustomerSpinnerAdapter;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
+import androidx.camera.core.Preview;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.view.PreviewView;
+import android.util.Size;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import com.example.myapplication.utils.MRZParser;
+import java.util.concurrent.ExecutionException;
 
 public class ProcessTransactionActivity extends AppCompatActivity {
 
     private static final String TAG = "ProcessTransaction";
+    private static final int CAMERA_PERMISSION_REQUEST = 1001;
 
     // UI Elements
     private Spinner spinnerOperator, spinnerAction, spinnerCustomer;
-    private EditText etAmount, etNote, etCustomerSearch;
+    private EditText etAmount, etNote, etCustomerSearch, etAccountNumber;
     private TextView tvAvailableCredit;
     private Button btnExecuteTransaction;
+    
+    // Scanner components (for customer form dialog)
+    private PreviewView previewView;
+    private TextRecognizer textRecognizer;
+    private Camera camera;
+    private ProcessCameraProvider cameraProvider;
+    private boolean isScanning = false;
+    private android.view.View cameraPreviewCard;
+    private Button btnStopScanning;
+    private java.util.Map<String, Integer> mrzDetectionCounts = new java.util.HashMap<>();
+    private int detectionAttempts = 0;
+    private int frameCounter = 0;
+    private long lastProcessTime = 0;
+    private static final long MIN_PROCESS_INTERVAL_MS = 200;
+    private long scanningStartTime = 0;
+    private String lastDetectedMRZ = null;
 
     // Data
     private AppDatabase database;
@@ -155,8 +195,12 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         etAmount = findViewById(R.id.etAmount);
         etNote = findViewById(R.id.etNote);
         etCustomerSearch = findViewById(R.id.etCustomerSearch);
+        etAccountNumber = findViewById(R.id.etAccountNumber);
         tvAvailableCredit = findViewById(R.id.tvAvailableCredit);
         btnExecuteTransaction = findViewById(R.id.btnExecuteTransaction);
+        
+        // Initialize MRZ text recognizer (offline)
+        textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
         
         // Header
         TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
@@ -369,11 +413,30 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         
         new Thread(() -> {
             try {
-                // Get operator-specific balance
+                // Ensure balances are recalculated from transactions if needed
+                // Check if there are transactions that need to be accounted for
+                List<com.example.myapplication.database.entities.TransactionEntity> transactions = 
+                    database.transactionDao().getTransactionsByUser(activeUserId);
+                
+                // If there are transactions, ensure balances are up to date
+                if (transactions != null && !transactions.isEmpty()) {
+                    // Check if this operator has a balance record
+                    com.example.myapplication.database.entities.OperatorBalanceEntity existingBalance = 
+                        database.operatorBalanceDao().getBalance(activeUserId, selectedOperator.getId());
+                    
+                    // If no balance exists or balance seems incorrect, trigger recalculation
+                    // (The recalculation will run in background and update all operators)
+                    if (existingBalance == null) {
+                        Log.d(TAG, "No balance record found for operator " + selectedOperator.getName() + ", triggering recalculation");
+                        balanceHelper.recalculateBalancesFromTransactions(activeUserId);
+                    }
+                }
+                
+                // Get operator-specific balance (after ensuring it's calculated)
                 double operatorBalance = balanceHelper.getBalance(activeUserId, selectedOperator.getId());
                 availableCredit = operatorBalance;
                 
-                Log.d(TAG, "Loaded balance for operator " + selectedOperator.getName() + ": " + operatorBalance);
+                Log.d(TAG, "Loaded balance for operator " + selectedOperator.getName() + " (ID: " + selectedOperator.getId() + "): " + operatorBalance);
                 
                 runOnUiThread(() -> updateCreditDisplay());
             } catch (Exception e) {
@@ -615,10 +678,12 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             AdapterView.OnItemSelectedListener currentListener = spinnerOperator.getOnItemSelectedListener();
             spinnerOperator.setOnItemSelectedListener(null);
             spinnerOperator.setSelection(0, false); // false = don't trigger listener
-            // Now manually trigger action loading for the first operator
+            // Now manually trigger action loading and balance loading for the first operator
             if (operators.size() > 0) {
                 selectedOperator = operators.get(0);
                 loadActions(selectedOperator.getId());
+                // Load operator-specific balance for the first operator
+                loadOperatorBalance();
             }
             // Restore listener
             spinnerOperator.setOnItemSelectedListener(currentListener);
@@ -813,15 +878,27 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         styledAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerDocumentType.setAdapter(styledAdapter);
         
-        // Setup date of birth auto-formatting - we need to copy the method from CustomerManagementActivity
-        // For now, we'll use a simplified version
+        // Setup date of birth auto-formatting - use DD-MM-YYYY format
         setupDateOfBirthFormatting(etDateOfBirth);
+        setupDateFormatting(etIssueDate);
+        setupDateFormatting(etExpiryDate);
         
         builder.setTitle(getString(R.string.add_customer))
                 .setPositiveButton(getString(R.string.save_customer), null)
                 .setNegativeButton(getString(android.R.string.cancel), null);
         
         AlertDialog dialog = builder.create();
+        
+        // Setup scanner button (after dialog is created so we can pass it)
+        android.view.View btnScanBarcode = dialogView.findViewById(R.id.btnScanBarcode);
+        if (btnScanBarcode != null) {
+            btnScanBarcode.setOnClickListener(v -> {
+                // Open scanner dialog
+                showScannerDialog(dialog, etFullName, etDateOfBirth, spinnerDocumentType, 
+                        documentTypes, etNationalId, etIssueDate, etExpiryDate);
+            });
+        }
+        
         dialog.setOnShowListener(dlg -> {
             android.widget.Button btnSave = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             btnSave.setOnClickListener(v -> {
@@ -838,7 +915,475 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         dialog.show();
     }
     
-    // Copy date formatting method from CustomerManagementActivity
+    private void showScannerDialog(AlertDialog parentDialog, EditText etFullName, EditText etDateOfBirth,
+                                  Spinner spinnerDocumentType, String[] documentTypes,
+                                  EditText etNationalId, EditText etIssueDate, EditText etExpiryDate) {
+        // Create scanner dialog
+        AlertDialog.Builder scannerBuilder = new AlertDialog.Builder(this);
+        android.view.View scannerView = getLayoutInflater().inflate(R.layout.dialog_scanner, null);
+        scannerBuilder.setView(scannerView);
+        
+        PreviewView scannerPreviewView = scannerView.findViewById(R.id.previewView);
+        Button btnStopScanning = scannerView.findViewById(R.id.btnStopScanning);
+        cameraPreviewCard = scannerView.findViewById(R.id.cameraPreviewCard);
+        
+        AlertDialog scannerDialog = scannerBuilder.create();
+        // Make dialog window background transparent so only our scanner card is visible
+        if (scannerDialog.getWindow() != null) {
+            scannerDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+        
+        btnStopScanning.setOnClickListener(v -> {
+            stopBarcodeScanning();
+            scannerDialog.dismiss();
+        });
+        
+        scannerDialog.setOnDismissListener(d -> stopBarcodeScanning());
+        
+        // Start scanning
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, 
+                    new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST);
+            return;
+        }
+        
+        previewView = scannerPreviewView;
+        isScanning = true;
+        mrzDetectionCounts.clear();
+        detectionAttempts = 0;
+        frameCounter = 0;
+        lastProcessTime = 0;
+        scanningStartTime = System.currentTimeMillis();
+        lastDetectedMRZ = null;
+        
+        startCameraForDialog(parentDialog, etFullName, etDateOfBirth, spinnerDocumentType, 
+                documentTypes, etNationalId, etIssueDate, etExpiryDate, scannerDialog);
+        
+        scannerDialog.show();
+    }
+    
+    private void startCameraForDialog(AlertDialog parentDialog, EditText etFullName, EditText etDateOfBirth,
+                                     Spinner spinnerDocumentType, String[] documentTypes,
+                                     EditText etNationalId, EditText etIssueDate, EditText etExpiryDate,
+                                     AlertDialog scannerDialog) {
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = 
+                ProcessCameraProvider.getInstance(this);
+        
+        cameraProviderFuture.addListener(() -> {
+            try {
+                cameraProvider = cameraProviderFuture.get();
+                
+                Preview preview = new Preview.Builder().build();
+                preview.setSurfaceProvider(previewView.getSurfaceProvider());
+                
+                ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
+                        .setTargetResolution(new Size(1920, 1920))
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                        .build();
+                
+                imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this), image -> analyzeImageForDialog(
+                        image, parentDialog, etFullName, etDateOfBirth, spinnerDocumentType, 
+                        documentTypes, etNationalId, etIssueDate, etExpiryDate, scannerDialog));
+                
+                CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
+                try { cameraProvider.unbindAll(); } catch (Exception ignored) {}
+                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
+                
+            } catch (ExecutionException | InterruptedException e) {
+                Log.e(TAG, "Error starting camera", e);
+                Toast.makeText(this, "Error starting camera", Toast.LENGTH_SHORT).show();
+            }
+        }, ContextCompat.getMainExecutor(this));
+    }
+    
+    private void analyzeImageForDialog(ImageProxy image, AlertDialog parentDialog, EditText etFullName, 
+                                      EditText etDateOfBirth, Spinner spinnerDocumentType, String[] documentTypes,
+                                      EditText etNationalId, EditText etIssueDate, EditText etExpiryDate,
+                                      AlertDialog scannerDialog) {
+        if (!isScanning) { image.close(); return; }
+        if (image.getImage() == null) { image.close(); return; }
+        
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastProcessTime < MIN_PROCESS_INTERVAL_MS) {
+            image.close();
+            return;
+        }
+        
+        frameCounter++;
+        lastProcessTime = currentTime;
+        
+        int rotationDegrees = image.getImageInfo().getRotationDegrees();
+        InputImage inputImage = InputImage.fromMediaImage(image.getImage(), rotationDegrees);
+        
+        textRecognizer.process(inputImage)
+                .addOnSuccessListener(text -> {
+                    if (text != null && isScanning) {
+                        // Extract and correct MRZ text using same logic as CustomerManagementActivity
+                        String mrzText = extractAndCorrectMRZ(text);
+                        if (mrzText != null && !mrzText.trim().isEmpty() && isValidMRZ(mrzText)) {
+                            String normalizedMRZ = normalizeMRZ(mrzText);
+                            isScanning = false;
+                            runOnUiThread(() -> {
+                                Toast.makeText(this, "Processing MRZ...", Toast.LENGTH_SHORT).show();
+                                processMRZDataForDialog(normalizedMRZ, parentDialog, etFullName, etDateOfBirth, 
+                                        spinnerDocumentType, documentTypes, etNationalId, etIssueDate, etExpiryDate);
+                                scannerDialog.dismiss();
+                                stopBarcodeScanning();
+                            });
+                        }
+                    }
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "MRZ text recognition failed", e))
+                .addOnCompleteListener(result -> image.close());
+    }
+    
+    // === MRZ extraction and validation (shared behavior with CustomerManagementActivity) ===
+
+    private String normalizeMRZ(String mrz) {
+        if (mrz == null) return "";
+        return mrz.toUpperCase().trim()
+                .replaceAll("\\r\\n", "\n")
+                .replaceAll("\\r", "\n");
+    }
+
+    private String extractAndCorrectMRZ(Text text) {
+        if (text == null) {
+            return null;
+        }
+
+        String rawMRZ = extractMRZText(text);
+        if (rawMRZ == null || rawMRZ.trim().isEmpty()) {
+            return null;
+        }
+
+        return correctMRZOCRErrors(rawMRZ);
+    }
+
+    private String extractMRZText(Text text) {
+        if (text == null) {
+            Log.w(TAG, "Text recognition returned null");
+            return null;
+        }
+
+        String allText = text.getText();
+        Log.d(TAG, "========== RECOGNIZED TEXT (Sale MRZ) ==========");
+        Log.d(TAG, "Full text: " + allText);
+
+        java.util.List<String> mrzLines = new java.util.ArrayList<>();
+
+        for (Text.TextBlock block : text.getTextBlocks()) {
+            for (Text.Line line : block.getLines()) {
+                String lineText = line.getText().trim();
+                lineText = lineText.toUpperCase();
+
+                String normalized = lineText
+                        .replaceAll("\\|+", "<")
+                        .replaceAll("[/\\\\]+", "<")
+                        .replaceAll("\\s+", "")
+                        .replaceAll("[^A-Z0-9<]", "");
+
+                if ((normalized.length() >= 28 && normalized.length() <= 32) ||
+                    (normalized.length() >= 42 && normalized.length() <= 46)) {
+
+                    long alphanumericCount = normalized.chars()
+                            .filter(c -> (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '<')
+                            .count();
+
+                    double alphanumericRatio = (double) alphanumericCount / normalized.length();
+
+                    if (alphanumericRatio >= 0.90) {
+                        boolean looksLikeMRZ = false;
+
+                        if (normalized.length() >= 2) {
+                            char firstChar = normalized.charAt(0);
+                            char secondChar = normalized.length() > 1 ? normalized.charAt(1) : ' ';
+
+                            if ((firstChar == 'I' || firstChar == 'P' || firstChar == 'A' || firstChar == 'C') &&
+                                    (secondChar == '<' || secondChar == 'D' || secondChar == 'P')) {
+                                if (normalized.length() >= 5) {
+                                    String possibleCountry = normalized.substring(2, 5);
+                                    if (possibleCountry.matches("[A-Z]{3}")) {
+                                        looksLikeMRZ = true;
+                                    }
+                                }
+                            } else if (Character.isDigit(firstChar) && normalized.length() >= 14) {
+                                String first6 = normalized.substring(0, 6);
+                                if (first6.matches("\\d{6}") || first6.replaceAll("[OIL]", "").matches("\\d+")) {
+                                    if (normalized.length() > 7) {
+                                        char genderPos = normalized.charAt(7);
+                                        if (genderPos == 'M' || genderPos == 'F' || genderPos == 'X' || genderPos == 'H' || genderPos == 'N') {
+                                            looksLikeMRZ = true;
+                                        }
+                                    }
+                                }
+                            } else if (normalized.length() >= 42 && normalized.length() <= 46) {
+                                int sixDigitSequences = 0;
+                                for (int i = 0; i <= normalized.length() - 6; i++) {
+                                    String sub = normalized.substring(i, i + 6);
+                                    if (sub.matches("\\d{6}")) {
+                                        sixDigitSequences++;
+                                        if (sixDigitSequences >= 2) break;
+                                    }
+                                }
+
+                                if (sixDigitSequences >= 2) {
+                                    looksLikeMRZ = true;
+                                }
+                            } else if (normalized.contains("<<")) {
+                                long letterCount = normalized.chars().filter(c -> c >= 'A' && c <= 'Z').count();
+                                long fillerCount = normalized.chars().filter(c -> c == '<').count();
+                                if (letterCount >= 10 && (letterCount + fillerCount) >= normalized.length() * 0.95) {
+                                    looksLikeMRZ = true;
+                                }
+                            }
+                        }
+
+                        if (looksLikeMRZ) {
+                            mrzLines.add(normalized);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (mrzLines.size() == 3 || mrzLines.size() == 2) {
+            return String.join("\n", mrzLines);
+        }
+
+        return null;
+    }
+
+    private String correctMRZOCRErrors(String mrz) {
+        if (mrz == null) return null;
+
+        String[] lines = mrz.split("\n");
+        StringBuilder corrected = new StringBuilder();
+
+        boolean isTD3 = (lines.length == 2 && lines[0].length() >= 42);
+        boolean isTD1 = (lines.length == 3 && lines[0].length() >= 28 && lines[0].length() <= 32);
+
+        for (int lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+            String line = lines[lineIdx].toUpperCase();
+            StringBuilder correctedLine = new StringBuilder();
+
+            for (int i = 0; i < line.length(); i++) {
+                char c = line.charAt(i);
+                char correctedChar = c;
+
+                if (isTD1) {
+                    if (lineIdx == 0) {
+                        if (i == 0) {
+                            if (c == '1' || c == 'L' || c == 'J') correctedChar = 'I';
+                            else if (c == '0' || c == 'O' || c == 'D') correctedChar = 'O';
+                        } else if (i >= 2 && i <= 4) {
+                            correctedChar = correctToLetter(c);
+                        } else if (i >= 5 && i <= 14) {
+                            if (c == 'O') correctedChar = '0';
+                            else if (c == 'I' && i > 5) correctedChar = '1';
+                        }
+                    } else if (lineIdx == 1) {
+                        if (i >= 0 && i <= 5) {
+                            correctedChar = correctToDigit(c);
+                        } else if (i == 7) {
+                            if (c == 'N' || c == 'H') correctedChar = 'M';
+                            else if (c == 'E' || c == 'P') correctedChar = 'F';
+                        } else if (i >= 8 && i <= 13) {
+                            correctedChar = correctToDigit(c);
+                        } else if (i >= 15 && i <= 17) {
+                            correctedChar = correctToLetter(c);
+                        }
+                    } else if (lineIdx == 2) {
+                        if (c != '<') {
+                            correctedChar = correctToLetter(c);
+                        }
+                    }
+                } else if (isTD3) {
+                    if (lineIdx == 0) {
+                        if (i == 0) {
+                            if (c == '0' || c == 'O' || c == 'D' || c == '1' || c == 'I' || c == 'L') correctedChar = 'P';
+                        } else if (i >= 2 && i <= 4) {
+                            correctedChar = correctToLetter(c);
+                        } else if (i >= 5) {
+                            if (c != '<' && !Character.isLetter(c)) {
+                                correctedChar = correctToLetter(c);
+                            }
+                        }
+                    } else if (lineIdx == 1) {
+                        if (i >= 13 && i <= 18) {
+                            correctedChar = correctToDigit(c);
+                        } else if (i == 20) {
+                            if (c == 'N' || c == 'H') correctedChar = 'M';
+                            else if (c == 'E' || c == 'P') correctedChar = 'F';
+                        } else if (i >= 21 && i <= 26) {
+                            correctedChar = correctToDigit(c);
+                        } else if (i >= 10 && i <= 12) {
+                            correctedChar = correctToLetter(c);
+                        }
+                    }
+                }
+
+                if (correctedChar == c) {
+                    switch (c) {
+                        case '|': case '/': case '\\': case 'l': case 'L': case '!': case '1':
+                            if ((i > 0 && line.charAt(i-1) == '<') ||
+                                (i < line.length()-1 && line.charAt(i+1) == '<') ||
+                                i >= line.length() - 15) {
+                                correctedChar = '<';
+                            }
+                            break;
+                    }
+                }
+
+                correctedLine.append(correctedChar);
+            }
+
+            if (lineIdx > 0) corrected.append('\n');
+            corrected.append(correctedLine);
+        }
+
+        return corrected.toString();
+    }
+
+    private char correctToDigit(char c) {
+        switch (c) {
+            case 'O': case 'Q': case 'D': return '0';
+            case 'I': case 'L': case 'l': case '|': return '1';
+            case 'Z': case 'z': return '2';
+            case 'S': case 's': return '5';
+            case 'G': case 'g': return '6';
+            case 'T': case 't': return '7';
+            case 'B': return '8';
+            default: return c;
+        }
+    }
+
+    private char correctToLetter(char c) {
+        switch (c) {
+            case '0': return 'O';
+            case '1': return 'I';
+            case '2': return 'Z';
+            case '5': return 'S';
+            case '6': return 'G';
+            case '7': return 'T';
+            case '8': return 'B';
+            default: return Character.isLetter(c) ? Character.toUpperCase(c) : c;
+        }
+    }
+
+    private boolean isValidMRZ(String mrzText) {
+        if (mrzText == null || mrzText.trim().isEmpty()) {
+            return false;
+        }
+
+        String[] lines = mrzText.split("\n");
+
+        if (lines.length != 2 && lines.length != 3) {
+            return false;
+        }
+
+        for (String line : lines) {
+            String l = line.trim();
+            if (l.length() < 28) {
+                return false;
+            }
+
+            long validChars = l.chars()
+                    .filter(c -> (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '<')
+                    .count();
+            double ratio = (double) validChars / l.length();
+            if (ratio < 0.95) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+    
+    private void processMRZDataForDialog(String mrzText, AlertDialog parentDialog, EditText etFullName, 
+                                         EditText etDateOfBirth, Spinner spinnerDocumentType, String[] documentTypes,
+                                         EditText etNationalId, EditText etIssueDate, EditText etExpiryDate) {
+        try {
+            MRZParser.MRZData mrzData = MRZParser.parseMRZ(mrzText);
+            if (mrzData == null || !mrzData.isValid()) {
+                Toast.makeText(this, "Unable to read MRZ data. Please try again.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            
+            // Populate form fields
+            if (mrzData.fullName != null) etFullName.setText(mrzData.fullName);
+            if (mrzData.nationalIdNumber != null) {
+                etNationalId.setText(mrzData.nationalIdNumber);
+            } else if (mrzData.documentNumber != null) {
+                etNationalId.setText(mrzData.documentNumber);
+            }
+            
+            // Convert dates from YYYY-MM-DD to DD-MM-YYYY for display
+            if (mrzData.dateOfBirth != null) {
+                String dobDisplay = convertDateToDDMMYYYY(mrzData.dateOfBirth);
+                etDateOfBirth.setText(dobDisplay);
+            }
+            // Note: MRZ doesn't contain issue date, only expiry date
+            if (mrzData.expiryDate != null) {
+                String expiryDisplay = convertDateToDDMMYYYY(mrzData.expiryDate);
+                etExpiryDate.setText(expiryDisplay);
+            }
+            
+            // Set document type
+            if (mrzData.documentTypeName != null) {
+                for (int i = 0; i < documentTypes.length; i++) {
+                    if (documentTypes[i].equalsIgnoreCase(mrzData.documentTypeName)) {
+                        spinnerDocumentType.setSelection(i);
+                        break;
+                    }
+                }
+            }
+            
+            Toast.makeText(this, "MRZ data loaded successfully", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing MRZ data", e);
+            Toast.makeText(this, "Error processing MRZ data", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private String convertDateToDDMMYYYY(String date) {
+        if (date == null || date.trim().isEmpty()) return "";
+        try {
+            String cleanDate = date.trim();
+            if (cleanDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                String[] parts = cleanDate.split("-");
+                return parts[2] + "-" + parts[1] + "-" + parts[0];
+            }
+            return date;
+        } catch (Exception e) {
+            return date;
+        }
+    }
+    
+    private void stopBarcodeScanning() {
+        isScanning = false;
+        if (cameraPreviewCard != null) {
+            cameraPreviewCard.setVisibility(View.GONE);
+        }
+        if (previewView != null) {
+            previewView.setVisibility(View.GONE);
+        }
+        mrzDetectionCounts.clear();
+        detectionAttempts = 0;
+        frameCounter = 0;
+        lastProcessTime = 0;
+        scanningStartTime = 0;
+        lastDetectedMRZ = null;
+        try {
+            if (cameraProvider != null) {
+                cameraProvider.unbindAll();
+            }
+        } catch (Exception ignored) {}
+        camera = null;
+    }
+    
+    // Date formatting method - DD-MM-YYYY format
     private void setupDateOfBirthFormatting(EditText etDateOfBirth) {
         etDateOfBirth.addTextChangedListener(new android.text.TextWatcher() {
             private boolean isFormatting = false;
@@ -854,9 +1399,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 String input = s.toString().replaceAll("[^\\d]", "");
                 StringBuilder formatted = new StringBuilder();
                 
-                // Format as YYYY-MM-DD
+                // Format as DD-MM-YYYY
                 for (int i = 0; i < input.length() && i < 8; i++) {
-                    if (i == 4 || i == 6) {
+                    if (i == 2 || i == 4) {
                         formatted.append("-");
                     }
                     formatted.append(input.charAt(i));
@@ -867,6 +1412,43 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 
                 etDateOfBirth.setText(formatted.toString());
                 etDateOfBirth.setSelection(Math.min(cursorPos, formatted.length()));
+                
+                isFormatting = false;
+            }
+            
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+    }
+    
+    private void setupDateFormatting(EditText etDate) {
+        etDate.addTextChangedListener(new android.text.TextWatcher() {
+            private boolean isFormatting = false;
+            
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (isFormatting) return;
+                isFormatting = true;
+                
+                String input = s.toString().replaceAll("[^\\d]", "");
+                StringBuilder formatted = new StringBuilder();
+                
+                // Format as DD-MM-YYYY
+                for (int i = 0; i < input.length() && i < 8; i++) {
+                    if (i == 2 || i == 4) {
+                        formatted.append("-");
+                    }
+                    formatted.append(input.charAt(i));
+                }
+                
+                int cursorPos = formatted.length();
+                if (cursorPos > 10) cursorPos = 10;
+                
+                etDate.setText(formatted.toString());
+                etDate.setSelection(Math.min(cursorPos, formatted.length()));
                 
                 isFormatting = false;
             }
@@ -1244,6 +1826,18 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             }
         }
         
+        // Set account number if provided (append to notes)
+        if (etAccountNumber != null && etAccountNumber.getText() != null) {
+            String accountNumber = etAccountNumber.getText().toString().trim();
+            if (!accountNumber.isEmpty()) {
+                String existingNotes = transaction.getNotes() != null ? transaction.getNotes() : "";
+                String newNotes = existingNotes.isEmpty() 
+                    ? "Account Number: " + accountNumber 
+                    : existingNotes + "\nAccount Number: " + accountNumber;
+                transaction.setNotes(newNotes);
+            }
+        }
+        
         return transaction;
     }
 
@@ -1525,6 +2119,27 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.d(TAG, "Background Firestore sync failed (offline mode): " + e.getMessage());
         }
+    }
+    
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_PERMISSION_REQUEST) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Camera permission granted. Please try scanning again.", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Camera permission is required for barcode scanning", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (textRecognizer != null) {
+            textRecognizer.close();
+        }
+        stopBarcodeScanning();
     }
     
 }

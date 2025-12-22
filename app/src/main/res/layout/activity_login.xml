@@ -13,8 +13,10 @@
         android:background="@drawable/gradient_primary"
         android:orientation="horizontal"
         android:padding="16dp"
+        android:paddingTop="24dp"
         android:gravity="center_vertical"
-        android:layout_alignParentTop="true">
+        android:layout_alignParentTop="true"
+        android:fitsSystemWindows="true">
 
         <!-- App Logo/Icon -->
         <ImageView
@@ -112,8 +114,47 @@
                         android:orientation="vertical"
                         android:padding="32dp">
 
+                    <!-- Login Type Toggle -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="16dp"
+                        android:gravity="center">
+                        
+                        <TextView
+                            android:id="@+id/tvLoginTypeEmail"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/login_with_email"
+                            android:textSize="14sp"
+                            android:textColor="@color/white"
+                            android:gravity="center"
+                            android:padding="12dp"
+                            android:background="@drawable/modern_button_primary"
+                            android:clickable="true"
+                            android:focusable="true" />
+                        
+                        <TextView
+                            android:id="@+id/tvLoginTypePhone"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/login_with_phone"
+                            android:textSize="14sp"
+                            android:textColor="@color/white"
+                            android:alpha="0.6"
+                            android:gravity="center"
+                            android:padding="12dp"
+                            android:background="@color/card_background"
+                            android:clickable="true"
+                            android:focusable="true" />
+                    </LinearLayout>
+
                     <!-- Email Input -->
                     <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilEmail"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="20dp"
@@ -142,8 +183,41 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <!-- Phone Input (Hidden by default) -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilPhone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="20dp"
+                        android:hint="@string/phone_hint"
+                        android:visibility="gone"
+                        app:boxBackgroundMode="filled"
+                        app:boxBackgroundColor="@color/card_background"
+                        app:boxCornerRadiusTopStart="16dp"
+                        app:boxCornerRadiusTopEnd="16dp"
+                        app:boxCornerRadiusBottomStart="16dp"
+                        app:boxCornerRadiusBottomEnd="16dp"
+                        app:boxStrokeColor="@color/primary_purple"
+                        app:boxStrokeWidth="2dp"
+                        app:hintTextColor="@color/white"
+                        app:startIconDrawable="@drawable/ic_phone"
+                        app:startIconTint="@color/white">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etPhone"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="phone"
+                            android:textSize="16sp"
+                            android:textColor="@color/white"
+                            android:textColorHint="@color/white"
+                            android:padding="16dp" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
                     <!-- Password Input -->
                     <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilPassword"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="32dp"

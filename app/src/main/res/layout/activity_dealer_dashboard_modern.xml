@@ -13,7 +13,9 @@
         android:background="@drawable/gradient_primary"
         android:orientation="vertical"
         android:padding="24dp"
-        android:layout_alignParentTop="true">
+        android:paddingTop="32dp"
+        android:layout_alignParentTop="true"
+        android:fitsSystemWindows="true">
 
         <!-- Language Selection -->
         <include layout="@layout/language_selector" 
