@@ -33,11 +33,17 @@ public interface OperatorBalanceDao {
     
     @Query("SELECT COALESCE(SUM(balance), 0) FROM operator_balances WHERE userId = :userId")
     double getTotalBalanceForUser(String userId);
+
+    @Query("SELECT * FROM operator_balances WHERE userId = :userId AND needsSync = 1")
+    List<OperatorBalanceEntity> getNeedingSyncForUser(String userId);
     
     @Query("DELETE FROM operator_balances WHERE userId = :userId AND operatorId = :operatorId")
     void deleteBalance(String userId, String operatorId);
     
     @Query("DELETE FROM operator_balances WHERE userId = :userId")
     void deleteAllBalancesForUser(String userId);
+
+    @Query("SELECT * FROM operator_balances WHERE id = :id")
+    OperatorBalanceEntity getById(String id);
 }
 

@@ -16,6 +16,10 @@
     <string name="invalid_phone_number">Invalid phone number</string>
     <string name="invalid_pin">PIN must be 6 digits</string>
     <string name="user_not_found_phone">No user found with this phone number</string>
+    <string name="otp_hint">Enter OTP</string>
+    <string name="otp_not_requested">Please request an OTP first</string>
+    <string name="otp_sent">OTP sent successfully</string>
+    <string name="send_otp">Send OTP</string>
     <string name="login_successful">Login successful!</string>
     <string name="login_failed">Login failed</string>
     <string name="fill_all_fields">Please fill all fields</string>
@@ -91,6 +95,7 @@
     <string name="email_label">Email:</string>
     <string name="phone_label">Phone:</string>
     <string name="available_credit">Available Credit:</string>
+    <string name="total_credits">Total Credits</string>
     <string name="contact_dealer">Contact Dealer</string>
     <string name="dealer_phone_not_available">Dealer phone number not available</string>
     <string name="no_dealer_found">No dealer found</string>
@@ -353,6 +358,7 @@
     <string name="syncing_customers">Syncing customers...</string>
     <string name="syncing_operators">Syncing operators...</string>
     <string name="syncing_operator_actions">Syncing operator actions...</string>
+    <string name="syncing_operator_balances">Syncing operator balances...</string>
     <string name="data_synced_successfully">Data synced successfully!</string>
     <string name="sync_failed_error">Sync failed: %1$s</string>
     

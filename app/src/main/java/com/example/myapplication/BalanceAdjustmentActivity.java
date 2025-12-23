@@ -43,6 +43,7 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
     
     private TextView tvCurrentOperatorBalance;
     private TextView tvCurrentCashBalance;
+    private TextView tvCurrentTotalCredit;
     private RadioGroup rgAdjustmentType;
     private RadioButton rbOperatorBalance;
     private RadioButton rbCashBalance;
@@ -187,6 +188,8 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
         
         tvCurrentOperatorBalance = findViewById(R.id.tvCurrentOperatorBalance);
         tvCurrentCashBalance = findViewById(R.id.tvCurrentCashBalance);
+        tvCurrentTotalCredit = findViewById(R.id.tvCurrentTotalCredit);
+        tvCurrentTotalCredit = findViewById(R.id.tvCurrentTotalCredit);
         rgAdjustmentType = findViewById(R.id.rgAdjustmentType);
         rbOperatorBalance = findViewById(R.id.rbOperatorBalance);
         rbCashBalance = findViewById(R.id.rbCashBalance);
@@ -255,12 +258,18 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
                 final double finalOperatorBalance = operatorBalance;
                 double cashBalance = currentUser.getCashBalance();
                 final double finalCashBalance = cashBalance;
+                double totalCredit = currentUser.getVirtualCredit();
+                final double finalTotalCredit = totalCredit;
                 
                 runOnUiThread(() -> {
                     String formattedOperatorBalance = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(finalOperatorBalance);
                     String formattedCashBalance = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(finalCashBalance);
+                    String formattedTotalCredit = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(finalTotalCredit);
                     tvCurrentOperatorBalance.setText(formattedOperatorBalance + " F");
                     tvCurrentCashBalance.setText(formattedCashBalance + " F");
+                    if (tvCurrentTotalCredit != null) {
+                        tvCurrentTotalCredit.setText(formattedTotalCredit + " F");
+                    }
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading balances", e);
@@ -366,6 +375,31 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
                     }
                     // Use operator-specific balance
                     balanceBefore = balanceHelper.getBalance(user.getUid(), finalSelectedOperator.getId());
+                    
+                    // Enforce non-negative operator balance
+                    if (balanceBefore + amount < 0) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(this, "Operator balance cannot go below 0", Toast.LENGTH_SHORT).show();
+                        });
+                        return;
+                    }
+                    
+                    // When adjusting operator balance, move credits to/from the global pool (virtualCredit)
+                    double currentVirtual = user.getVirtualCredit();
+                    if (amount > 0) {
+                        // Increasing operator balance: deduct from total credits (virtual pool)
+                        if (currentVirtual < amount) {
+                            runOnUiThread(() -> {
+                                Toast.makeText(this, "Insufficient total credits", Toast.LENGTH_SHORT).show();
+                            });
+                            return;
+                        }
+                        user.setVirtualCredit(currentVirtual - amount);
+                    } else if (amount < 0) {
+                        // Decreasing operator balance: return to total credits
+                        user.setVirtualCredit(currentVirtual - amount); // amount is negative → adds back
+                    }
+                    
                     balanceAfter = balanceBefore + amount;
                     balanceHelper.updateBalance(user.getUid(), finalSelectedOperator.getId(), balanceAfter);
                 } else {
@@ -381,10 +415,8 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
                 // Save adjustment and update user
                 database.balanceAdjustmentDao().insertAdjustment(adjustment);
                 user.setUpdatedAt(System.currentTimeMillis());
-                // Only update user if cash balance was changed (operator balance is handled separately)
-                if (!"operator".equals(adjustmentType)) {
-                    database.userDao().updateUser(user);
-                }
+                // Update user whenever cash or virtual credit was changed
+                database.userDao().updateUser(user);
                 
                 // Update current user reference
                 currentUser = user;
@@ -443,9 +475,10 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
     
     private void syncBalancesToFirestore(UserEntity user) {
         try {
-            // Sync cash balance (still global per user)
+            // Sync cash balance and virtual credit (global per user)
             Map<String, Object> updates = new HashMap<>();
             updates.put("cashBalance", user.getCashBalance());
+            updates.put("virtualCredit", user.getVirtualCredit());
             updates.put("updatedAt", com.google.firebase.Timestamp.now());
             
             firestore.collection("users").document(user.getUid())

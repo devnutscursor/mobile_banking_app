@@ -138,7 +138,12 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
         setTimeout(() => message.success('Agent updated'), 0);
       } else {
         const secAuth = getSecondaryAuth() || getAuth();
-        const userCredential = await createUserWithEmailAndPassword(secAuth, values.email, values.password);
+        const userCredential = await createUserWithEmailAndPassword(
+          secAuth,
+          values.email,
+          values.password
+        );
+
         await setDoc(doc(db, 'users', userCredential.user.uid), {
           uid: userCredential.user.uid,
           email: values.email,
@@ -155,6 +160,24 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           updatedAt: Timestamp.now(),
           creditUpdatedAt: Timestamp.now(),
         });
+
+        // If phone provided, link it to the new Auth user for phone+OTP login
+        if (values.phone) {
+          try {
+            await fetch('/api/link-phone', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                uid: userCredential.user.uid,
+                phone: values.phone,
+              }),
+            });
+          } catch (e) {
+            console.error('Failed to link agent phone in Auth:', e);
+            setTimeout(() => message.warning('Agent created, but phone could not be linked for OTP login.'), 0);
+          }
+        }
+
         setTimeout(() => message.success('Agent created'), 0);
         await signOutSecondary();
       }

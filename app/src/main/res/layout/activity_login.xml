@@ -109,11 +109,11 @@
                     android:padding="0dp"
                     android:background="@drawable/modern_glass_card">
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="32dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="32dp">
 
                     <!-- Login Type Toggle -->
                     <LinearLayout
@@ -122,7 +122,7 @@
                         android:orientation="horizontal"
                         android:layout_marginBottom="16dp"
                         android:gravity="center">
-                        
+
                         <TextView
                             android:id="@+id/tvLoginTypeEmail"
                             android:layout_width="0dp"
@@ -136,7 +136,7 @@
                             android:background="@drawable/modern_button_primary"
                             android:clickable="true"
                             android:focusable="true" />
-                        
+
                         <TextView
                             android:id="@+id/tvLoginTypePhone"
                             android:layout_width="0dp"
@@ -184,7 +184,7 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Phone Input (Hidden by default) -->
+                    <!-- Phone Input (hidden in email mode) -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilPhone"
                         android:layout_width="match_parent"
@@ -209,6 +209,39 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="phone"
+                            android:textSize="16sp"
+                            android:textColor="@color/white"
+                            android:textColorHint="@color/white"
+                            android:padding="16dp" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- OTP Input (hidden in email mode) -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilOtp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="20dp"
+                        android:hint="@string/otp_hint"
+                        android:visibility="gone"
+                        app:boxBackgroundMode="filled"
+                        app:boxBackgroundColor="@color/card_background"
+                        app:boxCornerRadiusTopStart="16dp"
+                        app:boxCornerRadiusTopEnd="16dp"
+                        app:boxCornerRadiusBottomStart="16dp"
+                        app:boxCornerRadiusBottomEnd="16dp"
+                        app:boxStrokeColor="@color/primary_purple"
+                        app:boxStrokeWidth="2dp"
+                        app:hintTextColor="@color/white"
+                        app:startIconDrawable="@drawable/ic_lock"
+                        app:startIconTint="@color/white">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etOtp"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:maxLength="6"
                             android:textSize="16sp"
                             android:textColor="@color/white"
                             android:textColorHint="@color/white"
@@ -248,6 +281,21 @@
                             android:padding="16dp" />
 
                     </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Send OTP Button (phone mode only) -->
+                    <Button
+                        android:id="@+id/btnSendOtp"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="@string/send_otp"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_white"
+                        android:background="@drawable/modern_button_primary"
+                        android:elevation="2dp"
+                        android:layout_marginBottom="12dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:visibility="gone" />
 
                     <!-- Login Button -->
                     <Button

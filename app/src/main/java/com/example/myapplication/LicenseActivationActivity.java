@@ -18,6 +18,7 @@ import com.example.myapplication.utils.AuthManager;
 import com.example.myapplication.utils.LicenseManager;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.LanguageManager;
+import com.example.myapplication.utils.EdgeToEdgeHelper;
 import com.example.myapplication.adapters.LanguageSpinnerAdapter;
 import com.example.myapplication.services.FirstLoginSyncService;
 
@@ -52,11 +53,8 @@ public class LicenseActivationActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        // Enable edge-to-edge display
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            getWindow().setDecorFitsSystemWindows(false);
-        }
+
+        EdgeToEdgeHelper.enableEdgeToEdge(this);
         
         setContentView(R.layout.activity_license_activation);
         
@@ -71,33 +69,11 @@ public class LicenseActivationActivity extends AppCompatActivity {
         tvStatus = findViewById(R.id.tvStatus);
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
 
-        setupSystemWindowInsets();
+        View headerLayout = findViewById(R.id.headerLayout);
+        EdgeToEdgeHelper.setupHeaderInsets(headerLayout, this);
         setupLanguageSpinner();
         btnActivate.setOnClickListener(v -> onActivate());
         // No explicit apply here; locale is already applied via attachBaseContext
-    }
-
-    /**
-     * Setup system window insets for edge-to-edge display
-     */
-    private void setupSystemWindowInsets() {
-        View headerLayout = findViewById(R.id.headerLayout);
-        if (headerLayout != null) {
-            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(headerLayout, (v, insets) -> {
-                int topInset = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars()).top;
-                int basePaddingTop = (int) (24 * getResources().getDisplayMetrics().density);
-                int basePaddingBottom = (int) (16 * getResources().getDisplayMetrics().density);
-                
-                v.setPadding(
-                    v.getPaddingLeft(), 
-                    topInset + basePaddingTop, 
-                    v.getPaddingRight(), 
-                    basePaddingBottom
-                );
-                
-                return androidx.core.view.WindowInsetsCompat.CONSUMED;
-            });
-        }
     }
 
     private void setupLanguageSpinner() {

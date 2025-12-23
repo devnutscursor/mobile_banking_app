@@ -3,11 +3,9 @@ package com.example.myapplication;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.InputFilter;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -30,9 +28,13 @@ import com.example.myapplication.adapters.LanguageSpinnerAdapter;
 import com.example.myapplication.services.FirstLoginSyncService;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.PhoneAuthCredential;
+import com.google.firebase.auth.PhoneAuthOptions;
+import com.google.firebase.auth.PhoneAuthProvider;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 public class LoginActivity extends AppCompatActivity {
     
@@ -55,13 +57,13 @@ public class LoginActivity extends AppCompatActivity {
         super.attachBaseContext(context);
     }
 
-    private EditText etEmail, etPassword, etPhone;
-    private Button btnLogin;
+    private EditText etEmail, etPassword, etPhone, etOtp;
+    private Button btnLogin, btnSendOtp;
     private TextView tvStatus;
     private TextView tvWelcomeTitle; // "Welcome Back"
     private TextView tvSubtitle;     // "Sign in to your account"
     private TextView tvLoginTypeEmail, tvLoginTypePhone;
-    private com.google.android.material.textfield.TextInputLayout tilEmail, tilPhone, tilPassword;
+    private com.google.android.material.textfield.TextInputLayout tilEmail, tilPassword, tilPhone, tilOtp;
     private Spinner spinnerLanguage;
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
@@ -71,7 +73,11 @@ public class LoginActivity extends AppCompatActivity {
     private LanguageManager languageManager;
     private static long lastLanguageChangeTime = 0;
     private boolean isUserChangingLanguage = false;
-    private boolean isPhoneLogin = false; // Track login mode
+    private boolean isPhoneLogin = false;
+
+    // Phone auth state
+    private String verificationId = null;
+    private PhoneAuthProvider.ForceResendingToken resendToken = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,22 +99,26 @@ public class LoginActivity extends AppCompatActivity {
         etEmail = findViewById(R.id.etEmail);
         etPassword = findViewById(R.id.etPassword);
         etPhone = findViewById(R.id.etPhone);
+        etOtp = findViewById(R.id.etOtp);
         btnLogin = findViewById(R.id.btnLogin);
+        btnSendOtp = findViewById(R.id.btnSendOtp);
         tvStatus = findViewById(R.id.tvStatus);
-        tvLoginTypeEmail = findViewById(R.id.tvLoginTypeEmail);
-        tvLoginTypePhone = findViewById(R.id.tvLoginTypePhone);
         tilEmail = findViewById(R.id.tilEmail);
-        tilPhone = findViewById(R.id.tilPhone);
         tilPassword = findViewById(R.id.tilPassword);
+        tilPhone = findViewById(R.id.tilPhone);
+        tilOtp = findViewById(R.id.tilOtp);
         // Optional: these may be null if ids not present in layout
         tvWelcomeTitle = findViewById(getResources().getIdentifier("tvWelcomeTitle", "id", getPackageName()));
         tvSubtitle = findViewById(getResources().getIdentifier("tvSubtitle", "id", getPackageName()));
+        tvLoginTypeEmail = findViewById(R.id.tvLoginTypeEmail);
+        tvLoginTypePhone = findViewById(R.id.tvLoginTypePhone);
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
 
         EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
         setupLanguageSpinner();
         setupLoginTypeToggle();
         btnLogin.setOnClickListener(v -> loginUser());
+        btnSendOtp.setOnClickListener(v -> sendOtp());
         
         // No explicit apply here; locale is already applied via attachBaseContext
     }
@@ -162,58 +172,6 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
     
-    private void setupLoginTypeToggle() {
-        // Set initial state (email login)
-        updateLoginTypeUI(false);
-        
-        tvLoginTypeEmail.setOnClickListener(v -> {
-            if (isPhoneLogin) {
-                isPhoneLogin = false;
-                updateLoginTypeUI(false);
-            }
-        });
-        
-        tvLoginTypePhone.setOnClickListener(v -> {
-            if (!isPhoneLogin) {
-                isPhoneLogin = true;
-                updateLoginTypeUI(true);
-            }
-        });
-    }
-    
-    private void updateLoginTypeUI(boolean phoneMode) {
-        if (phoneMode) {
-            // Phone login mode
-            tilEmail.setVisibility(View.GONE);
-            tilPhone.setVisibility(View.VISIBLE);
-            tilPassword.setHint(getString(R.string.password_pin_hint));
-            etPassword.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-            etPassword.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});
-            
-            tvLoginTypeEmail.setAlpha(0.6f);
-            tvLoginTypeEmail.setBackgroundResource(R.color.card_background);
-            tvLoginTypePhone.setAlpha(1.0f);
-            tvLoginTypePhone.setBackgroundResource(R.drawable.modern_button_primary);
-        } else {
-            // Email login mode
-            tilEmail.setVisibility(View.VISIBLE);
-            tilPhone.setVisibility(View.GONE);
-            tilPassword.setHint(getString(R.string.password_hint));
-            etPassword.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-            etPassword.setFilters(new InputFilter[0]); // Remove length filter
-            
-            tvLoginTypeEmail.setAlpha(1.0f);
-            tvLoginTypeEmail.setBackgroundResource(R.drawable.modern_button_primary);
-            tvLoginTypePhone.setAlpha(0.6f);
-            tvLoginTypePhone.setBackgroundResource(R.color.card_background);
-        }
-        
-        // Clear fields when switching
-        etEmail.setText("");
-        etPhone.setText("");
-        etPassword.setText("");
-    }
-    
     /**
      * Apply current language to login screen UI elements
      */
@@ -228,48 +186,84 @@ public class LoginActivity extends AppCompatActivity {
         // No-op
     }
 
+    private void setupLoginTypeToggle() {
+        // Default to email login
+        isPhoneLogin = false;
+        updateLoginTypeUI();
+
+        tvLoginTypeEmail.setOnClickListener(v -> {
+            if (isPhoneLogin) {
+                isPhoneLogin = false;
+                updateLoginTypeUI();
+            }
+        });
+
+        tvLoginTypePhone.setOnClickListener(v -> {
+            if (!isPhoneLogin) {
+                isPhoneLogin = true;
+                updateLoginTypeUI();
+            }
+        });
+    }
+
+    private void updateLoginTypeUI() {
+        if (isPhoneLogin) {
+            // Phone + OTP mode
+            tilEmail.setVisibility(View.GONE);
+            tilPassword.setVisibility(View.GONE);
+            tilPhone.setVisibility(View.VISIBLE);
+            tilOtp.setVisibility(View.VISIBLE);
+            btnSendOtp.setVisibility(View.VISIBLE);
+
+            tvLoginTypeEmail.setAlpha(0.6f);
+            tvLoginTypeEmail.setBackgroundResource(R.color.card_background);
+            tvLoginTypePhone.setAlpha(1.0f);
+            tvLoginTypePhone.setBackgroundResource(R.drawable.modern_button_primary);
+        } else {
+            // Email/password mode
+            tilEmail.setVisibility(View.VISIBLE);
+            tilPassword.setVisibility(View.VISIBLE);
+            tilPhone.setVisibility(View.GONE);
+            tilOtp.setVisibility(View.GONE);
+            btnSendOtp.setVisibility(View.GONE);
+
+            tvLoginTypeEmail.setAlpha(1.0f);
+            tvLoginTypeEmail.setBackgroundResource(R.drawable.modern_button_primary);
+            tvLoginTypePhone.setAlpha(0.6f);
+            tvLoginTypePhone.setBackgroundResource(R.color.card_background);
+        }
+
+        // Clear fields when switching modes
+        etEmail.setText("");
+        etPassword.setText("");
+        if (etPhone != null) etPhone.setText("");
+        if (etOtp != null) etOtp.setText("");
+        verificationId = null;
+        resendToken = null;
+    }
+
     private void loginUser() {
         if (isPhoneLogin) {
-            // Phone login
-            String phone = etPhone.getText().toString().trim();
-            String pin = etPassword.getText().toString().trim();
+            loginWithPhoneOtp();
+            return;
+        }
 
-            if (TextUtils.isEmpty(phone) || TextUtils.isEmpty(pin)) {
-                showError(getString(R.string.fill_all_fields));
-                return;
-            }
+        // Email/password login (existing behaviour)
+        String email = etEmail.getText().toString().trim();
+        String password = etPassword.getText().toString().trim();
 
-            // Validate PIN is 6 digits
-            if (pin.length() != 6 || !pin.matches("\\d{6}")) {
-                showError(getString(R.string.invalid_pin));
-                return;
-            }
+        if (TextUtils.isEmpty(email) || TextUtils.isEmpty(password)) {
+            showError(getString(R.string.fill_all_fields));
+            return;
+        }
 
-            // Validate phone number format (basic check)
-            if (phone.length() < 8) {
-                showError(getString(R.string.invalid_phone_number));
-                return;
-            }
-
-            performPhoneLogin(phone, pin);
+        // Check if THIS specific user can work offline
+        if (canUserWorkOffline(email)) {
+            // Try offline login
+            attemptOfflineLogin(email, password);
         } else {
-            // Email login
-            String email = etEmail.getText().toString().trim();
-            String password = etPassword.getText().toString().trim();
-
-            if (TextUtils.isEmpty(email) || TextUtils.isEmpty(password)) {
-                showError(getString(R.string.fill_all_fields));
-                return;
-            }
-
-            // Check if THIS specific user can work offline
-            if (canUserWorkOffline(email)) {
-                // Try offline login
-                attemptOfflineLogin(email, password);
-            } else {
-                // Online login required
-                performOnlineLogin(email, password);
-            }
+            // Online login required
+            performOnlineLogin(email, password);
         }
     }
     
@@ -381,109 +375,124 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
-    private void performPhoneLogin(String phone, String pin) {
-        showLoading(getString(R.string.signing_in));
-        btnLogin.setEnabled(false);
+    // --- Phone + OTP login helpers (online only) ---
 
-        // Normalize phone number (remove spaces, dashes, etc.)
+    private void sendOtp() {
+        if (etPhone == null) {
+            showError(getString(R.string.invalid_phone_number));
+            return;
+        }
+
+        String phone = etPhone.getText().toString().trim();
+        if (TextUtils.isEmpty(phone) || phone.length() < 8) {
+            showError(getString(R.string.invalid_phone_number));
+            return;
+        }
+
+        // Normalize phone number (remove spaces, dashes, parentheses)
         String normalizedPhone = phone.replaceAll("[\\s\\-\\(\\)]", "");
 
-        // Query Firestore for user by phone number
+        showLoading(getString(R.string.signing_in));
+
+        // IMPORTANT: Only allow OTP for phone numbers that exist in Firestore users
         db.collection("users")
                 .whereEqualTo("phone", normalizedPhone)
-                .whereEqualTo("role", "agent") // Only agents can login with phone
                 .limit(1)
                 .get()
                 .addOnCompleteListener(task -> {
-                    if (task.isSuccessful() && !task.getResult().isEmpty()) {
-                        com.google.firebase.firestore.QueryDocumentSnapshot document = 
-                            (com.google.firebase.firestore.QueryDocumentSnapshot) task.getResult().getDocuments().get(0);
-                        
-                        // Get user data
-                        String userId = document.getId();
-                        String email = document.getString("email");
-                        String storedPin = document.getString("pin"); // 6-digit PIN stored in Firestore
-                        Boolean disabled = document.getBoolean("disabled");
-                        Boolean active = document.getBoolean("active");
-                        
-                        // Validate PIN
-                        if (storedPin == null || !storedPin.equals(pin)) {
-                            btnLogin.setEnabled(true);
-                            showError("Invalid PIN");
-                            return;
-                        }
-                        
-                        // Check if user is disabled
-                        if (Boolean.TRUE.equals(disabled) || Boolean.FALSE.equals(active)) {
-                            btnLogin.setEnabled(true);
-                            showError("Your account has been disabled. Please contact support.");
-                            return;
-                        }
-                        
-                        // Get user's email and sign in with Firebase Auth
-                        if (TextUtils.isEmpty(email)) {
-                            btnLogin.setEnabled(true);
-                            showError("User email not found. Please contact support.");
-                            return;
-                        }
-                        
-                        // Now sign in with Firebase Auth using email
-                        // We need to get the password from Firestore or use a default
-                        // For now, we'll query for the password hash or use email-based auth
-                        // Since Firebase Auth requires email/password, we'll need to store password in Firestore
-                        // OR use custom authentication token
-                        
-                        // Get password from Firestore (stored when user was created)
-                        // Note: In production, consider using Firebase Custom Authentication tokens
-                        String password = document.getString("password");
-                        
-                        if (TextUtils.isEmpty(password)) {
-                            btnLogin.setEnabled(true);
-                            showError("Password not configured. Please use email login or contact support.");
-                            return;
-                        }
-                        
-                        // Sign in with email and password
-                        mAuth.signInWithEmailAndPassword(email, password)
-                            .addOnCompleteListener(authTask -> {
-                                btnLogin.setEnabled(true);
-                                if (authTask.isSuccessful()) {
-                                    showSuccess(getString(R.string.login_successful));
-                                    
-                                    // Get user profile and validate license
-                                    authManager.getCurrentUser(new AuthManager.AuthCallback() {
+                    if (!task.isSuccessful() || task.getResult() == null || task.getResult().isEmpty()) {
+                        Log.d("LoginActivity", "No user found with phone: " + normalizedPhone);
+                        showError(getString(R.string.user_not_found_phone));
+                        return;
+                    }
+
+                    // At least one user exists with this phone; proceed with Firebase Phone Auth
+                    PhoneAuthOptions options =
+                            PhoneAuthOptions.newBuilder(mAuth)
+                                    .setPhoneNumber(normalizedPhone)
+                                    .setTimeout(60L, TimeUnit.SECONDS)
+                                    .setActivity(this)
+                                    .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                                         @Override
-                                        public void onSuccess(User user) {
-                                            // CRITICAL: Check if user is disabled
-                                            if (user.isDisabled()) {
-                                                Log.d("LoginActivity", "User is disabled, cannot login: " + email);
-                                                showError("Your account has been disabled. Please contact support.");
-                                                mAuth.signOut();
-                                                return;
-                                            }
-                                            
-                                            // Store credentials for offline login
-                                            sessionManager.storeCredentials(email, password, user.getUid());
-                                            validateUserLicense(user);
+                                        public void onVerificationCompleted(PhoneAuthCredential credential) {
+                                            // Auto-retrieval or instant verification
+                                            Log.d("LoginActivity", "Phone verification completed automatically");
+                                            signInWithPhoneCredential(credential);
                                         }
 
                                         @Override
-                                        public void onError(String error) {
-                                            showError("Failed to get user profile: " + error);
+                                        public void onVerificationFailed(com.google.firebase.FirebaseException e) {
+                                            Log.e("LoginActivity", "Phone verification failed", e);
+                                            showError(getString(R.string.login_failed) + ": " + e.getMessage());
                                         }
-                                    });
-                                } else {
-                                    showError(getString(R.string.login_failed) + ": " + authTask.getException().getMessage());
-                                }
-                            });
-                        
+
+                                        @Override
+                                        public void onCodeSent(String verId,
+                                                               PhoneAuthProvider.ForceResendingToken token) {
+                                            Log.d("LoginActivity", "OTP code sent");
+                                            verificationId = verId;
+                                            resendToken = token;
+                                            showSuccess(getString(R.string.otp_sent));
+                                        }
+                                    })
+                                    .build();
+
+                    PhoneAuthProvider.verifyPhoneNumber(options);
+                });
+    }
+
+    private void loginWithPhoneOtp() {
+        if (etPhone == null || etOtp == null) {
+            showError(getString(R.string.fill_all_fields));
+            return;
+        }
+
+        String phone = etPhone.getText().toString().trim();
+        String code = etOtp.getText().toString().trim();
+
+        if (TextUtils.isEmpty(phone) || TextUtils.isEmpty(code)) {
+            showError(getString(R.string.fill_all_fields));
+            return;
+        }
+
+        if (verificationId == null) {
+            showError(getString(R.string.otp_not_requested));
+            return;
+        }
+
+        PhoneAuthCredential credential = PhoneAuthProvider.getCredential(verificationId, code);
+        signInWithPhoneCredential(credential);
+    }
+
+    private void signInWithPhoneCredential(PhoneAuthCredential credential) {
+        showLoading(getString(R.string.signing_in));
+        btnLogin.setEnabled(false);
+
+        mAuth.signInWithCredential(credential)
+                .addOnCompleteListener(this, task -> {
+                    btnLogin.setEnabled(true);
+                    if (task.isSuccessful()) {
+                        Log.d("LoginActivity", "Phone auth sign-in successful");
+                        showSuccess(getString(R.string.login_successful));
+
+                        // Reuse existing flow: get user profile and validate license
+                        authManager.getCurrentUser(new AuthManager.AuthCallback() {
+                            @Override
+                            public void onSuccess(User user) {
+                                // IMPORTANT: no offline password stored for phone login
+                                // We just validate license and start online session.
+                                validateUserLicense(user);
+                            }
+
+                            @Override
+                            public void onError(String error) {
+                                showError("Failed to get user profile: " + error);
+                            }
+                        });
                     } else {
-                        btnLogin.setEnabled(true);
-                        if (task.getResult().isEmpty()) {
-                            showError(getString(R.string.user_not_found_phone));
-                        } else {
-                            showError(getString(R.string.login_failed) + ": " + task.getException().getMessage());
-                        }
+                        Log.e("LoginActivity", "Phone auth sign-in failed", task.getException());
+                        showError(getString(R.string.login_failed) + ": " +
+                                (task.getException() != null ? task.getException().getMessage() : ""));
                     }
                 });
     }

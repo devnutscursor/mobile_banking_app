@@ -143,7 +143,11 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
 
       // Create agent account
       const secAuth = getSecondaryAuth() || getAuth();
-      const userCredential = await createUserWithEmailAndPassword(secAuth, values.email, values.password);
+      const userCredential = await createUserWithEmailAndPassword(
+        secAuth,
+        values.email,
+        values.password
+      );
       
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         uid: userCredential.user.uid,
@@ -161,6 +165,23 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
         updatedAt: Timestamp.now(),
         creditUpdatedAt: Timestamp.now(),
       });
+
+      // If phone provided, link it to the new Auth user for phone+OTP login
+      if (values.phone) {
+        try {
+          await fetch('/api/link-phone', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              uid: userCredential.user.uid,
+              phone: values.phone,
+            }),
+          });
+        } catch (e) {
+          console.error('Failed to link dealer-agent phone in Auth:', e);
+          message.warning('Agent created, but phone could not be linked for OTP login.');
+        }
+      }
       
       message.success('Agent created successfully!');
       await signOutSecondary();
