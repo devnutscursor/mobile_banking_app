@@ -34,13 +34,6 @@ import com.example.myapplication.utils.SessionManager;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.Color;
-import android.graphics.Bitmap;
-import android.net.Uri;
-import androidx.core.content.FileProvider;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -134,11 +127,6 @@ public class CashRegisterActivity extends AppCompatActivity {
                 e.printStackTrace();
                 Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
-        });
-        // Set print ticket listener
-        adapter.setPrintTicketListener(transaction -> {
-            Log.d(TAG, "Print ticket listener called for transaction: " + (transaction != null ? transaction.getId() : "null"));
-            printTransactionTicket(transaction);
         });
         recyclerView.setAdapter(adapter);
         
@@ -773,127 +761,8 @@ public class CashRegisterActivity extends AppCompatActivity {
             Log.e(TAG, "Error broadcasting credit change", e);
         }
     }
-     
-    /**
-     * Print a 58mm-style ticket for the given transaction.
-     * Displays: transaction number, customer name and phone, operator name,
-     * transaction type, amount, fees, date, and agent company name.
-     */
-    private void printTransactionTicket(TransactionEntity tx) {
-        if (tx == null) {
-            Log.e(TAG, "Transaction is null, cannot print");
-            return;
-        }
-
-        Log.d(TAG, "printTransactionTicket called for: " + tx.getId());
-
-        // Agent / company name (use current user's name)
-        String agentName = "";
-        UserEntity user = sessionManager.getUserFromSession();
-        if (user != null && user.getName() != null) {
-            agentName = user.getName();
-        }
-
-        // Date
-        java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
-        String dateStr = df.format(new java.util.Date(tx.getCreatedAt()));
-
-        // Compute fees (only for transfers, same logic as elsewhere)
-        double fees = 0;
-        String typeLower = tx.getTransactionType() != null ? tx.getTransactionType().toLowerCase() : "";
-        if (typeLower.contains("transfer")) {
-            try {
-                OperatorEntity operator = database.operatorDao().getById(tx.getOperatorId());
-                if (operator != null) {
-                    double transferRate = operator.getTransferRate();
-                    fees = tx.getAmount() * (transferRate / 100.0);
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error calculating transfer fees for ticket", e);
-            }
-        }
-
-        String amountStr = com.example.myapplication.utils.NumberFormatter
-                .formatWithThousandsSeparator(tx.getAmount());
-        String feeStr = com.example.myapplication.utils.NumberFormatter
-                .formatWithThousandsSeparator(fees);
-        String currency = " F"; // keep same symbol as UI
-
-        String ticketText =
-                (agentName.isEmpty() ? "" : ("   " + agentName + "\n")) +
-                "------------------------------\n" +
-                "TXN: " + safe(tx.getId()).toUpperCase() + "\n" +
-                "Customer: " + safe(tx.getCustomerName()) + "\n" +
-                "Phone: " + safe(tx.getCustomerPhone()) + "\n" +
-                "Operator: " + safe(tx.getOperatorName()) + "\n" +
-                "Type: " + safe(tx.getTransactionType()) + "\n" +
-                "Amount: " + amountStr + currency + "\n" +
-                "Fees: " + feeStr + currency + "\n" +
-                "Date: " + dateStr + "\n" +
-                "------------------------------\n" +
-                "Thank you.\n";
-
-        try {
-            // Render the ticket text into a bitmap suitable for 58mm printers
-            String[] lines = ticketText.split("\\n");
-
-            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            paint.setColor(Color.BLACK);
-            paint.setTextSize(24f); // reasonably small for 58mm
-
-            float lineHeight = paint.getTextSize() + 8f;
-            int width = 384; // common printable width for 58mm printers (in pixels)
-            int height = (int) (lineHeight * lines.length + 40);
-
-            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmap);
-            canvas.drawColor(Color.WHITE);
-
-            float x = 10f;
-            float y = 30f;
-            for (String line : lines) {
-                canvas.drawText(line, x, y, paint);
-                y += lineHeight;
-            }
-
-            // Save bitmap to cache and share via external printer app (avoids PrintManager restrictions)
-            String jobName = "ticket_" + safe(tx.getId()) + ".png";
-            java.io.File cacheDir = new java.io.File(getCacheDir(), "tickets");
-            if (!cacheDir.exists()) {
-                // noinspection ResultOfMethodCallIgnored
-                cacheDir.mkdirs();
-            }
-            java.io.File file = new java.io.File(cacheDir, jobName);
-            java.io.FileOutputStream fos = new java.io.FileOutputStream(file);
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
-            fos.flush();
-            fos.close();
-
-            Uri uri = FileProvider.getUriForFile(
-                    this,
-                    getPackageName() + ".fileprovider",
-                    file
-            );
-
-            Intent shareIntent = new Intent(Intent.ACTION_SEND);
-            shareIntent.setType("image/png");
-            shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
-            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-            startActivity(Intent.createChooser(shareIntent, "Print / Share ticket"));
-            Log.d(TAG, "Print/share chooser opened successfully");
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error printing ticket", e);
-            Toast.makeText(this, "Error printing ticket: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private String safe(String value) {
-        return value == null ? "" : value;
-    }
-     
-     private void updateUserCredit(TransactionEntity transaction) {
+    
+    private void updateUserCredit(TransactionEntity transaction) {
         try {
             UserEntity user = database.userDao().getUserById(activeUserId);
             if (user != null) {

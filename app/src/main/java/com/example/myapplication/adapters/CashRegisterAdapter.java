@@ -35,10 +35,6 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
     public interface OnUssdRetryClickListener {
         void onUssdRetryClick(TransactionEntity transaction);
     }
-
-    public interface OnPrintTicketClickListener {
-        void onPrintTicketClick(TransactionEntity transaction);
-    }
     
     public CashRegisterAdapter(Context context, OnTransactionClickListener listener) {
         this.context = context;
@@ -50,13 +46,8 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
     public void setUssdRetryListener(OnUssdRetryClickListener ussdRetryListener) {
         this.ussdRetryListener = ussdRetryListener;
     }
-
-    public void setPrintTicketListener(OnPrintTicketClickListener printTicketListener) {
-        this.printTicketListener = printTicketListener;
-    }
     
     private OnUssdRetryClickListener ussdRetryListener;
-    private OnPrintTicketClickListener printTicketListener;
     
     public void setTransactions(List<TransactionEntity> transactions) {
         this.transactions = transactions;
@@ -180,17 +171,6 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
             holder.ivUssdRetry.setOnClickListener(null);
         }
         
-        // Print ticket button
-        holder.ivPrintTicket.setOnClickListener(v -> {
-            android.util.Log.d("CashRegisterAdapter", "Print ticket button clicked for transaction: " + transaction.getId());
-            if (printTicketListener != null) {
-                printTicketListener.onPrintTicketClick(transaction);
-            } else {
-                android.util.Log.e("CashRegisterAdapter", "printTicketListener is null!");
-                android.widget.Toast.makeText(context, "Print listener not set", android.widget.Toast.LENGTH_SHORT).show();
-            }
-        });
-
         // Remove card click listener - now only edit icon opens details
         holder.cardView.setOnClickListener(null);
     }
@@ -277,7 +257,6 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         TextView tvDate;
         ImageView ivEdit;
         ImageView ivUssdRetry;
-        ImageView ivPrintTicket;
         
         public TransactionViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -291,7 +270,6 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
             tvDate = itemView.findViewById(R.id.tvDate);
             ivEdit = itemView.findViewById(R.id.ivEdit);
             ivUssdRetry = itemView.findViewById(R.id.ivUssdRetry);
-            ivPrintTicket = itemView.findViewById(R.id.ivPrintTicket);
         }
     }
 }
