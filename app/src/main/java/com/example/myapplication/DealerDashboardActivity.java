@@ -13,8 +13,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+
+import com.example.myapplication.utils.EdgeToEdgeHelper;
 
 import com.example.myapplication.database.AppDatabase;
 import com.example.myapplication.database.entities.OperatorEntity;
@@ -77,6 +77,10 @@ public class DealerDashboardActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge display
+        EdgeToEdgeHelper.enableEdgeToEdge(this);
+        
         setContentView(R.layout.activity_dealer_dashboard);
         
 
@@ -86,7 +90,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
         firestore = FirebaseFirestore.getInstance();
 
         initViews();
-        setupSystemWindowInsets();
+        EdgeToEdgeHelper.setupHeaderInsets(headerLayout, this);
         setupLanguageSpinner();
         setupClickListeners();
         loadUserData();
@@ -120,32 +124,6 @@ public class DealerDashboardActivity extends AppCompatActivity {
         headerLayout = findViewById(R.id.headerLayout);
     }
     
-    /**
-     * Setup system window insets to handle notch area padding on initial load
-     * This ensures the header has proper top padding to avoid collision with notch/status bar
-     */
-    private void setupSystemWindowInsets() {
-        if (headerLayout != null) {
-            // Post to ensure view is measured
-            headerLayout.post(() -> {
-                ViewCompat.setOnApplyWindowInsetsListener(headerLayout, (v, insets) -> {
-                    int topInset = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top;
-                    // Base padding from XML is 24dp (convert to pixels)
-                    int basePaddingTop = (int) (24 * getResources().getDisplayMetrics().density);
-                    
-                    // Set padding: base padding + system bar inset
-                    v.setPadding(v.getPaddingLeft(), topInset + basePaddingTop, 
-                               v.getPaddingRight(), v.getPaddingBottom());
-                    
-                    return insets;
-                });
-                
-                // Request to apply window insets
-                ViewCompat.requestApplyInsets(headerLayout);
-            });
-        }
-    }
-
     private void setupLanguageSpinner() {
         // Get the language flag ImageView from the included layout
         ImageView ivLanguageFlag = findViewById(R.id.ivLanguageFlag);

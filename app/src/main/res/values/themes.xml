@@ -10,8 +10,9 @@
         <item name="colorSecondary">@color/secondary_gray</item>
         <item name="colorSecondaryVariant">@color/secondary_gray_dark</item>
         <item name="colorOnSecondary">@color/text_white</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor" tools:targetApi="l">@color/primary_blue_dark</item>
+        <!-- Status bar color - transparent for edge-to-edge -->
+        <item name="android:statusBarColor" tools:targetApi="l">@android:color/transparent</item>
+        <item name="android:navigationBarColor" tools:targetApi="l">@android:color/transparent</item>
         <!-- Background colors -->
         <item name="android:windowBackground">@color/background_light</item>
         <item name="colorSurface">@color/background_white</item>
@@ -19,6 +20,8 @@
         <!-- Error colors -->
         <item name="colorError">@color/error_red</item>
         <item name="colorOnError">@color/text_white</item>
+        <!-- Enable edge-to-edge -->
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="o_mr1">shortEdges</item>
     </style>
 
     <!-- Banking Button Styles -->

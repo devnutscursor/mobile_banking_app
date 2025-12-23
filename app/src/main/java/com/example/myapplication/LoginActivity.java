@@ -22,6 +22,7 @@ import com.example.myapplication.database.entities.LicenseEntity;
 import com.example.myapplication.entities.User;
 import com.example.myapplication.entities.License;
 import com.example.myapplication.utils.AuthManager;
+import com.example.myapplication.utils.EdgeToEdgeHelper;
 import com.example.myapplication.utils.LicenseManager;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.LanguageManager;
@@ -75,6 +76,10 @@ public class LoginActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge display
+        EdgeToEdgeHelper.enableEdgeToEdge(this);
+        
         setContentView(R.layout.activity_login);
         
 
@@ -100,6 +105,7 @@ public class LoginActivity extends AppCompatActivity {
         tvSubtitle = findViewById(getResources().getIdentifier("tvSubtitle", "id", getPackageName()));
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
 
+        EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
         setupLanguageSpinner();
         setupLoginTypeToggle();
         btnLogin.setOnClickListener(v -> loginUser());

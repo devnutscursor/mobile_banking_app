@@ -128,11 +128,12 @@
             android:text="@string/accept"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="@color/text_white"
-            android:backgroundTint="@color/primary_purple"
+            android:textColor="@android:color/white"
+            android:background="@color/primary_purple"
             android:minHeight="64dp"
             android:minWidth="120dp"
             android:paddingVertical="16dp"
+            android:stateListAnimator="@null"
             style="@style/Widget.MaterialComponents.Button" />
 
     </LinearLayout>

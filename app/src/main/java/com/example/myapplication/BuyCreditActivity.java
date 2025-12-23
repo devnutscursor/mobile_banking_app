@@ -76,7 +76,14 @@ public class BuyCreditActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Enable edge-to-edge display
+        com.example.myapplication.utils.EdgeToEdgeHelper.enableEdgeToEdge(this);
+        
         setContentView(R.layout.activity_purchase_credit_cash);
+        
+        // Setup window insets for header
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
         
         sessionManager = new SessionManager(this);
         database = AppDatabase.getDatabase(this);

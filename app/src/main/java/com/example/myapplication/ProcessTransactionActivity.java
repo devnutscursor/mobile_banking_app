@@ -138,10 +138,16 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
+        // Enable edge-to-edge display
+        com.example.myapplication.utils.EdgeToEdgeHelper.enableEdgeToEdge(this);
+        
         // Apply language handled via base context in app; no explicit call needed here
         LanguageManager languageManager = LanguageManager.getInstance(this);
         
         setContentView(R.layout.activity_process_transaction);
+        
+        // Setup window insets for header
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
 
         // Initialize services
         db = FirebaseFirestore.getInstance();

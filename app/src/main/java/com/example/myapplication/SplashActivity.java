@@ -110,6 +110,10 @@ public class SplashActivity extends AppCompatActivity {
         Button btnAccept = dialogView.findViewById(R.id.btnAccept);
         Button btnDecline = dialogView.findViewById(R.id.btnDecline);
         
+        // Explicitly set Accept button colors to ensure visibility
+        btnAccept.setTextColor(getResources().getColor(android.R.color.white, null));
+        btnAccept.setBackgroundColor(getResources().getColor(R.color.primary_purple, null));
+        
         // Accept button click
         btnAccept.setOnClickListener(v -> {
             if (!cbAcceptTerms.isChecked()) {

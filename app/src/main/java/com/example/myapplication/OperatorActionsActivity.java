@@ -36,7 +36,15 @@ public class OperatorActionsActivity extends AppCompatActivity {
 
     @Override protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Enable edge-to-edge display
+        com.example.myapplication.utils.EdgeToEdgeHelper.enableEdgeToEdge(this);
+        
         setContentView(R.layout.activity_operator_actions);
+        
+        // Setup window insets for header
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
+        
         db = AppDatabase.getDatabase(this); sm = new SessionManager(this); sync = new SyncManager(this);
         operatorId = getIntent().getStringExtra(EXTRA_OPERATOR_ID);
         uid = sm.getUserFromSession() != null ? sm.getUserFromSession().getUid() : "";

@@ -62,7 +62,14 @@ public class CommissionReportActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Enable edge-to-edge display
+        com.example.myapplication.utils.EdgeToEdgeHelper.enableEdgeToEdge(this);
+        
         setContentView(R.layout.activity_commission_report);
+        
+        // Setup window insets for header
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
         
         database = AppDatabase.getDatabase(this);
         sessionManager = new SessionManager(this);

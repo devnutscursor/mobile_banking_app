@@ -146,25 +146,13 @@ public class MRZParser {
         data.countryCode = line1.substring(2, 5); // Country code (BFA)
         
         // Extract document number: positions 5-13 (9 chars), skip check digit at position 14
-        // For Burkina Faso ID: "B21371949" is 9 characters at positions 5-13
-        // The format is: country code (3) + document number (9) + check digit (1) + fillers
-        String docNumberWithCheck = line1.substring(5, Math.min(15, line1.length()));
-        // Remove all < characters to get the actual number
-        docNumberWithCheck = docNumberWithCheck.replaceAll("<", "");
-        
-        // Document number is typically 9 characters (e.g., "B21371949")
-        // If there's a 10th character, it's likely a check digit
+        String docNumberWithCheck = line1.substring(5, Math.min(15, line1.length())).replaceAll("<", "");
+        // Take only the ID number part (remove check digit if present)
+        // Document number is typically 9 characters, the 10th is check digit
         if (docNumberWithCheck.length() >= 9) {
-            // Take first 9 characters as the document number
             data.documentNumber = docNumberWithCheck.substring(0, 9);
-            Log.d(TAG, "Extracted document number: '" + data.documentNumber + "' from '" + docNumberWithCheck + "'");
-        } else if (docNumberWithCheck.length() > 0) {
-            // If less than 9, use what we have (might be OCR error)
-            data.documentNumber = docNumberWithCheck;
-            Log.d(TAG, "Extracted document number (short): '" + data.documentNumber + "' from '" + docNumberWithCheck + "'");
         } else {
-            data.documentNumber = "";
-            Log.w(TAG, "No document number found in line 1");
+            data.documentNumber = docNumberWithCheck;
         }
         
         // Line 2: 0001085M3504244BFA<<<<<<<<<<<4
@@ -174,19 +162,16 @@ public class MRZParser {
         // Position 8-13: Expiry date (YYMMDD) = 350424 = 2035-04-24
         // Position 14: Check digit for expiry (excluded from date extraction)
         // Position 15-17: Nationality (BFA)
-        if (line2.length() >= 14) {
+        if (line2.length() >= 18) {
             // Date of birth: positions 0-5 (6 characters, YYMMDD format)
             // Note: substring(0, 6) extracts positions 0-5 (6 chars), excluding position 6 (check digit)
             String dob = line2.substring(0, 6);
             Log.d(TAG, "Extracted DOB raw from line2: '" + dob + "'");
-            data.dateOfBirth = parseDate(dob, true); // Convert to YYYY-MM-DD
+            data.dateOfBirth = parseDate(dob, true); // Convert to DD-MM-YYYY
             
             // Gender: position 7
             if (line2.length() > 7) {
-                String genderChar = line2.substring(7, 8).replace("<", "");
-                if (!genderChar.isEmpty()) {
-                    data.gender = genderChar;
-                }
+                data.gender = line2.substring(7, 8).replace("<", "");
             }
             
             // Expiry date: positions 8-13 (6 characters, YYMMDD format)
@@ -200,12 +185,6 @@ public class MRZParser {
             // Nationality: positions 15-17
             if (line2.length() >= 18) {
                 data.nationality = line2.substring(15, 18);
-            } else if (line2.length() >= 15) {
-                // Try to extract if line is slightly shorter
-                String possibleNationality = line2.substring(15).replaceAll("<", "").trim();
-                if (possibleNationality.length() >= 3) {
-                    data.nationality = possibleNationality.substring(0, 3);
-                }
             }
         } else {
             Log.w(TAG, "Line 2 too short for date extraction. Length: " + line2.length() + ", Content: " + line2);
@@ -281,89 +260,36 @@ public class MRZParser {
     
     /**
      * Parse TD3 format (Passports, 2 lines × 44 characters)
-     * Example from image:
-     * Line 1: PPBFATIEMA<<DANLE<CHEICK<ABOUBACAR<SIDIK<<<<
-     * Line 2: A4001733<2BFA0001085M2909222<<<<<<<<<<<<<<<<06
      */
     private static MRZData parseTD3(java.util.List<String> lines) {
-        if (lines.size() < 2) {
-            Log.w(TAG, "TD3: Not enough lines. Lines: " + lines.size());
+        if (lines.size() < 2 || lines.get(0).length() < 44 || lines.get(1).length() < 44) {
             return null;
         }
         
-        // Normalize line lengths - pad with < if too short, truncate if too long
-        // TD3 lines should be 44 chars, but OCR might give slightly different lengths
-        java.util.List<String> normalizedLines = new java.util.ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            String line = lines.get(i);
-            if (line.length() < 44) {
-                // Pad with < to reach 44 chars
-                StringBuilder padded = new StringBuilder(line);
-                while (padded.length() < 44) {
-                    padded.append('<');
-                }
-                normalizedLines.add(padded.toString());
-            } else if (line.length() > 44) {
-                // Truncate to 44 chars
-                normalizedLines.add(line.substring(0, 44));
-            } else {
-                normalizedLines.add(line);
-            }
-        }
-        
-        String line1 = normalizedLines.get(0);
-        String line2 = normalizedLines.get(1);
+        String line1 = lines.get(0);
+        String line2 = lines.get(1);
         
         MRZData data = new MRZData();
         
-        // Line 1: PPBFATIEMA<<DANLE<CHEICK<ABOUBACAR<SIDIK<<<<
-        // Position 0-1: Document type (P< or PP for passport)
-        // Position 2-4: Country code (e.g., "BFA")
-        // Position 5-43: Name field (Surname<<GivenNames)
+        // Line 1
         data.documentType = line1.substring(0, 2);
         data.countryCode = line1.substring(2, 5);
         String nameField = line1.substring(5, 44).trim();
         parseNames(nameField, data);
         
-        // Line 2: A4001733<2BFA0001085M2909222<<<<<<<<<<<<<<<<06
-        // Position 0-8: Document number (9 chars)
-        // Position 9: Check digit for document number
-        // Position 10-12: Nationality (3 letters)
-        // Position 13-18: Date of birth YYMMDD (6 digits)
-        // Position 19: Check digit for DOB
-        // Position 20: Gender (M/F/X)
-        // Position 21-26: Expiry date YYMMDD (6 digits)
-        // Position 27: Check digit for expiry
-        // Position 28-41: Personal number (optional)
-        // Position 42: Check digit for personal number
-        // Position 43: Final check digit
-        
+        // Line 2
         String docNumber = line2.substring(0, 9).replaceAll("<", "").trim();
         data.documentNumber = docNumber;
-        
-        if (line2.length() >= 13) {
-            data.nationality = line2.substring(10, 13);
-        }
-        
-        if (line2.length() >= 19) {
-            String dob = line2.substring(13, 19);
-            Log.d(TAG, "Extracted DOB raw from TD3 line2: '" + dob + "'");
-            data.dateOfBirth = parseDate(dob, true);
-        }
-        
-        if (line2.length() >= 21) {
-            data.gender = line2.substring(20, 21).replace("<", "");
-        }
-        
-        if (line2.length() >= 27) {
-            String expiry = line2.substring(21, 27);
-            Log.d(TAG, "Extracted expiry raw from TD3 line2: '" + expiry + "'");
-            data.expiryDate = parseDate(expiry, false);
-        }
+        data.nationality = line2.substring(10, 13);
+        String dob = line2.substring(13, 19);
+        data.dateOfBirth = parseDate(dob, true);
+        data.gender = line2.substring(20, 21).replace("<", "");
+        String expiry = line2.substring(21, 27);
+        data.expiryDate = parseDate(expiry, false);
         
         // Personal number (optional)
         if (line2.length() > 28) {
-            String personalNumber = line2.substring(28, Math.min(42, line2.length())).replaceAll("<", "").trim();
+            String personalNumber = line2.substring(28, 42).replaceAll("<", "").trim();
             if (!personalNumber.isEmpty()) {
                 data.nationalIdNumber = personalNumber;
             }
@@ -374,9 +300,6 @@ public class MRZParser {
         }
         
         data.documentTypeName = mapDocumentType(data.documentType);
-        
-        Log.d(TAG, "Parsed TD3 - Name: " + data.fullName + ", DOB: " + data.dateOfBirth + 
-              ", Doc#: " + data.documentNumber + ", Expiry: " + data.expiryDate);
         
         return data;
     }
@@ -423,20 +346,10 @@ public class MRZParser {
             
             for (String namePart : givenNameParts) {
                 String trimmed = namePart.trim();
-                // Filter out single characters that are likely check digits or filler
+                // Filter out single characters that are likely check digits
                 // Keep only names with 2+ characters
-                // Also handle cases where name might be truncated (e.g., "ABOUBACA" instead of "ABOUBACAR")
                 if (trimmed.length() >= 2) {
                     validNames.add(trimmed);
-                } else if (trimmed.length() == 1 && validNames.size() > 0) {
-                    // Single character after a valid name might be part of the last name
-                    // For example: "ABOUBACA" + "S" might be "ABOUBACAR" or "ABOUBACAR SIDIK"
-                    // In this case, we'll append it to the last name if it makes sense
-                    String lastValidName = validNames.get(validNames.size() - 1);
-                    // Only append if the last name is short (might be truncated)
-                    if (lastValidName.length() < 8) {
-                        validNames.set(validNames.size() - 1, lastValidName + trimmed);
-                    }
                 }
             }
             

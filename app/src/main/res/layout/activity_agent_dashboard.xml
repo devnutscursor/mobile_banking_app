@@ -9,14 +9,15 @@
     <LinearLayout
         android:id="@+id/headerLayout"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="wrap_content"
         android:background="@drawable/gradient_primary"
         android:orientation="horizontal"
-        android:padding="16dp"
-        android:paddingTop="24dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="4dp"
+        android:paddingTop="4dp"
         android:gravity="center_vertical"
-        android:layout_alignParentTop="true"
-        android:fitsSystemWindows="true">
+        android:layout_alignParentTop="true">
 
         <!-- Menu Button -->
         <ImageView

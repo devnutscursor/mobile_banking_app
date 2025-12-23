@@ -14,6 +14,8 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.myapplication.utils.EdgeToEdgeHelper;
+
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.utils.AuthManager;
 import com.example.myapplication.utils.SessionManager;
@@ -52,6 +54,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
     private View btnCustomers, btnCashRegister, btnBuyCredit, btnTransactions, btnReports;
     private Button btnLogout;
     private ImageView btnMenu, btnSync;
+    private View headerLayout;
     private Spinner spinnerLanguage;
     private AuthManager authManager;
     private SessionManager sessionManager;
@@ -71,6 +74,10 @@ public class AgentDashboardActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Enable edge-to-edge display
+        EdgeToEdgeHelper.enableEdgeToEdge(this);
+        
         setContentView(R.layout.activity_agent_dashboard);
         
 
@@ -80,6 +87,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
         firestore = FirebaseFirestore.getInstance();
 
         initViews();
+        EdgeToEdgeHelper.setupHeaderInsets(headerLayout, this);
         setupLanguageSpinner();
         setupClickListeners();
         loadUserData();
@@ -110,6 +118,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
         btnMenu = findViewById(R.id.btnMenu);
         btnSync = findViewById(R.id.btnSync);
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
+        headerLayout = findViewById(R.id.headerLayout);
     }
 
     private void setupLanguageSpinner() {
