@@ -26,6 +26,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
     private Context context;
     private List<TransactionEntity> transactions;
     private OnTransactionClickListener listener;
+    private OnPrintTicketClickListener printTicketListener;
     private SimpleDateFormat dateFormat;
     
     public interface OnTransactionClickListener {
@@ -34,6 +35,10 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
     
     public interface OnUssdRetryClickListener {
         void onUssdRetryClick(TransactionEntity transaction);
+    }
+
+    public interface OnPrintTicketClickListener {
+        void onPrintTicketClick(TransactionEntity transaction);
     }
     
     public CashRegisterAdapter(Context context, OnTransactionClickListener listener) {
@@ -48,6 +53,10 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
     }
     
     private OnUssdRetryClickListener ussdRetryListener;
+    
+    public void setPrintTicketListener(OnPrintTicketClickListener listener) {
+        this.printTicketListener = listener;
+    }
     
     public void setTransactions(List<TransactionEntity> transactions) {
         this.transactions = transactions;
@@ -128,6 +137,13 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         holder.ivEdit.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onTransactionClick(transaction);
+            }
+        });
+
+        // Print ticket icon click listener
+        holder.ivPrintTicket.setOnClickListener(v -> {
+            if (printTicketListener != null) {
+                printTicketListener.onPrintTicketClick(transaction);
             }
         });
         
@@ -256,6 +272,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         TextView tvStatus;
         TextView tvDate;
         ImageView ivEdit;
+        ImageView ivPrintTicket;
         ImageView ivUssdRetry;
         
         public TransactionViewHolder(@NonNull View itemView) {
@@ -269,6 +286,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
             tvStatus = itemView.findViewById(R.id.tvStatus);
             tvDate = itemView.findViewById(R.id.tvDate);
             ivEdit = itemView.findViewById(R.id.ivEdit);
+            ivPrintTicket = itemView.findViewById(R.id.ivPrintTicket);
             ivUssdRetry = itemView.findViewById(R.id.ivUssdRetry);
         }
     }

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Allow sharing files from cache directory -->
+    <!-- Allow sharing ticket images from cache/tickets directory -->
+    <cache-path
+        name="tickets"
+        path="tickets/" />
+
+    <!-- Allow sharing other cached files if needed -->
     <cache-path
         name="cache"
         path="." />

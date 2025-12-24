@@ -20,6 +20,9 @@
     <string name="otp_not_requested">Please request an OTP first</string>
     <string name="otp_sent">OTP sent successfully</string>
     <string name="send_otp">Send OTP</string>
+    <string name="request_otp">Request OTP</string>
+    <string name="resend_otp">Resend OTP</string>
+    <string name="resend_otp_in">Resend OTP in %1$ds</string>
     <string name="login_successful">Login successful!</string>
     <string name="login_failed">Login failed</string>
     <string name="fill_all_fields">Please fill all fields</string>
@@ -29,6 +32,9 @@
     <string name="license_invalid">License invalid</string>
     <string name="checking_offline_access">Checking offline access...</string>
     <string name="credentials_not_found_offline">Credentials not found offline, trying online login...</string>
+    <string name="total_credits">Total Credits</string>
+    <string name="insufficient_total_credits">Insufficient total credits</string>
+    <string name="operator_balance_cannot_be_negative">Operator balance cannot go below 0</string>
     
     <!-- License Activation -->
     <string name="license_activation">License Activation</string>
@@ -357,6 +363,7 @@
     <string name="syncing_customers">Syncing customers...</string>
     <string name="syncing_operators">Syncing operators...</string>
     <string name="syncing_operator_actions">Syncing operator actions...</string>
+    <string name="syncing_operator_balances">Syncing operator balances...</string>
     <string name="data_synced_successfully">Data synced successfully!</string>
     <string name="sync_failed_error">Sync failed: %1$s</string>
     

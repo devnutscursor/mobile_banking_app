@@ -58,7 +58,7 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private EditText etEmail, etPassword, etPhone, etOtp;
-    private Button btnLogin, btnSendOtp;
+    private Button btnLogin, btnSendOtp, btnResendOtp;
     private TextView tvStatus;
     private TextView tvWelcomeTitle; // "Welcome Back"
     private TextView tvSubtitle;     // "Sign in to your account"
@@ -78,6 +78,15 @@ public class LoginActivity extends AppCompatActivity {
     // Phone auth state
     private String verificationId = null;
     private PhoneAuthProvider.ForceResendingToken resendToken = null;
+    
+    // Phone login flow state
+    private enum PhoneLoginState {
+        INITIAL,      // Only phone field and Request OTP button visible
+        OTP_SENT,     // OTP field and Login button visible, Request OTP hidden
+        RESEND_AVAILABLE  // Resend OTP button visible
+    }
+    private PhoneLoginState phoneLoginState = PhoneLoginState.INITIAL;
+    private android.os.CountDownTimer countDownTimer = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -102,6 +111,7 @@ public class LoginActivity extends AppCompatActivity {
         etOtp = findViewById(R.id.etOtp);
         btnLogin = findViewById(R.id.btnLogin);
         btnSendOtp = findViewById(R.id.btnSendOtp);
+        btnResendOtp = findViewById(R.id.btnResendOtp);
         tvStatus = findViewById(R.id.tvStatus);
         tilEmail = findViewById(R.id.tilEmail);
         tilPassword = findViewById(R.id.tilPassword);
@@ -119,6 +129,7 @@ public class LoginActivity extends AppCompatActivity {
         setupLoginTypeToggle();
         btnLogin.setOnClickListener(v -> loginUser());
         btnSendOtp.setOnClickListener(v -> sendOtp());
+        btnResendOtp.setOnClickListener(v -> resendOtp());
         
         // No explicit apply here; locale is already applied via attachBaseContext
     }
@@ -212,13 +223,16 @@ public class LoginActivity extends AppCompatActivity {
             tilEmail.setVisibility(View.GONE);
             tilPassword.setVisibility(View.GONE);
             tilPhone.setVisibility(View.VISIBLE);
-            tilOtp.setVisibility(View.VISIBLE);
-            btnSendOtp.setVisibility(View.VISIBLE);
+            
+            // Reset phone login state to initial
+            phoneLoginState = PhoneLoginState.INITIAL;
+            updatePhoneLoginUI();
 
-            tvLoginTypeEmail.setAlpha(0.6f);
-            tvLoginTypeEmail.setBackgroundResource(R.color.card_background);
-            tvLoginTypePhone.setAlpha(1.0f);
-            tvLoginTypePhone.setBackgroundResource(R.drawable.modern_button_primary);
+            // Update toggle button states
+            tvLoginTypeEmail.setBackgroundResource(R.drawable.toggle_button_inactive_selector);
+            tvLoginTypeEmail.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
+            tvLoginTypePhone.setBackgroundResource(R.drawable.toggle_button_active_selector);
+            tvLoginTypePhone.setTextColor(getResources().getColor(R.color.text_white, getTheme()));
         } else {
             // Email/password mode
             tilEmail.setVisibility(View.VISIBLE);
@@ -226,11 +240,20 @@ public class LoginActivity extends AppCompatActivity {
             tilPhone.setVisibility(View.GONE);
             tilOtp.setVisibility(View.GONE);
             btnSendOtp.setVisibility(View.GONE);
+            btnResendOtp.setVisibility(View.GONE);
+            btnLogin.setVisibility(View.VISIBLE);
+            
+            // Cancel any running timer
+            if (countDownTimer != null) {
+                countDownTimer.cancel();
+                countDownTimer = null;
+            }
 
-            tvLoginTypeEmail.setAlpha(1.0f);
-            tvLoginTypeEmail.setBackgroundResource(R.drawable.modern_button_primary);
-            tvLoginTypePhone.setAlpha(0.6f);
-            tvLoginTypePhone.setBackgroundResource(R.color.card_background);
+            // Update toggle button states
+            tvLoginTypeEmail.setBackgroundResource(R.drawable.toggle_button_active_selector);
+            tvLoginTypeEmail.setTextColor(getResources().getColor(R.color.text_white, getTheme()));
+            tvLoginTypePhone.setBackgroundResource(R.drawable.toggle_button_inactive_selector);
+            tvLoginTypePhone.setTextColor(getResources().getColor(R.color.text_secondary, getTheme()));
         }
 
         // Clear fields when switching modes
@@ -240,6 +263,39 @@ public class LoginActivity extends AppCompatActivity {
         if (etOtp != null) etOtp.setText("");
         verificationId = null;
         resendToken = null;
+    }
+    
+    /**
+     * Update UI visibility based on phone login state
+     */
+    private void updatePhoneLoginUI() {
+        if (!isPhoneLogin) return;
+        
+        switch (phoneLoginState) {
+            case INITIAL:
+                // Only phone field and Request OTP button visible
+                tilOtp.setVisibility(View.GONE);
+                btnSendOtp.setVisibility(View.VISIBLE);
+                btnResendOtp.setVisibility(View.GONE);
+                btnLogin.setVisibility(View.GONE);
+                break;
+                
+            case OTP_SENT:
+                // OTP field and Login button visible, Request OTP hidden
+                tilOtp.setVisibility(View.VISIBLE);
+                btnSendOtp.setVisibility(View.GONE);
+                btnResendOtp.setVisibility(View.GONE);
+                btnLogin.setVisibility(View.VISIBLE);
+                break;
+                
+            case RESEND_AVAILABLE:
+                // OTP field, Login button, and Resend OTP button visible
+                tilOtp.setVisibility(View.VISIBLE);
+                btnSendOtp.setVisibility(View.GONE);
+                btnResendOtp.setVisibility(View.VISIBLE);
+                btnLogin.setVisibility(View.VISIBLE);
+                break;
+        }
     }
 
     private void loginUser() {
@@ -433,12 +489,112 @@ public class LoginActivity extends AppCompatActivity {
                                             verificationId = verId;
                                             resendToken = token;
                                             showSuccess(getString(R.string.otp_sent));
+                                            
+                                            // Update state to OTP_SENT and show OTP field + Login button
+                                            phoneLoginState = PhoneLoginState.OTP_SENT;
+                                            updatePhoneLoginUI();
+                                            
+                                            // Start 60-second countdown timer
+                                            startResendCountdown();
                                         }
                                     })
                                     .build();
 
                     PhoneAuthProvider.verifyPhoneNumber(options);
                 });
+    }
+    
+    /**
+     * Start 60-second countdown timer for resend OTP button
+     */
+    private void startResendCountdown() {
+        // Cancel any existing timer
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+        }
+        
+        countDownTimer = new android.os.CountDownTimer(60000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                // Update button text with countdown (optional - we'll just wait)
+                long secondsRemaining = millisUntilFinished / 1000;
+                // You can update a text view here if needed, but we'll just wait
+            }
+            
+            @Override
+            public void onFinish() {
+                // After 60 seconds, show resend button
+                if (phoneLoginState == PhoneLoginState.OTP_SENT) {
+                    phoneLoginState = PhoneLoginState.RESEND_AVAILABLE;
+                    updatePhoneLoginUI();
+                }
+            }
+        };
+        countDownTimer.start();
+    }
+    
+    /**
+     * Resend OTP using the resend token
+     */
+    private void resendOtp() {
+        if (etPhone == null) {
+            showError(getString(R.string.invalid_phone_number));
+            return;
+        }
+
+        String phone = etPhone.getText().toString().trim();
+        if (TextUtils.isEmpty(phone) || phone.length() < 8) {
+            showError(getString(R.string.invalid_phone_number));
+            return;
+        }
+
+        // Normalize phone number
+        String normalizedPhone = phone.replaceAll("[\\s\\-\\(\\)]", "");
+
+        if (resendToken == null) {
+            showError("Cannot resend OTP. Please request a new OTP.");
+            return;
+        }
+
+        showLoading("Resending OTP...");
+
+        // Resend OTP using the resend token
+        PhoneAuthOptions options =
+                PhoneAuthOptions.newBuilder(mAuth)
+                        .setPhoneNumber(normalizedPhone)
+                        .setTimeout(60L, TimeUnit.SECONDS)
+                        .setActivity(this)
+                        .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+                            @Override
+                            public void onVerificationCompleted(PhoneAuthCredential credential) {
+                                Log.d("LoginActivity", "Phone verification completed automatically (resend)");
+                                signInWithPhoneCredential(credential);
+                            }
+
+                            @Override
+                            public void onVerificationFailed(com.google.firebase.FirebaseException e) {
+                                Log.e("LoginActivity", "Phone verification failed (resend)", e);
+                                showError(getString(R.string.login_failed) + ": " + e.getMessage());
+                            }
+
+                            @Override
+                            public void onCodeSent(String verId,
+                                                   PhoneAuthProvider.ForceResendingToken token) {
+                                Log.d("LoginActivity", "OTP code resent");
+                                verificationId = verId;
+                                resendToken = token;
+                                showSuccess(getString(R.string.otp_sent));
+                                
+                                // Reset to OTP_SENT state and restart countdown
+                                phoneLoginState = PhoneLoginState.OTP_SENT;
+                                updatePhoneLoginUI();
+                                startResendCountdown();
+                            }
+                        })
+                        .setForceResendingToken(resendToken)
+                        .build();
+
+        PhoneAuthProvider.verifyPhoneNumber(options);
     }
 
     private void loginWithPhoneOtp() {
@@ -636,6 +792,16 @@ public class LoginActivity extends AppCompatActivity {
             
             startActivity(intent);
             finish();
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Cancel countdown timer to prevent memory leaks
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+            countDownTimer = null;
         }
     }
 }

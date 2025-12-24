@@ -371,7 +371,7 @@ public class AgentDashboardActivity extends AppCompatActivity {
             }
         }).start();
 
-        // Load total operator balance (sum of all operator balances) from local database
+        // Load total credits: global virtualCredit pool + sum of all operator balances
         new Thread(() -> {
             try {
                 com.example.myapplication.database.AppDatabase database = 
@@ -379,8 +379,8 @@ public class AgentDashboardActivity extends AppCompatActivity {
                 com.example.myapplication.utils.OperatorBalanceHelper balanceHelper = 
                     new com.example.myapplication.utils.OperatorBalanceHelper(database);
                 
-                // Use DAO method to get total balance (more efficient and accurate)
-                double totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
+                // Use DAO method to get total operator balance (more efficient and accurate)
+                double totalOperatorBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
                 
                 // Check if we need to recalculate balances from existing transactions
                 java.util.List<com.example.myapplication.database.entities.TransactionEntity> transactions = 
@@ -402,18 +402,29 @@ public class AgentDashboardActivity extends AppCompatActivity {
                     if (successfulTransactions > 0) {
                         android.util.Log.d("AgentDashboard", "Found " + successfulTransactions + " successful transactions. Recalculating balances to ensure accuracy.");
                         balanceHelper.recalculateBalancesFromTransactions(currentUser.getUid());
-                        // Re-fetch total balance after recalculation
-                        totalBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
+                        // Re-fetch total operator balance after recalculation
+                        totalOperatorBalance = database.operatorBalanceDao().getTotalBalanceForUser(currentUser.getUid());
+                        android.util.Log.d("AgentDashboard", "After recalculation - Total operator balance: " + totalOperatorBalance);
                     }
 
                 }
+
+                // Load user's global virtual credit pool (ALWAYS fetch fresh from database)
+                com.example.myapplication.database.entities.UserEntity localUser =
+                        database.userDao().getUserById(currentUser.getUid());
+                double virtualPool = (localUser != null) ? localUser.getVirtualCredit() : 0.0;
                 
-                String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(totalBalance);
+                android.util.Log.d("AgentDashboard", "Dashboard credit calculation:");
+                android.util.Log.d("AgentDashboard", "- Virtual Pool (virtualCredit): " + virtualPool);
+                android.util.Log.d("AgentDashboard", "- Total Operator Balance: " + totalOperatorBalance);
+
+                double totalCredits = virtualPool + totalOperatorBalance;
+                String display = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(totalCredits);
                 runOnUiThread(() -> {
                     tvVirtualBalance.setText(display);
                     cachedVirtualBalance = display;
                 });
-                android.util.Log.d("AgentDashboard", "Loaded total operator balance from local DB: " + totalBalance);
+                android.util.Log.d("AgentDashboard", "Loaded total credits (virtual pool + operators): " + totalCredits + " -> Display: " + display);
             } catch (Exception e) {
                 android.util.Log.e("AgentDashboard", "Error loading total operator balance from local DB", e);
                 runOnUiThread(() -> {

@@ -21,6 +21,9 @@
     <string name="otp_not_requested">Veuillez demander un code OTP avant</string>
     <string name="otp_sent">Code OTP envoyé avec succès</string>
     <string name="send_otp">Envoyer le code OTP</string>
+    <string name="request_otp">Demander le code OTP</string>
+    <string name="resend_otp">Renvoyer le code OTP</string>
+    <string name="resend_otp_in">Renvoyer le code OTP dans %1$ds</string>
     <string name="login_successful">Connexion réussie!</string>
     <string name="login_failed">Échec de la connexion</string>
     <string name="fill_all_fields">Veuillez remplir tous les champs</string>
@@ -308,6 +311,7 @@
     <string name="syncing_customers">Synchronisation des clients...</string>
     <string name="syncing_operators">Synchronisation des opérateurs...</string>
     <string name="syncing_operator_actions">Synchronisation des actions d\'opérateur...</string>
+    <string name="syncing_operator_balances">Synchronisation des soldes d\'opérateur...</string>
     <string name="data_synced_successfully">Données synchronisées avec succès!</string>
     <string name="sync_failed_error">Échec de la synchronisation: %1$s</string>
     

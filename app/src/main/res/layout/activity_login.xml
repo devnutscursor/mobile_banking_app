@@ -120,7 +120,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:layout_marginBottom="16dp"
+                        android:layout_marginBottom="24dp"
+                        android:background="@drawable/toggle_container_background"
+                        android:padding="4dp"
                         android:gravity="center">
 
                         <TextView
@@ -129,13 +131,20 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="@string/login_with_email"
-                            android:textSize="14sp"
-                            android:textColor="@color/white"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_white"
                             android:gravity="center"
-                            android:padding="12dp"
-                            android:background="@drawable/modern_button_primary"
+                            android:paddingVertical="14dp"
+                            android:paddingHorizontal="8dp"
+                            android:background="@drawable/toggle_button_active_selector"
                             android:clickable="true"
-                            android:focusable="true" />
+                            android:focusable="true"
+                            android:minHeight="48dp" />
+
+                        <View
+                            android:layout_width="8dp"
+                            android:layout_height="1dp" />
 
                         <TextView
                             android:id="@+id/tvLoginTypePhone"
@@ -143,14 +152,16 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="@string/login_with_phone"
-                            android:textSize="14sp"
-                            android:textColor="@color/white"
-                            android:alpha="0.6"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_secondary"
                             android:gravity="center"
-                            android:padding="12dp"
-                            android:background="@color/card_background"
+                            android:paddingVertical="14dp"
+                            android:paddingHorizontal="8dp"
+                            android:background="@drawable/toggle_button_inactive_selector"
                             android:clickable="true"
-                            android:focusable="true" />
+                            android:focusable="true"
+                            android:minHeight="48dp" />
                     </LinearLayout>
 
                     <!-- Email Input -->
@@ -282,12 +293,27 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Send OTP Button (phone mode only) -->
+                    <!-- Request OTP Button (phone mode - initial state) -->
                     <Button
                         android:id="@+id/btnSendOtp"
                         android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:text="@string/request_otp"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_white"
+                        android:background="@drawable/modern_button_primary"
+                        android:elevation="4dp"
+                        android:layout_marginBottom="16dp"
+                        android:fontFamily="sans-serif-medium"
+                        android:visibility="gone" />
+
+                    <!-- Resend OTP Button (phone mode - after 1 minute) -->
+                    <Button
+                        android:id="@+id/btnResendOtp"
+                        android:layout_width="match_parent"
                         android:layout_height="48dp"
-                        android:text="@string/send_otp"
+                        android:text="@string/resend_otp"
                         android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_white"

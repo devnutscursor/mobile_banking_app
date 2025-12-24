@@ -14,6 +14,7 @@ import com.example.myapplication.R;
 import com.example.myapplication.database.AppDatabase;
 import com.example.myapplication.database.entities.CustomerEntity;
 import com.example.myapplication.database.entities.OperatorActionEntity;
+import com.example.myapplication.database.entities.OperatorBalanceEntity;
 import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.TransactionEntity;
 import com.example.myapplication.database.entities.UserEntity;
@@ -217,7 +218,7 @@ public class FirstLoginSyncService {
             try {
                 callback.onSyncStarted();
                 
-                int totalSteps = 5;
+                int totalSteps = 6;
                 int currentStep = 0;
                 
                 // Step 1: Sync users (to get disabled status)
@@ -239,6 +240,10 @@ public class FirstLoginSyncService {
                 // Step 5: Sync transactions
                 callback.onSyncProgress(context.getString(R.string.syncing_transactions), ++currentStep, totalSteps);
                 syncTransactionsFromFirestore(userId);
+                
+                // Step 6: Sync operator balances from Firestore
+                callback.onSyncProgress(context.getString(R.string.syncing_operator_balances), ++currentStep, totalSteps);
+                syncOperatorBalancesFromFirestore(userId);
                 
                 ((android.app.Activity) context).runOnUiThread(() -> {
                     progressDialog.dismiss();
@@ -655,6 +660,101 @@ public class FirstLoginSyncService {
         latch.await();
         if (error[0] != null) {
             throw error[0];
+        }
+    }
+
+    /**
+     * Pull operator balances from Firestore on first login.
+     * This clears any local operator balances for the user and replaces them with cloud data.
+     */
+    private void syncOperatorBalancesFromFirestore(String userId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final Exception[] error = {null};
+
+        // Clear existing local balances for a clean first sync
+        try {
+            database.operatorBalanceDao().deleteAllBalancesForUser(userId);
+            Log.d(TAG, "Cleared local operator balances for user: " + userId + " before first sync");
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to clear local operator balances for user: " + userId, e);
+        }
+
+        firestore.collection("operator_balances")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    try {
+                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                            String docId = doc.getId();
+                            String operatorId = doc.getString("operatorId");
+                            if (operatorId == null || operatorId.isEmpty()) {
+                                Log.w(TAG, "Skipping operator balance with missing operatorId during first sync: " + docId);
+                                continue;
+                            }
+
+                            OperatorBalanceEntity balance = new OperatorBalanceEntity();
+                            balance.setId(docId);
+                            balance.setUserId(userId);
+                            balance.setOperatorId(operatorId);
+
+                            Double bal = doc.getDouble("balance");
+                            Double used = doc.getDouble("totalCreditUsed");
+                            Double earned = doc.getDouble("totalCreditEarned");
+
+                            balance.setBalance(bal != null ? bal : 0.0);
+                            balance.setTotalCreditUsed(used != null ? used : 0.0);
+                            balance.setTotalCreditEarned(earned != null ? earned : 0.0);
+
+                            long updatedAt = System.currentTimeMillis();
+                            try {
+                                Object updatedAtObj = doc.get("updatedAt");
+                                if (updatedAtObj instanceof com.google.firebase.Timestamp) {
+                                    updatedAt = ((com.google.firebase.Timestamp) updatedAtObj).toDate().getTime();
+                                } else if (updatedAtObj instanceof Long) {
+                                    updatedAt = (Long) updatedAtObj;
+                                } else if (updatedAtObj instanceof Number) {
+                                    updatedAt = ((Number) updatedAtObj).longValue();
+                                }
+                            } catch (Exception e) {
+                                Log.w(TAG, "Could not parse operator balance updatedAt during first sync: " + docId, e);
+                            }
+
+                            balance.setCreatedAt(updatedAt);
+                            balance.setUpdatedAt(updatedAt);
+                            balance.setLastSyncAt(System.currentTimeMillis());
+                            balance.setNeedsSync(false);
+
+                            database.operatorBalanceDao().insertBalance(balance);
+                            Log.d(TAG, "Synced operator balance from Firestore (first login): " + docId +
+                                    " (balance=" + balance.getBalance() + ")");
+                        }
+                    } catch (Exception e) {
+                        error[0] = e;
+                    } finally {
+                        latch.countDown();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    error[0] = e;
+                    latch.countDown();
+                });
+
+        latch.await();
+        if (error[0] != null) {
+            throw error[0];
+        }
+        
+        // CRITICAL: After syncing from Firestore, always recalculate balances from transactions
+        // This ensures that even if Firestore had stale/incorrect data, we correct it based on transaction history
+        Log.d(TAG, "Recalculating operator balances from transactions after first login sync to ensure accuracy...");
+        try {
+            com.example.myapplication.utils.OperatorBalanceHelper balanceHelper = 
+                new com.example.myapplication.utils.OperatorBalanceHelper(database);
+            balanceHelper.recalculateBalancesFromTransactions(userId);
+            Log.d(TAG, "Balance recalculation completed after first login sync");
+        } catch (Exception e) {
+            Log.e(TAG, "Error recalculating balances after first login sync", e);
+            // Don't throw - sync is still successful, just recalculation failed
         }
     }
     /**

@@ -34,6 +34,10 @@ public interface OperatorBalanceDao {
     @Query("SELECT COALESCE(SUM(balance), 0) FROM operator_balances WHERE userId = :userId")
     double getTotalBalanceForUser(String userId);
     
+    // Get balances that need to be synced for a specific user
+    @Query("SELECT * FROM operator_balances WHERE userId = :userId AND needsSync = 1")
+    List<OperatorBalanceEntity> getNeedingSyncForUser(String userId);
+    
     @Query("DELETE FROM operator_balances WHERE userId = :userId AND operatorId = :operatorId")
     void deleteBalance(String userId, String operatorId);
     

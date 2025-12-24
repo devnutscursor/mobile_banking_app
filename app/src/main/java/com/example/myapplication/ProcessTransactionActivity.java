@@ -491,6 +491,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                     // Only update if Firestore is more recent
                     if (firestoreUpdateTime > localUpdateTime) {
                         availableCredit = credit;
+                        final long finalFirestoreUpdateTime = firestoreUpdateTime;
                         Log.d(TAG, "Updated credit from Firestore for user " + activeUserId + ": " + availableCredit);
                         
                         // Update local database
@@ -498,6 +499,8 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                             try {
                                 if (currentUserEntity != null) {
                                     currentUserEntity.setVirtualCredit(availableCredit);
+                                    // CRITICAL: Set creditUpdatedAt to Firestore's timestamp
+                                    currentUserEntity.setCreditUpdatedAt(finalFirestoreUpdateTime);
                                     currentUserEntity.setLastSyncAt(System.currentTimeMillis());
                                     database.userDao().updateUser(currentUserEntity);
                                     Log.d(TAG, "Updated local credit for user " + activeUserId + ": " + availableCredit);
@@ -516,6 +519,24 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 } else {
                     // No local update time, use Firestore value
                     availableCredit = credit;
+                    long firestoreUpdateTime = 0;
+                    
+                    // Get Firestore update time if available
+                    if (documentSnapshot.contains("creditUpdatedAt")) {
+                        Object creditUpdatedAt = documentSnapshot.get("creditUpdatedAt");
+                        if (creditUpdatedAt instanceof com.google.firebase.Timestamp) {
+                            firestoreUpdateTime = ((com.google.firebase.Timestamp) creditUpdatedAt).toDate().getTime();
+                        } else if (creditUpdatedAt instanceof Long) {
+                            firestoreUpdateTime = (Long) creditUpdatedAt;
+                        }
+                    }
+                    
+                    // If no timestamp in Firestore, use current time
+                    if (firestoreUpdateTime == 0) {
+                        firestoreUpdateTime = System.currentTimeMillis();
+                    }
+                    
+                    final long finalFirestoreUpdateTime = firestoreUpdateTime;
                     Log.d(TAG, "Updated credit from Firestore for user " + activeUserId + ": " + availableCredit);
                     
                     // Update local database
@@ -523,6 +544,8 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                         try {
                             if (currentUserEntity != null) {
                                 currentUserEntity.setVirtualCredit(availableCredit);
+                                // CRITICAL: Set creditUpdatedAt to Firestore's timestamp
+                                currentUserEntity.setCreditUpdatedAt(finalFirestoreUpdateTime);
                                 currentUserEntity.setLastSyncAt(System.currentTimeMillis());
                                 database.userDao().updateUser(currentUserEntity);
                                 Log.d(TAG, "Updated local credit for user " + activeUserId + ": " + availableCredit);
@@ -1925,6 +1948,8 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 // Reverse credit change
                 if (currentUserEntity != null) {
                     currentUserEntity.setVirtualCredit(transaction.getCreditBefore());
+                    // Update creditUpdatedAt when rolling back credit
+                    currentUserEntity.setCreditUpdatedAt(System.currentTimeMillis());
                     database.userDao().updateUser(currentUserEntity);
                 }
             }).start();

@@ -269,12 +269,15 @@ public class AddCreditsActivity extends AppCompatActivity {
                 double dealerNewCredit = currentUser.getVirtualCredit() - amount;
                 double agentNewCredit = agent.getVirtualCredit() + amount;
                 
+                long now = System.currentTimeMillis();
                 currentUser.setVirtualCredit(dealerNewCredit);
-                currentUser.setUpdatedAt(System.currentTimeMillis());
+                currentUser.setCreditUpdatedAt(now);
+                currentUser.setUpdatedAt(now);
                 database.userDao().updateUser(currentUser);
                 
                 agent.setVirtualCredit(agentNewCredit);
-                agent.setUpdatedAt(System.currentTimeMillis());
+                agent.setCreditUpdatedAt(now);
+                agent.setUpdatedAt(now);
                 database.userDao().updateUser(agent);
                 
                 // Update current user reference

@@ -8,8 +8,10 @@ import com.example.myapplication.database.entities.OperatorEntity;
 import com.example.myapplication.database.entities.TransactionEntity;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Helper utility class for managing operator-specific balances.
@@ -282,9 +284,35 @@ public class OperatorBalanceHelper {
                 }
             }
             
-            // Update operator balance entities
+            // Filter to only process operators that actually belong to this user
+            // This prevents processing operators from old transactions or other users
+            Set<String> validOperatorIds = new HashSet<>();
+            for (OperatorEntity operator : userOperators) {
+                validOperatorIds.add(operator.getId());
+            }
+            
+            // Clean up operator balance records for operators that don't belong to this user
+            List<OperatorBalanceEntity> allUserBalances = database.operatorBalanceDao().getBalancesByUser(userId);
+            for (OperatorBalanceEntity balance : allUserBalances) {
+                if (!validOperatorIds.contains(balance.getOperatorId())) {
+                    Log.d("OperatorBalanceHelper", "Removing stale operator balance for operator " + 
+                          balance.getOperatorId() + " (does not belong to user " + userId + ")");
+                    database.operatorBalanceDao().deleteBalance(userId, balance.getOperatorId());
+                }
+            }
+            
+            // Update operator balance entities (only for valid operators)
+            int processedCount = 0;
             for (Map.Entry<String, Double> entry : operatorBalances.entrySet()) {
                 String operatorId = entry.getKey();
+                
+                // Skip operators that don't belong to this user
+                if (!validOperatorIds.contains(operatorId)) {
+                    Log.w("OperatorBalanceHelper", "Skipping operator " + operatorId + 
+                          " (does not belong to user " + userId + ")");
+                    continue;
+                }
+                
                 double calculatedBalanceFromTransactions = entry.getValue();
                 double creditUsed = operatorCreditUsed.getOrDefault(operatorId, 0.0);
                 double creditEarned = operatorCreditEarned.getOrDefault(operatorId, 0.0);
@@ -335,11 +363,14 @@ public class OperatorBalanceHelper {
                 balance.setNeedsSync(true);
                 database.operatorBalanceDao().updateBalance(balance);
                 
+                processedCount++;
                 Log.d("OperatorBalanceHelper", "Updated balance for operator " + operatorId + 
                       ": Balance=" + finalBalance + ", Used=" + creditUsed + ", Earned=" + creditEarned);
             }
             
-            Log.d("OperatorBalanceHelper", "Balance recalculation completed for " + operatorBalances.size() + " operators");
+            Log.d("OperatorBalanceHelper", "Balance recalculation completed for " + processedCount + 
+                  " valid operators (user has " + userOperators.size() + " active operators, " + 
+                  operatorBalances.size() + " operators found in transactions)");
             
         } catch (Exception e) {
             Log.e("OperatorBalanceHelper", "Error recalculating balances from transactions", e);
