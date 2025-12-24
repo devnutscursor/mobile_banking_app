@@ -308,7 +308,6 @@
     <string name="syncing_customers">Synchronisation des clients...</string>
     <string name="syncing_operators">Synchronisation des opérateurs...</string>
     <string name="syncing_operator_actions">Synchronisation des actions d\'opérateur...</string>
-    <string name="syncing_operator_balances">Synchronisation des soldes opérateur...</string>
     <string name="data_synced_successfully">Données synchronisées avec succès!</string>
     <string name="sync_failed_error">Échec de la synchronisation: %1$s</string>
     

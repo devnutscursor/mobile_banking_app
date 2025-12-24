@@ -128,8 +128,6 @@ public class CashRegisterActivity extends AppCompatActivity {
                 Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
-        // Set print ticket listener
-        adapter.setPrintTicketListener(this::printTransactionTicket);
         recyclerView.setAdapter(adapter);
         
         // Setup search
@@ -1054,123 +1052,6 @@ public class CashRegisterActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.e(TAG, "Error opening USSD dialer", e);
             Toast.makeText(this, "Failed to open dialer: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    /**
-     * Print a 58mm-style ticket for the given transaction.
-     * Ticket fields: transaction number, customer name and phone, operator name,
-     * transaction type, amount, fees (for transfers), date, agent company name.
-     */
-    private void printTransactionTicket(TransactionEntity transaction) {
-        if (transaction == null) {
-            Toast.makeText(this, "Transaction not found", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        try {
-            // Resolve agent company/name
-            String agentName = "";
-            try {
-                UserEntity user = database.userDao().getUserById(activeUserId);
-                if (user != null && user.getName() != null) {
-                    agentName = user.getName();
-                }
-            } catch (Exception ignored) {}
-
-            // Resolve operator for fee calculation (for transfers)
-            double fee = 0.0;
-            try {
-                if (transaction.getTransactionType() != null &&
-                        transaction.getTransactionType().toLowerCase().contains("transfer")) {
-                    OperatorEntity op = database.operatorDao().getById(transaction.getOperatorId());
-                    if (op != null) {
-                        double rate = op.getTransferRate();
-                        fee = transaction.getAmount() * (rate / 100.0);
-                    }
-                }
-            } catch (Exception ignored) {}
-
-            java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault());
-            String dateStr = df.format(new java.util.Date(transaction.getCreatedAt()));
-
-            String amountStr = com.example.myapplication.utils.NumberFormatter
-                    .formatWithThousandsSeparator(transaction.getAmount()) + " F";
-            String feeStr = com.example.myapplication.utils.NumberFormatter
-                    .formatWithThousandsSeparator(fee) + " F";
-
-            // Build ticket text (58mm style, monospaced)
-            StringBuilder sb = new StringBuilder();
-            sb.append("       MOBILE BANKING\n");
-            if (!agentName.isEmpty()) {
-                sb.append("   Agent: ").append(agentName).append("\n");
-            }
-            sb.append("--------------------------------\n");
-            sb.append("TXN: ").append(transaction.getId()).append("\n");
-            sb.append("Customer: ").append(transaction.getCustomerName() != null ? transaction.getCustomerName() : "").append("\n");
-            sb.append("Phone: ").append(transaction.getCustomerPhone() != null ? transaction.getCustomerPhone() : "").append("\n");
-            sb.append("Operator: ").append(transaction.getOperatorName() != null ? transaction.getOperatorName() : "").append("\n");
-            sb.append("Type: ").append(transaction.getTransactionType() != null ? transaction.getTransactionType() : "").append("\n");
-            sb.append("Amount: ").append(amountStr).append("\n");
-            sb.append("Fees: ").append(feeStr).append("\n");
-            sb.append("Date: ").append(dateStr).append("\n");
-            sb.append("--------------------------------\n");
-            sb.append("Thank you for using our service\n");
-
-            String ticketText = sb.toString();
-
-            // Render ticket text to bitmap (approx. 58mm width at ~203dpi ~ 384px)
-            int widthPx = 384;
-            android.graphics.Paint paint = new android.graphics.Paint();
-            paint.setColor(android.graphics.Color.BLACK);
-            paint.setTextSize(22);
-            paint.setTypeface(android.graphics.Typeface.MONOSPACE);
-            paint.setAntiAlias(true);
-
-            String[] lines = ticketText.split("\n");
-            int lineHeight = (int) (paint.getFontMetrics().bottom - paint.getFontMetrics().top) + 8;
-            int heightPx = lineHeight * lines.length + 20;
-
-            android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(
-                    widthPx, heightPx, android.graphics.Bitmap.Config.ARGB_8888);
-            android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-            canvas.drawColor(android.graphics.Color.WHITE);
-
-            // Draw text LEFT-ALIGNED with a small horizontal margin so nothing is cut off
-            int y = 20;
-            float x = 16f; // 16px margin from the left edge
-            for (String line : lines) {
-                canvas.drawText(line, x, y, paint);
-                y += lineHeight;
-            }
-
-            // Save bitmap to cache and share as image via FileProvider
-            java.io.File cacheDir = new java.io.File(getCacheDir(), "tickets");
-            if (!cacheDir.exists()) {
-                //noinspection ResultOfMethodCallIgnored
-                cacheDir.mkdirs();
-            }
-            java.io.File file = new java.io.File(cacheDir, "ticket_" + transaction.getId() + ".png");
-            java.io.FileOutputStream fos = new java.io.FileOutputStream(file);
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, fos);
-            fos.flush();
-            fos.close();
-
-            android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
-                    this,
-                    getPackageName() + ".fileprovider",
-                    file
-            );
-
-            Intent shareIntent = new Intent(Intent.ACTION_SEND);
-            shareIntent.setType("image/png");
-            shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
-            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(shareIntent, "Print or share ticket"));
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error printing ticket", e);
-            Toast.makeText(this, "Error printing ticket: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 }

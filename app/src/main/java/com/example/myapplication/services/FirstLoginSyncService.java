@@ -217,7 +217,7 @@ public class FirstLoginSyncService {
             try {
                 callback.onSyncStarted();
                 
-                int totalSteps = 6;
+                int totalSteps = 5;
                 int currentStep = 0;
                 
                 // Step 1: Sync users (to get disabled status)
@@ -239,10 +239,6 @@ public class FirstLoginSyncService {
                 // Step 5: Sync transactions
                 callback.onSyncProgress(context.getString(R.string.syncing_transactions), ++currentStep, totalSteps);
                 syncTransactionsFromFirestore(userId);
-
-                // Step 6: Sync operator balances (from Firestore summary to local Room)
-                callback.onSyncProgress(context.getString(R.string.syncing_operator_balances), ++currentStep, totalSteps);
-                syncOperatorBalancesFromFirestore(userId);
                 
                 ((android.app.Activity) context).runOnUiThread(() -> {
                     progressDialog.dismiss();
@@ -660,81 +656,6 @@ public class FirstLoginSyncService {
         if (error[0] != null) {
             throw error[0];
         }
-    }
-
-    /**
-     * Pull per-operator balances from Firestore into local Room on first sync.
-     * Source collection: operator_balances (one document per userId+operatorId).
-     */
-    private void syncOperatorBalancesFromFirestore(String userId) throws Exception {
-        Log.d(TAG, "Starting operator balance sync for user: " + userId);
-
-        CountDownLatch latch = new CountDownLatch(1);
-        final Exception[] error = {null};
-
-        // Clear any existing local balances for this user so Firestore is the source of truth on first sync
-        try {
-            database.operatorBalanceDao().deleteAllBalancesForUser(userId);
-        } catch (Exception e) {
-            Log.w(TAG, "Failed to clear local operator balances for user " + userId + " before first sync", e);
-        }
-
-        firestore.collection("operator_balances")
-                .whereEqualTo("userId", userId)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    try {
-                        Log.d(TAG, "Found " + queryDocumentSnapshots.size()
-                                + " operator balance documents in Firestore for user " + userId);
-
-                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
-                            String balanceId = doc.getId();
-                            String opUserId = doc.getString("userId");
-                            String operatorId = doc.getString("operatorId");
-
-                            if (opUserId == null || operatorId == null) {
-                                Log.w(TAG, "Skipping operator balance doc " + balanceId
-                                        + " due to missing userId/operatorId");
-                                continue;
-                            }
-
-                            com.example.myapplication.database.entities.OperatorBalanceEntity balance =
-                                    new com.example.myapplication.database.entities.OperatorBalanceEntity();
-                            balance.setId(balanceId);
-                            balance.setUserId(opUserId);
-                            balance.setOperatorId(operatorId);
-                            Double bal = doc.getDouble("balance");
-                            Double used = doc.getDouble("totalCreditUsed");
-                            Double earned = doc.getDouble("totalCreditEarned");
-                            balance.setBalance(bal != null ? bal : 0.0);
-                            balance.setTotalCreditUsed(used != null ? used : 0.0);
-                            balance.setTotalCreditEarned(earned != null ? earned : 0.0);
-                            balance.setCreatedAt(getTimestampAsMillis(doc, "createdAt"));
-                            balance.setUpdatedAt(getTimestampAsMillis(doc, "updatedAt"));
-                            balance.setLastSyncAt(System.currentTimeMillis());
-                            balance.setNeedsSync(false);
-
-                            database.operatorBalanceDao().insertBalance(balance);
-                            Log.d(TAG, "Synced operator balance from Firestore: " + balanceId
-                                    + " (operatorId=" + operatorId + ", balance=" + balance.getBalance() + ")");
-                        }
-                    } catch (Exception e) {
-                        error[0] = e;
-                    } finally {
-                        latch.countDown();
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    error[0] = e;
-                    latch.countDown();
-                });
-
-        latch.await();
-        if (error[0] != null) {
-            throw error[0];
-        }
-
-        Log.d(TAG, "Completed operator balance sync for user: " + userId);
     }
     /**
      * Safely extract timestamp values from Firestore documents.

@@ -58,7 +58,7 @@ public class DataSyncService {
                 Log.d(TAG, "Starting comprehensive sync for user: " + userId);
                 
                 AtomicInteger progress = new AtomicInteger(0);
-                final int totalSteps = 11; // All data types + all users credits + balance adjustments + operator balances + commission rates + commissions + license expiry check
+                final int totalSteps = 10; // All data types + all users credits + balance adjustments + commission rates + commissions + license expiry check
                 
                 // Step 1: Sync user data
                 if (callback != null) {
@@ -101,26 +101,20 @@ public class DataSyncService {
                     callback.onSyncProgress("Syncing balance adjustments...", progress.incrementAndGet(), totalSteps);
                 }
                 syncBalanceAdjustments(userId);
-
-                // Step 8: Sync operator balances (push local operator_balances to Firestore)
-                if (callback != null) {
-                    callback.onSyncProgress("Syncing operator balances...", progress.incrementAndGet(), totalSteps);
-                }
-                syncOperatorBalances(userId);
                 
-                // Step 9: Sync commission rates
+                // Step 8: Sync commission rates
                 if (callback != null) {
                     callback.onSyncProgress("Syncing commission rates...", progress.incrementAndGet(), totalSteps);
                 }
                 syncCommissionRates(userId);
                 
-                // Step 10: Sync commissions
+                // Step 9: Sync commissions
                 if (callback != null) {
                     callback.onSyncProgress("Syncing commissions...", progress.incrementAndGet(), totalSteps);
                 }
                 syncCommissions(userId);
                 
-                // Step 11: Validate license expiry after sync
+                // Step 10: Validate license expiry after sync
                 if (callback != null) {
                     callback.onSyncProgress("Validating license...", progress.incrementAndGet(), totalSteps);
                 }
@@ -1654,127 +1648,6 @@ public class DataSyncService {
         }
         
         Log.d(TAG, "=== BALANCE ADJUSTMENT SYNC COMPLETED for user: " + userId + " ===");
-    }
-    
-    /**
-     * Sync operator balances (bidirectional).
-     * - Push local changes (needsSync = 1) to Firestore.
-     * - Pull Firestore documents for this user and update/create local rows when Firestore is newer.
-     */
-    private void syncOperatorBalances(String userId) throws Exception {
-        Log.d(TAG, "=== STARTING OPERATOR BALANCE SYNC for user: " + userId + " ===");
-        
-        // 1) Push local balances needing sync -> Firestore
-        List<com.example.myapplication.database.entities.OperatorBalanceEntity> localBalances =
-                database.operatorBalanceDao().getNeedingSyncForUser(userId);
-        Log.d(TAG, "Found " + localBalances.size() + " local operator balances needing sync for user: " + userId);
-        
-        for (com.example.myapplication.database.entities.OperatorBalanceEntity balance : localBalances) {
-            try {
-                java.util.Map<String, Object> data = new java.util.HashMap<>();
-                data.put("id", balance.getId());
-                data.put("userId", balance.getUserId());
-                data.put("operatorId", balance.getOperatorId());
-                data.put("balance", balance.getBalance());
-                data.put("totalCreditUsed", balance.getTotalCreditUsed());
-                data.put("totalCreditEarned", balance.getTotalCreditEarned());
-                data.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(balance.getCreatedAt())));
-                data.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(balance.getUpdatedAt())));
-                
-                firestore.collection("operator_balances").document(balance.getId())
-                        .set(data)
-                        .addOnSuccessListener(aVoid -> {
-                            new Thread(() -> {
-                                balance.setNeedsSync(false);
-                                balance.setLastSyncAt(System.currentTimeMillis());
-                                database.operatorBalanceDao().updateBalance(balance);
-                                Log.d(TAG, "Operator balance pushed to Firestore: " + balance.getId());
-                            }).start();
-                        })
-                        .addOnFailureListener(e -> {
-                            Log.e(TAG, "Failed to push operator balance to Firestore: " + balance.getId(), e);
-                        });
-            } catch (Exception e) {
-                Log.e(TAG, "Error preparing operator balance data for push: " + balance.getId(), e);
-            }
-        }
-
-        // 2) Pull Firestore balances -> local when Firestore is newer / missing locally
-        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
-        final Exception[] error = {null};
-
-        firestore.collection("operator_balances")
-                .whereEqualTo("userId", userId)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    try {
-                        Log.d(TAG, "Reading operator_balances from Firestore for user " + userId
-                                + " count=" + queryDocumentSnapshots.size());
-
-                        for (com.google.firebase.firestore.QueryDocumentSnapshot doc : queryDocumentSnapshots) {
-                            String balanceId = doc.getId();
-                            String opUserId = doc.getString("userId");
-                            String operatorId = doc.getString("operatorId");
-                            if (opUserId == null || operatorId == null) {
-                                Log.w(TAG, "Skipping Firestore operator_balance " + balanceId
-                                        + " due to missing userId/operatorId");
-                                continue;
-                            }
-
-                            com.example.myapplication.database.entities.OperatorBalanceEntity local =
-                                    database.operatorBalanceDao().getById(balanceId);
-
-                            Long firestoreUpdatedAt = parseTimestamp(doc.get("updatedAt"));
-                            if (firestoreUpdatedAt == null) {
-                                firestoreUpdatedAt = System.currentTimeMillis();
-                            }
-
-                            if (local == null || firestoreUpdatedAt > local.getUpdatedAt()) {
-                                com.example.myapplication.database.entities.OperatorBalanceEntity balance =
-                                        (local != null) ? local
-                                                : new com.example.myapplication.database.entities.OperatorBalanceEntity();
-                                balance.setId(balanceId);
-                                balance.setUserId(opUserId);
-                                balance.setOperatorId(operatorId);
-                                Double bal = doc.getDouble("balance");
-                                Double used = doc.getDouble("totalCreditUsed");
-                                Double earned = doc.getDouble("totalCreditEarned");
-                                balance.setBalance(bal != null ? bal : 0.0);
-                                balance.setTotalCreditUsed(used != null ? used : 0.0);
-                                balance.setTotalCreditEarned(earned != null ? earned : 0.0);
-
-                                Long createdAt = parseTimestamp(doc.get("createdAt"));
-                                balance.setCreatedAt(createdAt != null ? createdAt : firestoreUpdatedAt);
-                                balance.setUpdatedAt(firestoreUpdatedAt);
-                                balance.setLastSyncAt(System.currentTimeMillis());
-                                balance.setNeedsSync(false);
-
-                                database.operatorBalanceDao().insertBalance(balance);
-                                Log.d(TAG, "Updated local operator balance from Firestore: " + balanceId
-                                        + " (operatorId=" + operatorId + ", balance=" + balance.getBalance() + ")");
-                            } else {
-                                Log.d(TAG, "Local operator balance is newer; keeping local for id=" + balanceId);
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error processing operator_balances from Firestore", e);
-                        error[0] = e;
-                    } finally {
-                        latch.countDown();
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to read operator_balances from Firestore", e);
-                    error[0] = e;
-                    latch.countDown();
-                });
-
-        latch.await();
-        if (error[0] != null) {
-            throw error[0];
-        }
-        
-        Log.d(TAG, "Operator balance sync completed for user: " + userId);
     }
     
     /**
