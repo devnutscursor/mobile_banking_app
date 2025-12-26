@@ -28,13 +28,10 @@ import com.example.myapplication.adapters.LanguageSpinnerAdapter;
 import com.example.myapplication.services.FirstLoginSyncService;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.auth.PhoneAuthCredential;
-import com.google.firebase.auth.PhoneAuthOptions;
-import com.google.firebase.auth.PhoneAuthProvider;
+import com.example.myapplication.utils.PinHasher;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 public class LoginActivity extends AppCompatActivity {
     
@@ -57,13 +54,13 @@ public class LoginActivity extends AppCompatActivity {
         super.attachBaseContext(context);
     }
 
-    private EditText etEmail, etPassword, etPhone, etOtp;
-    private Button btnLogin, btnSendOtp, btnResendOtp;
+    private EditText etEmail, etPassword, etPhone, etPin;
+    private Button btnLogin;
     private TextView tvStatus;
     private TextView tvWelcomeTitle; // "Welcome Back"
     private TextView tvSubtitle;     // "Sign in to your account"
     private TextView tvLoginTypeEmail, tvLoginTypePhone;
-    private com.google.android.material.textfield.TextInputLayout tilEmail, tilPassword, tilPhone, tilOtp;
+    private com.google.android.material.textfield.TextInputLayout tilEmail, tilPassword, tilPhone, tilPin;
     private Spinner spinnerLanguage;
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
@@ -74,19 +71,6 @@ public class LoginActivity extends AppCompatActivity {
     private static long lastLanguageChangeTime = 0;
     private boolean isUserChangingLanguage = false;
     private boolean isPhoneLogin = false;
-
-    // Phone auth state
-    private String verificationId = null;
-    private PhoneAuthProvider.ForceResendingToken resendToken = null;
-    
-    // Phone login flow state
-    private enum PhoneLoginState {
-        INITIAL,      // Only phone field and Request OTP button visible
-        OTP_SENT,     // OTP field and Login button visible, Request OTP hidden
-        RESEND_AVAILABLE  // Resend OTP button visible
-    }
-    private PhoneLoginState phoneLoginState = PhoneLoginState.INITIAL;
-    private android.os.CountDownTimer countDownTimer = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -108,15 +92,13 @@ public class LoginActivity extends AppCompatActivity {
         etEmail = findViewById(R.id.etEmail);
         etPassword = findViewById(R.id.etPassword);
         etPhone = findViewById(R.id.etPhone);
-        etOtp = findViewById(R.id.etOtp);
+        etPin = findViewById(R.id.etPin);
         btnLogin = findViewById(R.id.btnLogin);
-        btnSendOtp = findViewById(R.id.btnSendOtp);
-        btnResendOtp = findViewById(R.id.btnResendOtp);
         tvStatus = findViewById(R.id.tvStatus);
         tilEmail = findViewById(R.id.tilEmail);
         tilPassword = findViewById(R.id.tilPassword);
         tilPhone = findViewById(R.id.tilPhone);
-        tilOtp = findViewById(R.id.tilOtp);
+        tilPin = findViewById(R.id.tilPin);
         // Optional: these may be null if ids not present in layout
         tvWelcomeTitle = findViewById(getResources().getIdentifier("tvWelcomeTitle", "id", getPackageName()));
         tvSubtitle = findViewById(getResources().getIdentifier("tvSubtitle", "id", getPackageName()));
@@ -128,8 +110,6 @@ public class LoginActivity extends AppCompatActivity {
         setupLanguageSpinner();
         setupLoginTypeToggle();
         btnLogin.setOnClickListener(v -> loginUser());
-        btnSendOtp.setOnClickListener(v -> sendOtp());
-        btnResendOtp.setOnClickListener(v -> resendOtp());
         
         // No explicit apply here; locale is already applied via attachBaseContext
     }
@@ -219,14 +199,12 @@ public class LoginActivity extends AppCompatActivity {
 
     private void updateLoginTypeUI() {
         if (isPhoneLogin) {
-            // Phone + OTP mode
+            // Phone + PIN mode
             tilEmail.setVisibility(View.GONE);
             tilPassword.setVisibility(View.GONE);
             tilPhone.setVisibility(View.VISIBLE);
-            
-            // Reset phone login state to initial
-            phoneLoginState = PhoneLoginState.INITIAL;
-            updatePhoneLoginUI();
+            tilPin.setVisibility(View.VISIBLE);
+            btnLogin.setVisibility(View.VISIBLE);
 
             // Update toggle button states
             tvLoginTypeEmail.setBackgroundResource(R.drawable.toggle_button_inactive_selector);
@@ -238,16 +216,8 @@ public class LoginActivity extends AppCompatActivity {
             tilEmail.setVisibility(View.VISIBLE);
             tilPassword.setVisibility(View.VISIBLE);
             tilPhone.setVisibility(View.GONE);
-            tilOtp.setVisibility(View.GONE);
-            btnSendOtp.setVisibility(View.GONE);
-            btnResendOtp.setVisibility(View.GONE);
+            tilPin.setVisibility(View.GONE);
             btnLogin.setVisibility(View.VISIBLE);
-            
-            // Cancel any running timer
-            if (countDownTimer != null) {
-                countDownTimer.cancel();
-                countDownTimer = null;
-            }
 
             // Update toggle button states
             tvLoginTypeEmail.setBackgroundResource(R.drawable.toggle_button_active_selector);
@@ -260,47 +230,12 @@ public class LoginActivity extends AppCompatActivity {
         etEmail.setText("");
         etPassword.setText("");
         if (etPhone != null) etPhone.setText("");
-        if (etOtp != null) etOtp.setText("");
-        verificationId = null;
-        resendToken = null;
-    }
-    
-    /**
-     * Update UI visibility based on phone login state
-     */
-    private void updatePhoneLoginUI() {
-        if (!isPhoneLogin) return;
-        
-        switch (phoneLoginState) {
-            case INITIAL:
-                // Only phone field and Request OTP button visible
-                tilOtp.setVisibility(View.GONE);
-                btnSendOtp.setVisibility(View.VISIBLE);
-                btnResendOtp.setVisibility(View.GONE);
-                btnLogin.setVisibility(View.GONE);
-                break;
-                
-            case OTP_SENT:
-                // OTP field and Login button visible, Request OTP hidden
-                tilOtp.setVisibility(View.VISIBLE);
-                btnSendOtp.setVisibility(View.GONE);
-                btnResendOtp.setVisibility(View.GONE);
-                btnLogin.setVisibility(View.VISIBLE);
-                break;
-                
-            case RESEND_AVAILABLE:
-                // OTP field, Login button, and Resend OTP button visible
-                tilOtp.setVisibility(View.VISIBLE);
-                btnSendOtp.setVisibility(View.GONE);
-                btnResendOtp.setVisibility(View.VISIBLE);
-                btnLogin.setVisibility(View.VISIBLE);
-                break;
-        }
+        if (etPin != null) etPin.setText("");
     }
 
     private void loginUser() {
         if (isPhoneLogin) {
-            loginWithPhoneOtp();
+            loginWithPhonePin();
             return;
         }
 
@@ -431,225 +366,202 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
-    // --- Phone + OTP login helpers (online only) ---
+    // --- Phone + PIN login helpers (online only) ---
 
-    private void sendOtp() {
-        if (etPhone == null) {
-            showError(getString(R.string.invalid_phone_number));
-            return;
-        }
+    // --- Phone + PIN login helpers (online only) ---
 
-        String phone = etPhone.getText().toString().trim();
-        if (TextUtils.isEmpty(phone) || phone.length() < 8) {
-            showError(getString(R.string.invalid_phone_number));
-            return;
-        }
-
-        // Normalize phone number (remove spaces, dashes, parentheses)
-        String normalizedPhone = phone.replaceAll("[\\s\\-\\(\\)]", "");
-
-        showLoading(getString(R.string.signing_in));
-
-        // IMPORTANT: Only allow OTP for phone numbers that exist in Firestore users
-        db.collection("users")
-                .whereEqualTo("phone", normalizedPhone)
-                .limit(1)
-                .get()
-                .addOnCompleteListener(task -> {
-                    if (!task.isSuccessful() || task.getResult() == null || task.getResult().isEmpty()) {
-                        Log.d("LoginActivity", "No user found with phone: " + normalizedPhone);
-                        showError(getString(R.string.user_not_found_phone));
-                        return;
-                    }
-
-                    // At least one user exists with this phone; proceed with Firebase Phone Auth
-                    PhoneAuthOptions options =
-                            PhoneAuthOptions.newBuilder(mAuth)
-                                    .setPhoneNumber(normalizedPhone)
-                                    .setTimeout(60L, TimeUnit.SECONDS)
-                                    .setActivity(this)
-                                    .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                                        @Override
-                                        public void onVerificationCompleted(PhoneAuthCredential credential) {
-                                            // Auto-retrieval or instant verification
-                                            Log.d("LoginActivity", "Phone verification completed automatically");
-                                            signInWithPhoneCredential(credential);
-                                        }
-
-                                        @Override
-                                        public void onVerificationFailed(com.google.firebase.FirebaseException e) {
-                                            Log.e("LoginActivity", "Phone verification failed", e);
-                                            showError(getString(R.string.login_failed) + ": " + e.getMessage());
-                                        }
-
-                                        @Override
-                                        public void onCodeSent(String verId,
-                                                               PhoneAuthProvider.ForceResendingToken token) {
-                                            Log.d("LoginActivity", "OTP code sent");
-                                            verificationId = verId;
-                                            resendToken = token;
-                                            showSuccess(getString(R.string.otp_sent));
-                                            
-                                            // Update state to OTP_SENT and show OTP field + Login button
-                                            phoneLoginState = PhoneLoginState.OTP_SENT;
-                                            updatePhoneLoginUI();
-                                            
-                                            // Start 60-second countdown timer
-                                            startResendCountdown();
-                                        }
-                                    })
-                                    .build();
-
-                    PhoneAuthProvider.verifyPhoneNumber(options);
-                });
-    }
-    
-    /**
-     * Start 60-second countdown timer for resend OTP button
-     */
-    private void startResendCountdown() {
-        // Cancel any existing timer
-        if (countDownTimer != null) {
-            countDownTimer.cancel();
-        }
-        
-        countDownTimer = new android.os.CountDownTimer(60000, 1000) {
-            @Override
-            public void onTick(long millisUntilFinished) {
-                // Update button text with countdown (optional - we'll just wait)
-                long secondsRemaining = millisUntilFinished / 1000;
-                // You can update a text view here if needed, but we'll just wait
-            }
-            
-            @Override
-            public void onFinish() {
-                // After 60 seconds, show resend button
-                if (phoneLoginState == PhoneLoginState.OTP_SENT) {
-                    phoneLoginState = PhoneLoginState.RESEND_AVAILABLE;
-                    updatePhoneLoginUI();
-                }
-            }
-        };
-        countDownTimer.start();
-    }
-    
-    /**
-     * Resend OTP using the resend token
-     */
-    private void resendOtp() {
-        if (etPhone == null) {
-            showError(getString(R.string.invalid_phone_number));
-            return;
-        }
-
-        String phone = etPhone.getText().toString().trim();
-        if (TextUtils.isEmpty(phone) || phone.length() < 8) {
-            showError(getString(R.string.invalid_phone_number));
-            return;
-        }
-
-        // Normalize phone number
-        String normalizedPhone = phone.replaceAll("[\\s\\-\\(\\)]", "");
-
-        if (resendToken == null) {
-            showError("Cannot resend OTP. Please request a new OTP.");
-            return;
-        }
-
-        showLoading("Resending OTP...");
-
-        // Resend OTP using the resend token
-        PhoneAuthOptions options =
-                PhoneAuthOptions.newBuilder(mAuth)
-                        .setPhoneNumber(normalizedPhone)
-                        .setTimeout(60L, TimeUnit.SECONDS)
-                        .setActivity(this)
-                        .setCallbacks(new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                            @Override
-                            public void onVerificationCompleted(PhoneAuthCredential credential) {
-                                Log.d("LoginActivity", "Phone verification completed automatically (resend)");
-                                signInWithPhoneCredential(credential);
-                            }
-
-                            @Override
-                            public void onVerificationFailed(com.google.firebase.FirebaseException e) {
-                                Log.e("LoginActivity", "Phone verification failed (resend)", e);
-                                showError(getString(R.string.login_failed) + ": " + e.getMessage());
-                            }
-
-                            @Override
-                            public void onCodeSent(String verId,
-                                                   PhoneAuthProvider.ForceResendingToken token) {
-                                Log.d("LoginActivity", "OTP code resent");
-                                verificationId = verId;
-                                resendToken = token;
-                                showSuccess(getString(R.string.otp_sent));
-                                
-                                // Reset to OTP_SENT state and restart countdown
-                                phoneLoginState = PhoneLoginState.OTP_SENT;
-                                updatePhoneLoginUI();
-                                startResendCountdown();
-                            }
-                        })
-                        .setForceResendingToken(resendToken)
-                        .build();
-
-        PhoneAuthProvider.verifyPhoneNumber(options);
-    }
-
-    private void loginWithPhoneOtp() {
-        if (etPhone == null || etOtp == null) {
+    private void loginWithPhonePin() {
+        if (etPhone == null || etPin == null) {
             showError(getString(R.string.fill_all_fields));
             return;
         }
 
         String phone = etPhone.getText().toString().trim();
-        String code = etOtp.getText().toString().trim();
+        String pin = etPin.getText().toString().trim();
 
-        if (TextUtils.isEmpty(phone) || TextUtils.isEmpty(code)) {
-            showError(getString(R.string.fill_all_fields));
+        if (TextUtils.isEmpty(phone) || phone.length() < 8) {
+            showError(getString(R.string.invalid_phone_number));
             return;
         }
 
-        if (verificationId == null) {
-            showError(getString(R.string.otp_not_requested));
+        if (TextUtils.isEmpty(pin) || pin.length() != 6 || !pin.matches("\\d{6}")) {
+            showError("Please enter a valid 6-digit PIN");
             return;
         }
 
-        PhoneAuthCredential credential = PhoneAuthProvider.getCredential(verificationId, code);
-        signInWithPhoneCredential(credential);
-    }
+        // Normalize phone number (remove spaces, dashes, parentheses, plus signs)
+        String normalizedPhone = phone.replaceAll("[\\s\\-\\(\\)\\+]", "");
 
-    private void signInWithPhoneCredential(PhoneAuthCredential credential) {
         showLoading(getString(R.string.signing_in));
         btnLogin.setEnabled(false);
 
-        mAuth.signInWithCredential(credential)
-                .addOnCompleteListener(this, task -> {
+        // Find user by phone number in Firestore
+        // Since phone numbers might be stored in different formats, we need to fetch all users
+        // and check normalized phone numbers
+        db.collection("users")
+                .get()
+                .addOnCompleteListener(task -> {
                     btnLogin.setEnabled(true);
-                    if (task.isSuccessful()) {
-                        Log.d("LoginActivity", "Phone auth sign-in successful");
-                        showSuccess(getString(R.string.login_successful));
-
-                        // Reuse existing flow: get user profile and validate license
-                        authManager.getCurrentUser(new AuthManager.AuthCallback() {
-                            @Override
-                            public void onSuccess(User user) {
-                                // IMPORTANT: no offline password stored for phone login
-                                // We just validate license and start online session.
-                                validateUserLicense(user);
-                            }
-
-                            @Override
-                            public void onError(String error) {
-                                showError("Failed to get user profile: " + error);
-                            }
-                        });
-                    } else {
-                        Log.e("LoginActivity", "Phone auth sign-in failed", task.getException());
-                        showError(getString(R.string.login_failed) + ": " +
-                                (task.getException() != null ? task.getException().getMessage() : ""));
+                    
+                    if (!task.isSuccessful() || task.getResult() == null) {
+                        Log.e("LoginActivity", "Error fetching users: " + (task.getException() != null ? task.getException().getMessage() : "Unknown error"));
+                        showError("Failed to connect. Please check your internet connection.");
+                        return;
                     }
+                    
+                    // Find ALL users with matching normalized phone number
+                    java.util.List<com.google.firebase.firestore.QueryDocumentSnapshot> matchingUsers = new java.util.ArrayList<>();
+                    
+                    Log.d("LoginActivity", "Searching for phone: " + normalizedPhone + " (normalized from: " + phone + ")");
+                    Log.d("LoginActivity", "Total users in database: " + task.getResult().size());
+                    
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot document : task.getResult()) {
+                        String userId = document.getId();
+                        String storedPhone = document.getString("phone");
+                        String userEmail = document.getString("email");
+                        String userName = document.getString("name");
+                        String userRole = document.getString("role");
+                        
+                        // Log each user for debugging
+                        Log.d("LoginActivity", "Checking user: ID=" + userId + ", Email=" + userEmail + 
+                            ", Name=" + userName + ", Role=" + userRole + ", Phone=" + 
+                            (storedPhone != null ? storedPhone : "NULL"));
+                        
+                        // CRITICAL: Only check users that have a phone number
+                        if (storedPhone == null || storedPhone.trim().isEmpty()) {
+                            Log.d("LoginActivity", "Skipping user " + userId + " - no phone number");
+                            continue;
+                        }
+                        
+                        // Normalize stored phone number
+                        String normalizedStoredPhone = storedPhone.replaceAll("[\\s\\-\\(\\)\\+]", "");
+                        
+                        Log.d("LoginActivity", "User " + userId + " phone: original='" + storedPhone + 
+                            "', normalized='" + normalizedStoredPhone + "', matches=" + normalizedStoredPhone.equals(normalizedPhone));
+                        
+                        if (normalizedStoredPhone.equals(normalizedPhone)) {
+                            Log.d("LoginActivity", "MATCH FOUND: User " + userId + " (" + userEmail + ") has matching phone");
+                            matchingUsers.add(document);
+                        }
+                    }
+                    
+                    Log.d("LoginActivity", "Total matching users found: " + matchingUsers.size());
+                    
+                    if (matchingUsers.isEmpty()) {
+                        Log.d("LoginActivity", "No user found with phone: " + normalizedPhone);
+                        showError("User not found with this phone number");
+                        return;
+                    }
+                    
+                    if (matchingUsers.size() > 1) {
+                        Log.w("LoginActivity", "WARNING: " + matchingUsers.size() + " users found with the same phone number: " + normalizedPhone);
+                        for (com.google.firebase.firestore.QueryDocumentSnapshot doc : matchingUsers) {
+                            Log.w("LoginActivity", "  - UserID: " + doc.getId() + ", Email: " + doc.getString("email") + 
+                                ", Name: " + doc.getString("name") + ", Role: " + doc.getString("role"));
+                        }
+                    }
+                    
+                    // Now verify PIN for each matching user and find the one with correct PIN
+                    com.google.firebase.firestore.QueryDocumentSnapshot correctUser = null;
+                    
+                    for (com.google.firebase.firestore.QueryDocumentSnapshot document : matchingUsers) {
+                        String userId = document.getId();
+                        String hashedPin = document.getString("phonePin");
+                        
+                        Log.d("LoginActivity", "Checking user: ID=" + userId + ", Email=" + document.getString("email") + 
+                            ", Name=" + document.getString("name") + ", Phone=" + document.getString("phone"));
+                        
+                        if (hashedPin == null || hashedPin.isEmpty()) {
+                            Log.d("LoginActivity", "User " + userId + " has no PIN set, skipping");
+                            continue;
+                        }
+                        
+                        // Log the stored hash format for debugging
+                        Log.d("LoginActivity", "Stored phonePin for user " + userId + ": length=" + hashedPin.length() + 
+                            ", format=" + (hashedPin.contains(":") ? "salt:hash" : "invalid") + 
+                            ", preview=" + (hashedPin.length() > 50 ? hashedPin.substring(0, 50) + "..." : hashedPin));
+                        
+                        // Verify PIN for this user
+                        boolean pinValid = PinHasher.verifyPin(pin, hashedPin);
+                        Log.d("LoginActivity", "PIN verification for user " + userId + " (" + 
+                            document.getString("email") + "): " + (pinValid ? "VALID" : "INVALID") + 
+                            " (entered PIN: " + pin + ")");
+                        
+                        if (pinValid) {
+                            correctUser = document;
+                            Log.d("LoginActivity", "Found correct user with matching phone and PIN: UserID=" + userId + 
+                                ", Email=" + document.getString("email") + ", Name=" + document.getString("name"));
+                            break;
+                        } else {
+                            Log.w("LoginActivity", "PIN mismatch for user " + userId + ". Stored hash format: " + 
+                                (hashedPin.contains(":") ? "valid" : "invalid"));
+                        }
+                    }
+                    
+                    if (correctUser == null) {
+                        Log.e("LoginActivity", "No user found with matching phone and PIN for phone: " + normalizedPhone);
+                        showError("Invalid PIN. Please try again.");
+                        return;
+                    }
+                    
+                    // Use the correct user document (the one with matching phone AND PIN)
+                    com.google.firebase.firestore.QueryDocumentSnapshot document = correctUser;
+                    String userId = document.getId();
+                    String email = document.getString("email");
+                    String storedPhone = document.getString("phone");
+                    
+                    // CRITICAL SAFETY CHECK: Verify the user actually has a phone number
+                    if (storedPhone == null || storedPhone.trim().isEmpty()) {
+                        Log.e("LoginActivity", "SECURITY ERROR: Attempted to login user " + userId + 
+                            " (" + email + ") but this user has NO phone number! This should never happen.");
+                        showError("Security error: User data inconsistency. Please contact support.");
+                        return;
+                    }
+                    
+                    // Verify the phone number matches what we searched for
+                    String normalizedStoredPhone = storedPhone.replaceAll("[\\s\\-\\(\\)\\+]", "");
+                    if (!normalizedStoredPhone.equals(normalizedPhone)) {
+                        Log.e("LoginActivity", "SECURITY ERROR: Phone mismatch! Searched for: " + normalizedPhone + 
+                            ", but user has: " + normalizedStoredPhone);
+                        showError("Security error: Phone number mismatch. Please contact support.");
+                        return;
+                    }
+                    
+                    Log.d("LoginActivity", "SECURITY CHECK PASSED: User " + userId + " has phone " + storedPhone + 
+                        " (normalized: " + normalizedStoredPhone + ") matching search: " + normalizedPhone);
+                    
+                    // Check if user is disabled
+                    Boolean disabled = document.getBoolean("disabled");
+                    if (disabled != null && disabled) {
+                        Log.w("LoginActivity", "User is disabled: " + userId);
+                        showError("Your account has been disabled. Please contact support.");
+                        return;
+                    }
+
+                    // Create User object from Firestore data - using the CORRECT document (matching phone AND PIN)
+                    User user = new User();
+                    user.setUid(userId);
+                    user.setEmail(email != null ? email : "");
+                    user.setName(document.getString("name"));
+                    user.setPhone(storedPhone); // Use stored phone from document
+                    user.setRole(document.getString("role"));
+                    user.setDealerId(document.getString("dealerId"));
+                    user.setDisabled(disabled != null && disabled);
+                    
+                    Log.d("LoginActivity", "=== LOGGING IN USER ===");
+                    Log.d("LoginActivity", "UID: " + user.getUid());
+                    Log.d("LoginActivity", "Email: " + user.getEmail());
+                    Log.d("LoginActivity", "Name: " + user.getName());
+                    Log.d("LoginActivity", "Role: " + user.getRole());
+                    Log.d("LoginActivity", "Phone: " + user.getPhone());
+                    Log.d("LoginActivity", "DealerId: " + user.getDealerId());
+                    Log.d("LoginActivity", "Disabled: " + user.isDisabled());
+                    
+                    // Phone+PIN authentication is complete and verified
+                    // Phone number and PIN have been validated from Firestore
+                    // No email/password required - phone+PIN is sufficient for authentication
+                    Log.d("LoginActivity", "Phone+PIN authentication successful - proceeding with license validation");
+                    proceedWithPhoneLogin(user);
                 });
     }
 
@@ -689,6 +601,62 @@ public class LoginActivity extends AppCompatActivity {
                         showError(getString(R.string.login_failed) + ": " + task.getException().getMessage());
                     }
                 });
+    }
+
+    private void proceedWithPhoneLogin(User user) {
+        // Phone+PIN authentication is complete and verified
+        // Phone number and PIN have been validated from Firestore
+        // No email/password authentication needed - phone+PIN is sufficient
+        
+        Log.d("LoginActivity", "Phone+PIN authentication successful for user: " + user.getEmail());
+        
+        // CRITICAL: Save user to local database immediately so AuthManager can find them
+        // This ensures the user is available even if license validation fails
+        try {
+            com.example.myapplication.database.entities.UserEntity userEntity = new com.example.myapplication.database.entities.UserEntity();
+            userEntity.setUid(user.getUid());
+            userEntity.setEmail(user.getEmail() != null ? user.getEmail() : "");
+            userEntity.setName(user.getName() != null ? user.getName() : "");
+            userEntity.setPhone(user.getPhone() != null ? user.getPhone() : "");
+            userEntity.setRole(user.getRole() != null ? user.getRole() : "agent");
+            userEntity.setDealerId(user.getDealerId());
+            userEntity.setActive(user.isActive());
+            userEntity.setDisabled(user.isDisabled());
+            long now = System.currentTimeMillis();
+            userEntity.setCreatedAt(user.getCreatedAt() != null ? user.getCreatedAt().getTime() : now);
+            userEntity.setUpdatedAt(user.getUpdatedAt() != null ? user.getUpdatedAt().getTime() : now);
+            userEntity.setLastSyncAt(now);
+            
+            com.example.myapplication.database.AppDatabase db = 
+                com.example.myapplication.database.AppDatabase.getDatabase(this);
+            db.userDao().insertUser(userEntity);
+            Log.d("LoginActivity", "User saved to local database: UID=" + user.getUid() + ", Email=" + user.getEmail());
+            
+            // Create a temporary session so the user is "logged in" even before license validation
+            // This allows them to proceed to license activation if needed
+            com.example.myapplication.database.entities.SessionEntity session = 
+                db.sessionDao().getCurrentSession();
+            if (session == null) {
+                // Create new session if it doesn't exist
+                session = new com.example.myapplication.database.entities.SessionEntity("current_session");
+                db.sessionDao().insertSession(session);
+            }
+            
+            session.setUserId(user.getUid());
+            session.setEmail(user.getEmail() != null ? user.getEmail() : "");
+            session.setRole(user.getRole() != null ? user.getRole() : "agent");
+            session.setLoggedIn(true);
+            session.setLoginTime(now);
+            session.setLastActivityTime(now);
+            db.sessionDao().updateSession(session);
+            Log.d("LoginActivity", "Temporary session created: UserID=" + user.getUid() + ", Email=" + user.getEmail() + ", LoggedIn=" + session.isLoggedIn());
+            
+        } catch (Exception e) {
+            Log.e("LoginActivity", "Error saving user/session to database: " + e.getMessage(), e);
+        }
+        
+        Log.d("LoginActivity", "Proceeding with license validation");
+        validateUserLicense(user);
     }
 
     private void validateUserLicense(User user) {
@@ -798,11 +766,6 @@ public class LoginActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Cancel countdown timer to prevent memory leaks
-        if (countDownTimer != null) {
-            countDownTimer.cancel();
-            countDownTimer = null;
-        }
     }
 }
 

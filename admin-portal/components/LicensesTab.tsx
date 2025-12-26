@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, updateDoc, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, App, Skeleton } from 'antd';
 import dayjs from 'dayjs';
-import { PlusOutlined, EditOutlined, KeyOutlined, CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, KeyOutlined, CheckCircleTwoTone, CloseCircleTwoTone, ReloadOutlined } from '@ant-design/icons';
 import { db } from '@/lib/firebase';
 import { License, User } from '@/lib/types';
 import { format, addYears, addMonths } from 'date-fns';
@@ -22,6 +22,7 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLicense, setEditingLicense] = useState<License | null>(null);
   const [form] = Form.useForm();
+  const [existingLicenseKeys, setExistingLicenseKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -35,6 +36,10 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
       const licensesSnapshot = await getDocs(collection(db, 'licenses'));
       const licensesData = licensesSnapshot.docs.map(doc => ({ ...doc.data() } as License));
       setLicenses(licensesData);
+      
+      // Store existing license keys for duplicate checking
+      const keys = new Set(licensesSnapshot.docs.map(doc => doc.id));
+      setExistingLicenseKeys(keys);
 
       // Load all users (dealers and agents)
       const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -48,9 +53,65 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
     }
   };
 
+  const generateLicenseKey = (): string => {
+    // Generate a unique license key: LIC-YYYYMMDD-HHMMSS-XXXX
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    
+    // Generate random 4-digit suffix
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    
+    return `LIC-${year}${month}${day}-${hours}${minutes}${seconds}-${randomSuffix}`;
+  };
+
+  const generateUniqueLicenseKey = async (): Promise<string> => {
+    // Load fresh license keys to ensure we have the latest data
+    const licensesSnapshot = await getDocs(collection(db, 'licenses'));
+    const currentKeys = new Set(licensesSnapshot.docs.map(doc => doc.id));
+    
+    let key = generateLicenseKey();
+    let attempts = 0;
+    const maxAttempts = 100;
+    
+    // Ensure uniqueness by checking against existing keys
+    while (currentKeys.has(key) && attempts < maxAttempts) {
+      key = generateLicenseKey();
+      attempts++;
+    }
+    
+    if (attempts >= maxAttempts) {
+      // Fallback: add timestamp to ensure uniqueness
+      key = `LIC-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    }
+    
+    return key;
+  };
+
+  const handleGenerateKey = async () => {
+    const newKey = await generateUniqueLicenseKey();
+    form.setFieldsValue({ licenseKey: newKey });
+  };
+
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      
+      // Check for duplicate license key when creating new license
+      if (!editingLicense) {
+        // Check if license key already exists in Firestore
+        const licenseDoc = await getDocs(collection(db, 'licenses'));
+        const existingKeys = licenseDoc.docs.map(doc => doc.id);
+        
+        if (existingKeys.includes(values.licenseKey)) {
+          message.error('This license key already exists. Please use a different key or generate a new one.');
+          return;
+        }
+      }
       // When editing, keep original assigned user and issueDate; only recompute expiry
       const baseIssueDate: Date = editingLicense
         ? (editingLicense.issueDate instanceof Timestamp ? editingLicense.issueDate.toDate() : new Date(editingLicense.issueDate))
@@ -140,15 +201,6 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
           isActive: editingLicense.isActive,
         });
       }, 100);
-    } else if (isModalOpen && !editingLicense) {
-      form.resetFields();
-      form.setFieldsValue({ 
-        licenseType: 'annual',
-        expiryYears: 1,
-        expiryMonths: 1,
-        maxAgentCount: null,
-        isActive: true 
-      });
     }
   }, [isModalOpen, editingLicense, form]);
 
@@ -276,7 +328,10 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
       styles={{ body: { padding: 16 } }}
       title={<Typography.Title level={3} style={{ margin: 0, color: colors.beige[500] }}>Licenses Management</Typography.Title>}
       extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingLicense(null); setIsModalOpen(true); }}>Add License</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => { 
+          setEditingLicense(null);
+          setIsModalOpen(true);
+        }}>Add License</Button>
       }
     >
       <Table rowKey="licenseKey" dataSource={licenses} columns={columns} pagination={{ pageSize: 10 }} scroll={{ x: 1000 }} />
@@ -284,14 +339,79 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
       <Modal
         open={isModalOpen}
         title={editingLicense ? 'Edit License' : 'Add New License'}
-        onCancel={() => { setIsModalOpen(false); setEditingLicense(null); }}
+        onCancel={() => { 
+          setIsModalOpen(false); 
+          setEditingLicense(null); 
+          form.resetFields(); 
+        }}
         onOk={handleSubmit}
         okText={editingLicense ? 'Update' : 'Create'}
         destroyOnHidden
+        afterOpenChange={async (open) => {
+          if (open && !editingLicense) {
+            // Generate and set license key when modal opens
+            // Wait a bit for form to be fully initialized
+            await new Promise(resolve => setTimeout(resolve, 400));
+            
+            try {
+              const autoGeneratedKey = await generateUniqueLicenseKey();
+              
+              // Set all form values at once
+              form.setFieldsValue({ 
+                licenseKey: autoGeneratedKey,
+                licenseType: 'annual',
+                expiryYears: 1,
+                expiryMonths: 1,
+                maxAgentCount: null,
+                isActive: true 
+              });
+              
+              // Force form to update by triggering a re-render
+              form.validateFields(['licenseKey']).catch(() => {});
+            } catch (error) {
+              console.error('Error generating license key:', error);
+            }
+          }
+        }}
       >
         <Form form={form} layout="vertical" preserve={false}>
-          <Form.Item name="licenseKey" label="License Key" rules={[{ required: true }]}> 
-            <Input placeholder="LIC-DEALER-001" disabled={!!editingLicense} />
+          <Form.Item 
+            name="licenseKey" 
+            label="License Key" 
+            rules={[
+              { required: true, message: 'Please enter or generate a license key' },
+              {
+                validator: async (_, value) => {
+                  if (!value) return Promise.resolve();
+                  if (editingLicense) return Promise.resolve(); // Skip check when editing
+                  
+                  // Check if license key already exists
+                  const licenseDoc = await getDocs(collection(db, 'licenses'));
+                  const existingKeys = licenseDoc.docs.map(doc => doc.id);
+                  
+                  if (existingKeys.includes(value)) {
+                    return Promise.reject(new Error('This license key already exists. Please use a different key.'));
+                  }
+                  return Promise.resolve();
+                }
+              }
+            ]}
+          > 
+            <Space.Compact style={{ width: '100%' }}>
+              <Input 
+                placeholder="LIC-YYYYMMDD-HHMMSS-XXXX" 
+                disabled={!!editingLicense}
+                style={{ flex: 1 }}
+              />
+              {!editingLicense && (
+                <Button 
+                  icon={<ReloadOutlined />} 
+                  onClick={handleGenerateKey}
+                >
+                  Generate
+                </Button>
+              )}
+            </Space.Compact>
           </Form.Item>
           {!editingLicense && (
             <Form.Item name="issueDate" label="Issue Date" rules={[{ required: true }]}> 

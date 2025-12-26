@@ -2,7 +2,9 @@ package com.example.myapplication.utils;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
+import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.entities.User;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -22,8 +24,10 @@ public class AuthManager {
     private FirebaseFirestore db;
     private SharedPreferences prefs;
     private User currentUser;
+    private Context context;
 
     private AuthManager(Context context) {
+        this.context = context;
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -43,7 +47,23 @@ public class AuthManager {
 
     public void getCurrentUser(AuthCallback callback) {
         FirebaseUser firebaseUser = mAuth.getCurrentUser();
+        
+        // If Firebase Auth user is null, try to get user from SessionManager (for phone+PIN login)
         if (firebaseUser == null) {
+            Log.d("AuthManager", "Firebase Auth user is null, checking SessionManager for phone+PIN login");
+            SessionManager sessionManager = new SessionManager(context);
+            UserEntity sessionUser = sessionManager.getCurrentUser();
+            
+            if (sessionUser != null && sessionManager.isLoggedIn()) {
+                Log.d("AuthManager", "Found user in SessionManager: " + sessionUser.getEmail());
+                // Convert UserEntity to User
+                User user = convertUserEntityToUser(sessionUser);
+                currentUser = user;
+                callback.onSuccess(user);
+                return;
+            }
+            
+            Log.d("AuthManager", "No user found in SessionManager either");
             callback.onError("No user logged in");
             return;
         }
@@ -109,7 +129,13 @@ public class AuthManager {
     }
 
     public boolean isLoggedIn() {
-        return mAuth.getCurrentUser() != null;
+        // Check Firebase Auth first
+        if (mAuth.getCurrentUser() != null) {
+            return true;
+        }
+        // Fallback to SessionManager for phone+PIN login
+        SessionManager sessionManager = new SessionManager(context);
+        return sessionManager.isLoggedIn();
     }
 
     public boolean isDealer() {
@@ -234,6 +260,28 @@ public class AuthManager {
                 }})
                 .addOnSuccessListener(aVoid -> callback.onSuccess(user))
                 .addOnFailureListener(e -> callback.onError("Failed to create user profile: " + e.getMessage()));
+    }
+    
+    /**
+     * Convert UserEntity to User object
+     */
+    private User convertUserEntityToUser(UserEntity entity) {
+        User user = new User();
+        user.setUid(entity.getUid());
+        user.setEmail(entity.getEmail());
+        user.setName(entity.getName());
+        user.setPhone(entity.getPhone());
+        user.setRole(entity.getRole());
+        user.setDealerId(entity.getDealerId());
+        user.setActive(entity.isActive());
+        user.setDisabled(entity.isDisabled());
+        if (entity.getCreatedAt() > 0) {
+            user.setCreatedAt(new java.util.Date(entity.getCreatedAt()));
+        }
+        if (entity.getUpdatedAt() > 0) {
+            user.setUpdatedAt(new java.util.Date(entity.getUpdatedAt()));
+        }
+        return user;
     }
 }
 

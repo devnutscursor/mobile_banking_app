@@ -25,6 +25,13 @@ public interface CustomerDao {
     @Query("SELECT * FROM customers WHERE nationalIdNumber = :nationalId")
     CustomerEntity getCustomerByNationalId(String nationalId);
     
+    /**
+     * Find customer by National ID for a specific agent (createdBy)
+     * Used to prevent duplicate National IDs per agent/dealer
+     */
+    @Query("SELECT * FROM customers WHERE nationalIdNumber = :nationalId AND createdBy = :userId AND isActive = 1")
+    CustomerEntity getCustomerByNationalIdAndUser(String nationalId, String userId);
+    
     @Query("SELECT * FROM customers WHERE isActive = 1 AND createdBy = :userId ORDER BY createdAt DESC")
     List<CustomerEntity> getCustomersByUser(String userId);
     
@@ -44,6 +51,13 @@ public interface CustomerDao {
     
     @Query("SELECT * FROM customers WHERE nationalIdNumber = :nationalId AND id != :excludeId")
     CustomerEntity getCustomerByNationalIdExcluding(String nationalId, String excludeId);
+    
+    /**
+     * Find customer by National ID for a specific agent, excluding a specific customer ID
+     * Used when editing an existing customer to allow keeping the same National ID
+     */
+    @Query("SELECT * FROM customers WHERE nationalIdNumber = :nationalId AND createdBy = :userId AND id != :excludeId AND isActive = 1")
+    CustomerEntity getCustomerByNationalIdAndUserExcluding(String nationalId, String userId, String excludeId);
     
     @Query("UPDATE customers SET isActive = 0, needsSync = 1, updatedAt = :updatedAt WHERE id = :customerId")
     void softDeleteCustomer(String customerId, long updatedAt);
@@ -71,6 +85,21 @@ public interface CustomerDao {
      */
     @Query("SELECT * FROM customers WHERE phoneNumber = :phoneNumber AND createdBy = :userId AND id != :excludeId AND isActive = 1")
     CustomerEntity getCustomerByPhoneNumberAndUserExcluding(String phoneNumber, String userId, String excludeId);
+    
+    /**
+     * Find customer by National ID AND Phone Number for a specific agent
+     * Used to prevent exact duplicates (same National ID + same phone number) per agent/dealer
+     * This allows same National ID with different phone numbers
+     */
+    @Query("SELECT * FROM customers WHERE nationalIdNumber = :nationalId AND phoneNumber = :phoneNumber AND createdBy = :userId AND isActive = 1")
+    CustomerEntity getCustomerByNationalIdAndPhoneAndUser(String nationalId, String phoneNumber, String userId);
+    
+    /**
+     * Find customer by National ID AND Phone Number for a specific agent, excluding a specific customer ID
+     * Used when editing an existing customer to allow keeping the same National ID + phone combination
+     */
+    @Query("SELECT * FROM customers WHERE nationalIdNumber = :nationalId AND phoneNumber = :phoneNumber AND createdBy = :userId AND id != :excludeId AND isActive = 1")
+    CustomerEntity getCustomerByNationalIdAndPhoneAndUserExcluding(String nationalId, String phoneNumber, String userId, String excludeId);
 }
 
 

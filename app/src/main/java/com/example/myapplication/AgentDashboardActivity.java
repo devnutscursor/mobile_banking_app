@@ -7,6 +7,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -228,6 +229,14 @@ public class AgentDashboardActivity extends AppCompatActivity {
             btnCommissionReports.setOnClickListener(v -> {
                 Intent intent = new Intent(this, CommissionReportActivity.class);
                 startActivity(intent);
+            });
+        }
+        
+        // Contact floating action button
+        com.google.android.material.floatingactionbutton.FloatingActionButton fabContact = findViewById(R.id.fabContact);
+        if (fabContact != null) {
+            fabContact.setOnClickListener(v -> {
+                showContactDialog();
             });
         }
 
@@ -546,17 +555,141 @@ public class AgentDashboardActivity extends AppCompatActivity {
         
         message += "Created: " + (currentUser.getCreatedAt() > 0 ? new java.util.Date(currentUser.getCreatedAt()).toString() : "Unknown");
 
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("User Details")
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("User Details")
                 .setMessage(message)
                 .setPositiveButton("OK", null)
+                .setNeutralButton("Change PIN", (dialog, which) -> showChangePinDialog())
                 .show();
+    }
+    
+    /**
+     * Show dialog to change PIN
+     */
+    private void showChangePinDialog() {
+        if (currentUser == null) {
+            Toast.makeText(this, "User information not available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        android.view.View dialogView = getLayoutInflater().inflate(R.layout.dialog_change_pin, null);
+        builder.setView(dialogView);
+        
+        EditText etCurrentPin = dialogView.findViewById(R.id.etCurrentPin);
+        EditText etNewPin = dialogView.findViewById(R.id.etNewPin);
+        EditText etConfirmPin = dialogView.findViewById(R.id.etConfirmPin);
+        
+        builder.setTitle("Change PIN")
+                .setPositiveButton("Change", (dialog, which) -> {
+                    String currentPin = etCurrentPin.getText().toString().trim();
+                    String newPin = etNewPin.getText().toString().trim();
+                    String confirmPin = etConfirmPin.getText().toString().trim();
+                    
+                    if (currentPin.length() != 6 || newPin.length() != 6 || confirmPin.length() != 6) {
+                        Toast.makeText(this, "PIN must be 6 digits", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    
+                    if (!newPin.equals(confirmPin)) {
+                        Toast.makeText(this, "New PIN and confirm PIN do not match", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    
+                    changePin(currentPin, newPin);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+    
+    /**
+     * Show contact information dialog
+     */
+    private void showContactDialog() {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("Contact Us")
+                .setMessage("Email: support@baronco.io\n\nWhatsApp: +22677489393")
+                .setPositiveButton("Email", (dialog, which) -> {
+                    Intent emailIntent = new Intent(Intent.ACTION_SEND);
+                    emailIntent.setType("message/rfc822");
+                    emailIntent.putExtra(Intent.EXTRA_EMAIL, new String[]{"support@baronco.io"});
+                    emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Support Request");
+                    try {
+                        startActivity(Intent.createChooser(emailIntent, "Send email..."));
+                    } catch (android.content.ActivityNotFoundException ex) {
+                        Toast.makeText(this, "No email client installed", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNeutralButton("WhatsApp", (dialog, which) -> {
+                    String phoneNumber = "+22677489393";
+                    String url = "https://wa.me/" + phoneNumber.replace("+", "");
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setData(android.net.Uri.parse(url));
+                    try {
+                        startActivity(intent);
+                    } catch (android.content.ActivityNotFoundException ex) {
+                        Toast.makeText(this, "WhatsApp not installed", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Close", null)
+                .show();
+    }
+    
+    /**
+     * Change user PIN
+     */
+    private void changePin(String currentPin, String newPin) {
+        if (currentUser == null) {
+            return;
+        }
+        
+        // First verify current PIN
+        com.google.firebase.firestore.FirebaseFirestore db = com.google.firebase.firestore.FirebaseFirestore.getInstance();
+        
+        db.collection("users").document(currentUser.getUid())
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (!documentSnapshot.exists()) {
+                        Toast.makeText(this, "User not found", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    
+                    String hashedCurrentPin = documentSnapshot.getString("phonePin");
+                    if (hashedCurrentPin == null || hashedCurrentPin.isEmpty()) {
+                        Toast.makeText(this, "Current PIN not set. Please contact support.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    
+                    // Verify current PIN
+                    if (!com.example.myapplication.utils.PinHasher.verifyPin(currentPin, hashedCurrentPin)) {
+                        Toast.makeText(this, "Current PIN is incorrect", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    
+                    // Hash new PIN and update in Firestore
+                    String hashedNewPin = com.example.myapplication.utils.PinHasher.hashPin(newPin);
+                    
+                    db.collection("users").document(currentUser.getUid())
+                            .update("phonePin", hashedNewPin, "updatedAt", com.google.firebase.firestore.FieldValue.serverTimestamp())
+                            .addOnSuccessListener(aVoid -> {
+                                Toast.makeText(this, "PIN changed successfully", Toast.LENGTH_SHORT).show();
+                            })
+                            .addOnFailureListener(e -> {
+                                Toast.makeText(this, "Failed to change PIN: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         Log.d("AgentDashboardActivity", "onResume called, checking disabled status");
+        
+        // Update language flag in case language was changed elsewhere
+        updateLanguageFlag();
         
         // Check if user is disabled and logout if necessary
         checkUserDisabledStatus();

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="@color/card_background">
+
+    <!-- Current PIN -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Current PIN"
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/etCurrentPin"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@drawable/edittext_background"
+        android:hint="Enter current 6-digit PIN"
+        android:inputType="numberPassword"
+        android:maxLength="6"
+        android:padding="16dp"
+        android:textSize="16sp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary"
+        android:layout_marginBottom="16dp" />
+
+    <!-- New PIN -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="New PIN"
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/etNewPin"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@drawable/edittext_background"
+        android:hint="Enter new 6-digit PIN"
+        android:inputType="numberPassword"
+        android:maxLength="6"
+        android:padding="16dp"
+        android:textSize="16sp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Confirm PIN -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Confirm New PIN"
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/etConfirmPin"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@drawable/edittext_background"
+        android:hint="Confirm new 6-digit PIN"
+        android:inputType="numberPassword"
+        android:maxLength="6"
+        android:padding="16dp"
+        android:textSize="16sp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary"
+        android:layout_marginBottom="8dp" />
+
+</LinearLayout>
+

@@ -21,7 +21,7 @@
             android:id="@+id/ivLanguageFlag"
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@drawable/ic_flag_us"
+            android:src="@drawable/ic_flag_fr"
             android:layout_gravity="center"
             android:scaleType="centerInside" />
 

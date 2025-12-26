@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -70,12 +71,15 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
     private static final String TAG = "ProcessTransaction";
     private static final int CAMERA_PERMISSION_REQUEST = 1001;
+    private static final String REGULAR_CUSTOMER_ID = "REGULAR_CUSTOMER";
 
     // UI Elements
     private Spinner spinnerOperator, spinnerAction, spinnerCustomer;
     private EditText etAmount, etNote, etCustomerSearch, etAccountNumber;
     private TextView tvAvailableCredit;
     private Button btnExecuteTransaction;
+    private android.widget.CheckBox cbUseAccountNumberInUssd;
+    private android.widget.ScrollView scrollView;
     
     // Scanner components (for customer form dialog)
     private PreviewView previewView;
@@ -115,6 +119,16 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
     private double availableCredit = 0.0; // Current operator-specific balance
     
+    /**
+     * Create a Regular Customer entity for quick transactions
+     */
+    private CustomerEntity createRegularCustomer() {
+        CustomerEntity regularCustomer = new CustomerEntity();
+        regularCustomer.setId(REGULAR_CUSTOMER_ID);
+        regularCustomer.setFullName("Regular Customer");
+        regularCustomer.setPhoneNumber(""); // Will be set from account number field
+        return regularCustomer;
+    }
 
     @Override
     protected void attachBaseContext(Context newBase) {
@@ -202,6 +216,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         etNote = findViewById(R.id.etNote);
         etCustomerSearch = findViewById(R.id.etCustomerSearch);
         etAccountNumber = findViewById(R.id.etAccountNumber);
+        cbUseAccountNumberInUssd = findViewById(R.id.cbUseAccountNumberInUssd);
         tvAvailableCredit = findViewById(R.id.tvAvailableCredit);
         btnExecuteTransaction = findViewById(R.id.btnExecuteTransaction);
         
@@ -218,6 +233,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         
         // Add thousands separator to amount field
         com.example.myapplication.utils.NumberFormatter.addThousandsSeparator(etAmount);
+        
+        // Setup auto-scroll for input fields when keyboard appears
+        setupAutoScrollForInputFields();
     }
     
     private void setupLanguageSelector() {
@@ -337,12 +355,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 if (position == 0) {
                     // Open customer form dialog
                     showAddCustomerDialog();
-                    // Reset spinner to first customer (if available) or back to "Add Customer"
-                    if (!customers.isEmpty()) {
-                        spinnerCustomer.setSelection(1); // Select first actual customer
-                    }
-                } else if (position > 0 && position <= customers.size()) {
-                    selectedCustomer = customers.get(position - 1); // -1 because of "Add Customer" option
+                    // Reset spinner to Regular Customer (position 1) after dialog
+                    spinnerCustomer.setSelection(1);
+                } else if (position == 1) {
+                    // Position 1 is "Regular Customer"
+                    selectedCustomer = createRegularCustomer();
+                } else if (position > 1 && position <= customers.size() + 1) {
+                    // Position 2+ are actual customers (position - 2 because of "Add Customer" and "Regular Customer")
+                    selectedCustomer = customers.get(position - 2);
                 } else {
                     selectedCustomer = null;
                 }
@@ -369,6 +389,115 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         });
 
         btnExecuteTransaction.setOnClickListener(v -> executeTransaction());
+    }
+    
+    /**
+     * Setup auto-scroll for input fields to ensure they are visible above keyboard
+     */
+    private void setupAutoScrollForInputFields() {
+        if (scrollView == null) {
+            return;
+        }
+        
+        // List of all EditText fields that need auto-scroll
+        EditText[] inputFields = {etAmount, etAccountNumber, etNote, etCustomerSearch};
+        
+        for (EditText field : inputFields) {
+            if (field == null) continue;
+            
+            field.setOnFocusChangeListener((v, hasFocus) -> {
+                if (hasFocus) {
+                    // Post to ensure layout is complete before scrolling
+                    field.post(() -> {
+                        scrollToView(field);
+                    });
+                }
+            });
+            
+            // Also handle when field is clicked (for cases where focus might already be set)
+            field.setOnClickListener(v -> {
+                field.post(() -> {
+                    scrollToView(field);
+                });
+            });
+        }
+    }
+    
+    /**
+     * Scroll the ScrollView to make the given view visible above the keyboard
+     */
+    private void scrollToView(View view) {
+        if (scrollView == null || view == null) {
+            return;
+        }
+        
+        // Use a small delay to ensure keyboard animation has started
+        view.postDelayed(() -> {
+            // Get the location of the view relative to its parent ScrollView
+            int scrollY = scrollView.getScrollY();
+            
+            // Get view position relative to ScrollView content
+            int viewTop = 0;
+            View currentView = view;
+            while (currentView != null && currentView != scrollView) {
+                viewTop += currentView.getTop();
+                ViewParent parent = currentView.getParent();
+                if (parent instanceof ViewGroup) {
+                    currentView = (View) parent;
+                } else {
+                    break;
+                }
+            }
+            
+            // Get visible area of ScrollView
+            android.graphics.Rect scrollBounds = new android.graphics.Rect();
+            scrollView.getHitRect(scrollBounds);
+            
+            // Get keyboard height
+            android.graphics.Rect windowRect = new android.graphics.Rect();
+            getWindow().getDecorView().getWindowVisibleDisplayFrame(windowRect);
+            int screenHeight = getWindow().getDecorView().getHeight();
+            int keyboardHeight = screenHeight - windowRect.bottom;
+            
+            // Calculate target scroll position
+            // We want the view to be visible with some padding above the keyboard
+            int scrollPadding = 150; // Padding in pixels above keyboard
+            int targetScrollY;
+            
+            if (keyboardHeight > 0) {
+                // Keyboard is visible - scroll to show field above keyboard
+                int visibleAreaHeight = scrollView.getHeight() - keyboardHeight;
+                int viewBottom = viewTop + view.getHeight();
+                
+                // If view is below visible area (accounting for keyboard), scroll up
+                if (viewBottom > visibleAreaHeight - scrollPadding) {
+                    targetScrollY = viewTop - scrollPadding;
+                } else if (viewTop < scrollY) {
+                    // View is above current scroll position, scroll to show it
+                    targetScrollY = viewTop - scrollPadding;
+                } else {
+                    // View is already visible, no need to scroll
+                    return;
+                }
+            } else {
+                // Keyboard not visible, just ensure view is visible
+                if (viewTop < scrollY) {
+                    targetScrollY = viewTop - scrollPadding;
+                } else if (viewTop + view.getHeight() > scrollY + scrollView.getHeight()) {
+                    targetScrollY = viewTop - scrollPadding;
+                } else {
+                    // View is already visible
+                    return;
+                }
+            }
+            
+            // Ensure we don't scroll beyond bounds
+            int maxScroll = Math.max(0, scrollView.getChildAt(0).getHeight() - scrollView.getHeight());
+            targetScrollY = Math.max(0, Math.min(targetScrollY, maxScroll));
+            
+            // Smooth scroll to target position
+            scrollView.smoothScrollTo(0, targetScrollY);
+        }, 100); // Small delay to allow keyboard animation to start
     }
 
     private void loadUserData() {
@@ -789,6 +918,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         // Add "Add Customer" option at the beginning
         customerNames.add("+ " + getString(R.string.add_customer));
         
+        // Add "Regular Customer" as default option (position 1)
+        customerNames.add("Regular Customer");
+        
         for (CustomerEntity customer : customers) {
             String name = customer.getFullName();
             if (name == null || name.trim().isEmpty()) {
@@ -811,6 +943,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 if (position == 0) {
                     // "Add Customer" option - use primary orange color
                     textView.setTextColor(getResources().getColor(R.color.primary_orange, null));
+                } else if (position == 1) {
+                    // "Regular Customer" option - use primary purple color
+                    textView.setTextColor(getResources().getColor(R.color.primary_purple, null));
                 } else {
                     textView.setTextColor(getResources().getColor(R.color.text_primary, null));
                 }
@@ -824,6 +959,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 if (position == 0) {
                     // "Add Customer" option - use primary orange color
                     textView.setTextColor(getResources().getColor(R.color.primary_orange, null));
+                } else if (position == 1) {
+                    // "Regular Customer" option - use primary purple color
+                    textView.setTextColor(getResources().getColor(R.color.primary_purple, null));
                 } else {
                     textView.setTextColor(getResources().getColor(R.color.text_primary, null));
                 }
@@ -839,29 +977,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         // Temporarily remove listener to prevent triggering on initial setup
         spinnerCustomer.setOnItemSelectedListener(null);
         
-        if (!customers.isEmpty()) {
-            // Clear any touch listener that might have been set when there were no customers
-            spinnerCustomer.setOnTouchListener(null);
-            spinnerCustomer.setSelection(1, false); // Select first actual customer (skip "Add Customer") - false = don't trigger listener
-            selectedCustomer = customers.get(0);
-        } else {
-            spinnerCustomer.setSelection(0, false); // Select "Add Customer" if no customers - false = don't trigger listener
-            selectedCustomer = null;
-            
-            // When no customers, intercept touch to open dialog immediately instead of showing dropdown
-            spinnerCustomer.setOnTouchListener((v, event) -> {
-                if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
-                    // If no customers, directly open add customer dialog without showing dropdown
-                    if (customers.isEmpty()) {
-                        showAddCustomerDialog();
-                        return true; // Consume the event to prevent dropdown from opening
-                    }
-                }
-                return false; // Let the spinner handle the event normally
-            });
-        }
+        // Always select Regular Customer as default (position 1)
+        spinnerCustomer.setSelection(1, false); // Position 1 = Regular Customer - false = don't trigger listener
+        selectedCustomer = createRegularCustomer();
         
-        // Re-attach the listener after setting selection
+        // Clear any touch listener that might have been set when there were no customers
+        spinnerCustomer.setOnTouchListener(null);
+        
+        // Restore listener
         spinnerCustomer.setOnItemSelectedListener(currentListener);
     }
     
@@ -1561,17 +1684,24 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 String phoneNumber = etPhoneNumber.getText().toString().trim();
+                String nationalId = etNationalId.getText().toString().trim();
                 
-                // Check if customer with same National ID already exists
-                CustomerEntity existingCustomerById = database.customerDao().getCustomerByNationalId(etNationalId.getText().toString());
-                if (existingCustomerById != null) {
-                    runOnUiThread(() -> {
-                        Toast.makeText(this, getString(R.string.customer_already_exists), Toast.LENGTH_SHORT).show();
-                    });
-                    return;
+                // Check if exact duplicate exists (same National ID + same phone number) for this agent/dealer
+                // This allows same National ID with different phone numbers
+                if (currentUserEntity != null && nationalId != null && !nationalId.isEmpty() && 
+                    phoneNumber != null && !phoneNumber.isEmpty()) {
+                    CustomerEntity existingCustomer = database.customerDao().getCustomerByNationalIdAndPhoneAndUser(
+                            nationalId, phoneNumber, currentUserEntity.getUid());
+                    if (existingCustomer != null) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(this, "Customer with this National ID and phone number already exists for your account", Toast.LENGTH_SHORT).show();
+                        });
+                        return;
+                    }
                 }
                 
                 // Check if customer with same phone number already exists for this agent (for new customers only)
+                // This is separate check to show dialog for phone duplicates
                 if (phoneNumber != null && !phoneNumber.isEmpty() && currentUserEntity != null) {
                     CustomerEntity existingCustomerByPhone = database.customerDao().getCustomerByPhoneNumberAndUser(phoneNumber, currentUserEntity.getUid());
                     if (existingCustomerByPhone != null) {
@@ -1683,6 +1813,19 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         if (selectedCustomer == null) {
             Toast.makeText(this, getString(R.string.select_customer), Toast.LENGTH_SHORT).show();
             return false;
+        }
+
+        // For Regular Customer, account number field must be filled (it contains the phone number)
+        if (REGULAR_CUSTOMER_ID.equals(selectedCustomer.getId())) {
+            if (etAccountNumber == null || etAccountNumber.getText() == null) {
+                Toast.makeText(this, "Please enter phone number in Account Number field", Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            String accountNumber = etAccountNumber.getText().toString().trim();
+            if (accountNumber.isEmpty()) {
+                Toast.makeText(this, "Please enter phone number in Account Number field", Toast.LENGTH_SHORT).show();
+                return false;
+            }
         }
 
         // Transaction type is now auto-detected from action name
@@ -1805,14 +1948,31 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         transaction.setActionId(selectedAction.getId());
         transaction.setActionName(selectedAction.getName());
         transaction.setCustomerId(selectedCustomer.getId());
-        String customerName = selectedCustomer.getFullName();
-        if (customerName == null || customerName.trim().isEmpty()) {
-            customerName = selectedCustomer.getPhoneNumber() != null && !selectedCustomer.getPhoneNumber().trim().isEmpty()
-                    ? selectedCustomer.getPhoneNumber()
-                    : selectedCustomer.getId();
+        
+        // For Regular Customer, get phone from account number field
+        String customerPhone;
+        String customerName;
+        if (REGULAR_CUSTOMER_ID.equals(selectedCustomer.getId())) {
+            // Regular Customer: use account number field for phone
+            if (etAccountNumber != null && etAccountNumber.getText() != null) {
+                customerPhone = etAccountNumber.getText().toString().trim();
+            } else {
+                customerPhone = "";
+            }
+            customerName = "Regular Customer";
+        } else {
+            // Regular customer: use customer's phone number
+            customerPhone = selectedCustomer.getPhoneNumber() != null ? selectedCustomer.getPhoneNumber() : "";
+            customerName = selectedCustomer.getFullName();
+            if (customerName == null || customerName.trim().isEmpty()) {
+                customerName = customerPhone != null && !customerPhone.trim().isEmpty()
+                        ? customerPhone
+                        : selectedCustomer.getId();
+            }
         }
+        
         transaction.setCustomerName(customerName);
-        transaction.setCustomerPhone(selectedCustomer.getPhoneNumber());
+        transaction.setCustomerPhone(customerPhone);
         transaction.setAmount(amount);
         
         // Auto-detect transaction type from action name
@@ -1863,6 +2023,13 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 String newNotes = existingNotes.isEmpty() 
                     ? "Account Number: " + accountNumber 
                     : existingNotes + "\nAccount Number: " + accountNumber;
+                
+                // Store checkbox state for USSD retry
+                boolean useAccountInUssd = cbUseAccountNumberInUssd != null && cbUseAccountNumberInUssd.isChecked();
+                if (useAccountInUssd) {
+                    newNotes += "\nUse Account Number in USSD: true";
+                }
+                
                 transaction.setNotes(newNotes);
             }
         }
@@ -1878,6 +2045,34 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         Log.d(TAG, "Operator: " + selectedOperator.getName() + ", Code: " + operatorCode);
         Log.d(TAG, "Action: " + selectedAction.getName() + ", Code: " + actionCode);
         
+        // Determine which phone/account number to use in USSD code
+        String phoneNumber;
+        
+        // Check if checkbox is checked to use account number in USSD
+        boolean useAccountNumber = cbUseAccountNumberInUssd != null && cbUseAccountNumberInUssd.isChecked();
+        
+        if (useAccountNumber) {
+            // Checkbox is checked: use account number field
+            if (etAccountNumber != null && etAccountNumber.getText() != null) {
+                phoneNumber = etAccountNumber.getText().toString().trim();
+            } else {
+                phoneNumber = "";
+            }
+            Log.d(TAG, "Using account number in USSD (checkbox checked): " + phoneNumber);
+        } else if (REGULAR_CUSTOMER_ID.equals(selectedCustomer.getId())) {
+            // Regular Customer: get phone from account number field (default behavior)
+            if (etAccountNumber != null && etAccountNumber.getText() != null) {
+                phoneNumber = etAccountNumber.getText().toString().trim();
+            } else {
+                phoneNumber = "";
+            }
+            Log.d(TAG, "Regular Customer - using phone from account number field: " + phoneNumber);
+        } else {
+            // Regular customer: use customer's phone number
+            phoneNumber = selectedCustomer.getPhoneNumber() != null ? selectedCustomer.getPhoneNumber() : "";
+            Log.d(TAG, "Regular customer - using customer phone: " + phoneNumber);
+        }
+        
         // Build USSD code using actual codes from database
         String ussdCode;
         
@@ -1885,12 +2080,12 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             // Use actual operator code from database
             if (actionCode != null && !actionCode.isEmpty()) {
                 // Use actual action code from database
-                ussdCode = "*" + operatorCode + "*" + actionCode + "*" + selectedCustomer.getPhoneNumber() + "*" + (int)amount + "#";
+                ussdCode = "*" + operatorCode + "*" + actionCode + "*" + phoneNumber + "*" + (int)amount + "#";
             } else {
                 // Fallback: use action name to determine code
                 String actionName = selectedAction.getName().toLowerCase();
                 String defaultActionCode = actionName.contains("deposit") ? "1" : "2";
-                ussdCode = "*" + operatorCode + "*" + defaultActionCode + "*" + selectedCustomer.getPhoneNumber() + "*" + (int)amount + "#";
+                ussdCode = "*" + operatorCode + "*" + defaultActionCode + "*" + phoneNumber + "*" + (int)amount + "#";
             }
         } else {
             // Fallback: use operator name to determine code
@@ -1908,7 +2103,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             String actionName = selectedAction.getName().toLowerCase();
             String defaultActionCode = actionName.contains("deposit") ? "1" : "2";
             
-            ussdCode = "*" + defaultOperatorCode + "*" + defaultActionCode + "*" + selectedCustomer.getPhoneNumber() + "*" + (int)amount + "#";
+            ussdCode = "*" + defaultOperatorCode + "*" + defaultActionCode + "*" + phoneNumber + "*" + (int)amount + "#";
         }
         
         Log.d(TAG, "Generated USSD code: " + ussdCode);

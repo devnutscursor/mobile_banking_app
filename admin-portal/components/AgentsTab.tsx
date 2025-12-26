@@ -11,6 +11,7 @@ import { User } from '@/lib/types';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
+import { hashPin } from '@/lib/pinHasher';
 
 interface AgentsTabProps {
   onUpdate: () => void;
@@ -109,9 +110,51 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
     }
   };
 
+  // Normalize phone number (remove spaces, dashes, parentheses, plus signs)
+  const normalizePhone = (phone: string | null | undefined): string | null => {
+    if (!phone) return null;
+    return phone.replace(/[\s\-\(\)\+]/g, '');
+  };
+
+  // Check if phone number already exists globally
+  const checkPhoneExists = async (phone: string, excludeUserId?: string): Promise<boolean> => {
+    if (!phone) return false;
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) return false;
+
+    try {
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const existingUser = usersSnapshot.docs.find(doc => {
+        const userData = doc.data();
+        const userPhone = normalizePhone(userData.phone);
+        const userId = doc.id;
+        // If editing, exclude current user
+        if (excludeUserId && userId === excludeUserId) return false;
+        return userPhone === normalizedPhone;
+      });
+      return existingUser !== undefined;
+    } catch (error) {
+      console.error('Error checking phone number:', error);
+      return false;
+    }
+  };
+
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      
+      // Check for duplicate phone number if phone is provided
+      if (values.phone) {
+        const phoneExists = await checkPhoneExists(
+          values.phone,
+          editingAgent ? editingAgent.uid : undefined
+        );
+        
+        if (phoneExists) {
+          message.error('This phone number is already registered. Please use a different phone number.');
+          return;
+        }
+      }
       
       // Check license limit if assigning to a dealer
       if (values.dealerId) {
@@ -129,7 +172,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
         const agentRef = doc(db, 'users', editingAgent.uid);
         await updateDoc(agentRef, {
           name: values.name,
-          phone: values.phone,
+          phone: values.phone ? normalizePhone(values.phone) : null,
           dealerId: values.dealerId || null,
           virtualCredit: values.virtualCredit,
           disabled: values.disabled ?? false,
@@ -144,11 +187,24 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           values.password
         );
 
+        // Hash PIN if provided
+        let hashedPin: string | undefined;
+        if (values.pin) {
+          try {
+            hashedPin = hashPin(values.pin);
+          } catch (error) {
+            const err = error as Error;
+            message.error(err.message || 'Invalid PIN format');
+            return;
+          }
+        }
+
         await setDoc(doc(db, 'users', userCredential.user.uid), {
           uid: userCredential.user.uid,
           email: values.email,
           name: values.name,
-          phone: values.phone,
+          phone: values.phone ? normalizePhone(values.phone) : null,
+          phonePin: hashedPin,
           role: 'agent',
           dealerId: values.dealerId || null,
           active: false, // New users start as not active
@@ -160,23 +216,6 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           updatedAt: Timestamp.now(),
           creditUpdatedAt: Timestamp.now(),
         });
-
-        // If phone provided, link it to the new Auth user for phone+OTP login
-        if (values.phone) {
-          try {
-            await fetch('/api/link-phone', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                uid: userCredential.user.uid,
-                phone: values.phone,
-              }),
-            });
-          } catch (e) {
-            console.error('Failed to link agent phone in Auth:', e);
-            setTimeout(() => message.warning('Agent created, but phone could not be linked for OTP login.'), 0);
-          }
-        }
 
         setTimeout(() => message.success('Agent created'), 0);
         await signOutSecondary();
@@ -364,6 +403,26 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           <Form.Item name="phone" label="Phone">
             <Input prefix={<PhoneOutlined />} placeholder="+1234567890" />
           </Form.Item>
+          {!editingAgent && (
+            <Form.Item 
+              name="pin" 
+              label="6-Digit PIN (for phone login)" 
+              rules={[
+                { required: true, message: 'Please enter a 6-digit PIN' },
+                { pattern: /^\d{6}$/, message: 'PIN must be exactly 6 digits' }
+              ]}
+            > 
+              <Input.Password 
+                placeholder="Enter 6-digit PIN" 
+                maxLength={6}
+                onKeyPress={(e) => {
+                  if (!/[0-9]/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
+              />
+            </Form.Item>
+          )}
           <Form.Item name="dealerId" label="Assign to Dealer (Optional)"> 
             <Select 
               placeholder="Select a dealer (leave empty for independent agent)" 

@@ -1552,18 +1552,25 @@ public class CustomerManagementActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 String phoneNumber = etPhoneNumber.getText().toString().trim();
+                String nationalId = etNationalId.getText().toString().trim();
                 
-                // Check if customer with same National ID already exists (for new customers)
                 if (customer.getId() == null) {
-                    CustomerEntity existingCustomerById = database.customerDao().getCustomerByNationalId(etNationalId.getText().toString());
-                    if (existingCustomerById != null) {
-                        runOnUiThread(() -> {
-                            Toast.makeText(this, getString(R.string.customer_already_exists), Toast.LENGTH_SHORT).show();
-                        });
-                        return;
+                    // For new customers: check exact duplicate (National ID + Phone Number combination)
+                    // This allows same National ID with different phone numbers
+                    if (currentUser != null && nationalId != null && !nationalId.isEmpty() && 
+                        phoneNumber != null && !phoneNumber.isEmpty()) {
+                        CustomerEntity existingCustomer = database.customerDao().getCustomerByNationalIdAndPhoneAndUser(
+                                nationalId, phoneNumber, currentUser.getUid());
+                        if (existingCustomer != null) {
+                            runOnUiThread(() -> {
+                                Toast.makeText(this, "Customer with this National ID and phone number already exists for your account", Toast.LENGTH_SHORT).show();
+                            });
+                            return;
+                        }
                     }
                     
                     // Check if customer with same phone number already exists for this agent (for new customers only)
+                    // This is separate check to show dialog for phone duplicates
                     if (phoneNumber != null && !phoneNumber.isEmpty() && currentUser != null) {
                         CustomerEntity existingCustomerByPhone = database.customerDao().getCustomerByPhoneNumberAndUser(phoneNumber, currentUser.getUid());
                         if (existingCustomerByPhone != null) {
@@ -1577,6 +1584,20 @@ public class CustomerManagementActivity extends AppCompatActivity {
                         }
                     }
                 } else {
+                    // For editing existing customers: check exact duplicate (National ID + Phone Number) but exclude current customer ID
+                    // This allows same National ID with different phone numbers
+                    if (currentUser != null && nationalId != null && !nationalId.isEmpty() && 
+                        phoneNumber != null && !phoneNumber.isEmpty()) {
+                        CustomerEntity existingCustomer = database.customerDao().getCustomerByNationalIdAndPhoneAndUserExcluding(
+                                nationalId, phoneNumber, currentUser.getUid(), customer.getId());
+                        if (existingCustomer != null) {
+                            runOnUiThread(() -> {
+                                Toast.makeText(this, "Customer with this National ID and phone number already exists for your account", Toast.LENGTH_SHORT).show();
+                            });
+                            return;
+                        }
+                    }
+                    
                     // For editing existing customers, check phone number but exclude current customer ID
                     if (phoneNumber != null && !phoneNumber.isEmpty() && currentUser != null) {
                         CustomerEntity existingCustomerByPhone = database.customerDao().getCustomerByPhoneNumberAndUserExcluding(

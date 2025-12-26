@@ -957,49 +957,159 @@ public class CashRegisterActivity extends AppCompatActivity {
             String feeStr = com.example.myapplication.utils.NumberFormatter
                     .formatWithThousandsSeparator(fee) + " F";
 
-            // Build ticket text (58mm style, monospaced)
-            StringBuilder sb = new StringBuilder();
-            sb.append("       MOBILE BANKING\n");
+            // 58mm thermal printer specifications:
+            // - Paper width: 58mm
+            // - Printable width: ~48mm (effective printing area)
+            // - At 203 DPI: 58mm = 464px, 48mm = 384px
+            // - Standard: ~32 characters per line with monospace font
+            // - Font size: typically 12-14pt for body, 16-18pt for headers
+            
+            // Build receipt content with proper formatting
+            java.util.List<String> receiptLines = new java.util.ArrayList<>();
+            
+            // Header - centered
+            receiptLines.add("MOBILE BANKING");
+            receiptLines.add(""); // Empty line
+            
+            // Agent info
             if (!agentName.isEmpty()) {
-                sb.append("   Agent: ").append(agentName).append("\n");
+                receiptLines.add("Agent: " + agentName);
             }
-            sb.append("--------------------------------\n");
-            sb.append("TXN: ").append(transaction.getId()).append("\n");
-            sb.append("Customer: ").append(transaction.getCustomerName() != null ? transaction.getCustomerName() : "").append("\n");
-            sb.append("Phone: ").append(transaction.getCustomerPhone() != null ? transaction.getCustomerPhone() : "").append("\n");
-            sb.append("Operator: ").append(transaction.getOperatorName() != null ? transaction.getOperatorName() : "").append("\n");
-            sb.append("Type: ").append(transaction.getTransactionType() != null ? transaction.getTransactionType() : "").append("\n");
-            sb.append("Amount: ").append(amountStr).append("\n");
-            sb.append("Fees: ").append(feeStr).append("\n");
-            sb.append("Date: ").append(dateStr).append("\n");
-            sb.append("--------------------------------\n");
-            sb.append("Thank you for using our service\n");
+            
+            // Separator
+            receiptLines.add("--------------------------------");
+            
+            // Transaction details
+            receiptLines.add("TXN: " + transaction.getId());
+            
+            // Customer name - wrap if too long
+            String customerName = transaction.getCustomerName() != null ? transaction.getCustomerName() : "";
+            receiptLines.add("Customer: " + customerName);
+            
+            // Phone
+            String phone = transaction.getCustomerPhone() != null ? transaction.getCustomerPhone() : "";
+            receiptLines.add("Phone: " + phone);
+            
+            // Operator
+            String operator = transaction.getOperatorName() != null ? transaction.getOperatorName() : "";
+            receiptLines.add("Operator: " + operator);
+            
+            // Type
+            String type = transaction.getTransactionType() != null ? transaction.getTransactionType() : "";
+            receiptLines.add("Type: " + type);
+            
+            // Amount
+            receiptLines.add("Amount: " + amountStr);
+            
+            // Fees
+            receiptLines.add("Fee: " + feeStr);
+            
+            // Date
+            receiptLines.add("Date: " + dateStr);
+            
+            // Separator
+            receiptLines.add("--------------------------------");
+            
+            // Footer
+            receiptLines.add("Thank you for using");
+            receiptLines.add("our service");
+            receiptLines.add(""); // Empty line at end
 
-            String ticketText = sb.toString();
-
-            // Render ticket text to bitmap (approx. 58mm width at ~203dpi ~ 384px)
-            int widthPx = 384;
-            android.graphics.Paint paint = new android.graphics.Paint();
-            paint.setColor(android.graphics.Color.BLACK);
-            paint.setTextSize(22);
-            paint.setTypeface(android.graphics.Typeface.MONOSPACE);
-            paint.setAntiAlias(true);
-
-            String[] lines = ticketText.split("\n");
-            int lineHeight = (int) (paint.getFontMetrics().bottom - paint.getFontMetrics().top) + 8;
-            int heightPx = lineHeight * lines.length + 20;
-
+            // Render to bitmap for 58mm thermal printer
+            // Printable width: 48mm = 384px at 203 DPI
+            int printableWidthPx = 384;
+            int leftMarginPx = 8; // Small left margin
+            int rightMarginPx = 8; // Small right margin
+            int contentWidthPx = printableWidthPx - leftMarginPx - rightMarginPx; // 368px
+            
+            // Use appropriate font size for 58mm (12pt body, 16pt header)
+            android.graphics.Paint headerPaint = new android.graphics.Paint();
+            headerPaint.setColor(android.graphics.Color.BLACK);
+            headerPaint.setTextSize(18);
+            headerPaint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD));
+            headerPaint.setAntiAlias(true);
+            headerPaint.setTextAlign(android.graphics.Paint.Align.CENTER);
+            
+            android.graphics.Paint bodyPaint = new android.graphics.Paint();
+            bodyPaint.setColor(android.graphics.Color.BLACK);
+            bodyPaint.setTextSize(14);
+            bodyPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
+            bodyPaint.setAntiAlias(true);
+            bodyPaint.setTextAlign(android.graphics.Paint.Align.LEFT);
+            
+            // Calculate line heights
+            android.graphics.Paint.FontMetrics headerMetrics = headerPaint.getFontMetrics();
+            float headerLineHeight = headerMetrics.descent - headerMetrics.ascent + 4;
+            
+            android.graphics.Paint.FontMetrics bodyMetrics = bodyPaint.getFontMetrics();
+            float bodyLineHeight = bodyMetrics.descent - bodyMetrics.ascent + 4;
+            
+            // Calculate total height
+            float topPadding = 20f;
+            float bottomPadding = 20f;
+            float totalHeight = topPadding + bottomPadding;
+            
+            for (int i = 0; i < receiptLines.size(); i++) {
+                String line = receiptLines.get(i);
+                if (i == 0) {
+                    // Header line
+                    totalHeight += headerLineHeight;
+                } else {
+                    totalHeight += bodyLineHeight;
+                }
+            }
+            
+            int heightPx = (int) Math.ceil(totalHeight);
+            
+            // Create bitmap
             android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(
-                    widthPx, heightPx, android.graphics.Bitmap.Config.ARGB_8888);
+                    printableWidthPx, heightPx, android.graphics.Bitmap.Config.ARGB_8888);
             android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
             canvas.drawColor(android.graphics.Color.WHITE);
-
-            // Draw text LEFT-ALIGNED with a small horizontal margin so nothing is cut off
-            int y = 20;
-            float x = 16f; // 16px margin from the left edge
-            for (String line : lines) {
-                canvas.drawText(line, x, y, paint);
-                y += lineHeight;
+            
+            // Draw lines
+            float y = topPadding - bodyMetrics.ascent; // Start position
+            
+            for (int i = 0; i < receiptLines.size(); i++) {
+                String line = receiptLines.get(i);
+                
+                if (line == null || line.trim().isEmpty()) {
+                    // Empty line - just advance
+                    y += bodyLineHeight;
+                    continue;
+                }
+                
+                android.graphics.Paint currentPaint;
+                float currentLineHeight;
+                
+                if (i == 0) {
+                    // Header - center aligned
+                    currentPaint = headerPaint;
+                    currentLineHeight = headerLineHeight;
+                    float centerX = printableWidthPx / 2f;
+                    canvas.drawText(line, centerX, y, currentPaint);
+                } else {
+                    // Body text - left aligned with wrapping
+                    currentPaint = bodyPaint;
+                    currentLineHeight = bodyLineHeight;
+                    float x = leftMarginPx;
+                    
+                    // Check if line needs wrapping
+                    float textWidth = currentPaint.measureText(line);
+                    if (textWidth > contentWidthPx) {
+                        // Wrap long lines
+                        java.util.List<String> wrappedLines = wrapText(line, currentPaint, contentWidthPx);
+                        for (String wrappedLine : wrappedLines) {
+                            canvas.drawText(wrappedLine, x, y, currentPaint);
+                            y += currentLineHeight;
+                        }
+                        y -= currentLineHeight; // Adjust for last line
+                    } else {
+                        canvas.drawText(line, x, y, currentPaint);
+                    }
+                }
+                
+                y += currentLineHeight;
             }
 
             // Save bitmap to cache and share as image via FileProvider
@@ -1030,6 +1140,57 @@ public class CashRegisterActivity extends AppCompatActivity {
             Log.e(TAG, "Error printing ticket", e);
             Toast.makeText(this, "Error printing ticket: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
+    }
+    
+    /**
+     * Wrap text to fit within specified width
+     */
+    private java.util.List<String> wrapText(String text, android.graphics.Paint paint, float maxWidth) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        String[] words = text.split(" ");
+        StringBuilder currentLine = new StringBuilder();
+        
+        for (String word : words) {
+            String testLine = currentLine.length() > 0 ? currentLine.toString() + " " + word : word;
+            float testWidth = paint.measureText(testLine);
+            
+            if (testWidth <= maxWidth) {
+                currentLine.append(currentLine.length() > 0 ? " " : "").append(word);
+            } else {
+                if (currentLine.length() > 0) {
+                    lines.add(currentLine.toString());
+                    currentLine = new StringBuilder(word);
+                } else {
+                    // Single word is too long - split it
+                    String remaining = word;
+                    while (paint.measureText(remaining) > maxWidth) {
+                        int splitPoint = findSplitPoint(remaining, paint, maxWidth);
+                        lines.add(remaining.substring(0, splitPoint));
+                        remaining = remaining.substring(splitPoint);
+                    }
+                    currentLine.append(remaining);
+                }
+            }
+        }
+        
+        if (currentLine.length() > 0) {
+            lines.add(currentLine.toString());
+        }
+        
+        return lines.isEmpty() ? java.util.Collections.singletonList(text) : lines;
+    }
+    
+    /**
+     * Find a good split point for a long word
+     */
+    private int findSplitPoint(String text, android.graphics.Paint paint, float maxWidth) {
+        int len = text.length();
+        for (int i = len - 1; i > 0; i--) {
+            if (paint.measureText(text.substring(0, i)) <= maxWidth) {
+                return i;
+            }
+        }
+        return 1; // Fallback: split at first character
     }
     
     /**
@@ -1121,6 +1282,58 @@ public class CashRegisterActivity extends AppCompatActivity {
         String operatorCode = operator.getCode();
         String actionCode = action != null ? action.getActionCode() : null;
         String customerPhone = transaction.getCustomerPhone();
+        
+        // Check if checkbox was checked to use account number in USSD
+        boolean useAccountNumberInUssd = false;
+        String accountNumber = null;
+        
+        if (transaction.getNotes() != null && transaction.getNotes().contains("Use Account Number in USSD: true")) {
+            useAccountNumberInUssd = true;
+            // Extract account number from notes
+            if (transaction.getNotes().contains("Account Number:")) {
+                String notes = transaction.getNotes();
+                int accountIndex = notes.indexOf("Account Number:");
+                if (accountIndex >= 0) {
+                    String accountPart = notes.substring(accountIndex + "Account Number:".length()).trim();
+                    // Get the first line or until newline
+                    int newlineIndex = accountPart.indexOf("\n");
+                    if (newlineIndex > 0) {
+                        accountNumber = accountPart.substring(0, newlineIndex).trim();
+                    } else {
+                        accountNumber = accountPart.trim();
+                    }
+                }
+            }
+        }
+        
+        // If checkbox was checked, use account number instead of customer phone
+        if (useAccountNumberInUssd && accountNumber != null && !accountNumber.isEmpty()) {
+            customerPhone = accountNumber;
+            Log.d(TAG, "Using account number in USSD (from checkbox): " + customerPhone);
+        } else if ((customerPhone == null || customerPhone.trim().isEmpty()) && 
+            transaction.getNotes() != null && transaction.getNotes().contains("Account Number:")) {
+            // If customer phone is empty and this is a Regular Customer transaction,
+            // try to extract phone from notes (Account Number field)
+            String notes = transaction.getNotes();
+            // Extract account number from notes
+            int accountIndex = notes.indexOf("Account Number:");
+            if (accountIndex >= 0) {
+                String accountPart = notes.substring(accountIndex + "Account Number:".length()).trim();
+                // Get the first line or until newline
+                int newlineIndex = accountPart.indexOf("\n");
+                if (newlineIndex > 0) {
+                    customerPhone = accountPart.substring(0, newlineIndex).trim();
+                } else {
+                    customerPhone = accountPart.trim();
+                }
+            }
+        }
+        
+        // Fallback to empty string if still null
+        if (customerPhone == null) {
+            customerPhone = "";
+        }
+        
         double amount = transaction.getAmount();
         
         Log.d(TAG, "Generating USSD code - Operator: " + operator.getName() + ", Code: " + operatorCode);

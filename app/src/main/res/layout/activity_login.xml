@@ -227,13 +227,13 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- OTP Input (hidden in email mode) -->
+                    <!-- PIN Input (hidden in email mode) -->
                     <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilOtp"
+                        android:id="@+id/tilPin"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="20dp"
-                        android:hint="@string/otp_hint"
+                        android:hint="Enter 6-digit PIN"
                         android:visibility="gone"
                         app:boxBackgroundMode="filled"
                         app:boxBackgroundColor="@color/card_background"
@@ -248,10 +248,10 @@
                         app:startIconTint="@color/white">
 
                         <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etOtp"
+                            android:id="@+id/etPin"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="number"
+                            android:inputType="numberPassword"
                             android:maxLength="6"
                             android:textSize="16sp"
                             android:textColor="@color/white"
@@ -293,35 +293,6 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Request OTP Button (phone mode - initial state) -->
-                    <Button
-                        android:id="@+id/btnSendOtp"
-                        android:layout_width="match_parent"
-                        android:layout_height="60dp"
-                        android:text="@string/request_otp"
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_white"
-                        android:background="@drawable/modern_button_primary"
-                        android:elevation="4dp"
-                        android:layout_marginBottom="16dp"
-                        android:fontFamily="sans-serif-medium"
-                        android:visibility="gone" />
-
-                    <!-- Resend OTP Button (phone mode - after 1 minute) -->
-                    <Button
-                        android:id="@+id/btnResendOtp"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="@string/resend_otp"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_white"
-                        android:background="@drawable/modern_button_primary"
-                        android:elevation="2dp"
-                        android:layout_marginBottom="12dp"
-                        android:fontFamily="sans-serif-medium"
-                        android:visibility="gone" />
 
                     <!-- Login Button -->
                     <Button

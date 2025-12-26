@@ -306,13 +306,19 @@
                         <!-- Second Row: Value -->
                         <TextView
                             android:id="@+id/tvVirtualBalance"
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="$875"
-                            android:textSize="16sp"
+                            android:textSize="14sp"
                             android:textColor="@color/black"
                             android:layout_marginTop="3dp"
-                            android:layout_gravity="center_horizontal" />
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:ellipsize="none"
+                            android:autoSizeTextType="uniform"
+                            android:autoSizeMinTextSize="8sp"
+                            android:autoSizeMaxTextSize="14sp"
+                            android:autoSizeStepGranularity="1sp" />
 
                         <!-- Third Row: Description -->
                         <TextView
@@ -603,5 +609,19 @@
         </LinearLayout>
 
     </ScrollView>
+
+    <!-- Floating Action Button for Contact -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabContact"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_margin="16dp"
+        android:src="@drawable/ic_email"
+        app:tint="@color/text_white"
+        app:backgroundTint="@color/primary_purple"
+        app:elevation="6dp"
+        android:contentDescription="@string/contact_us" />
 
 </RelativeLayout>

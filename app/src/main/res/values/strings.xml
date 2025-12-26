@@ -123,6 +123,7 @@
     <string name="card_all_customers">All Customers</string>
     <string name="no_dealer_assigned">No dealer assigned</string>
     <string name="logout">Logout</string>
+    <string name="contact_us">Contact Us</string>
     <string name="coming_soon">Coming Soon</string>
     
     <!-- Main Activity -->
