@@ -93,6 +93,7 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
         
         // Setup window insets for header
         com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupImeInsetsForRoot(this);
         
         database = AppDatabase.getDatabase(this);
         sessionManager = new SessionManager(this);

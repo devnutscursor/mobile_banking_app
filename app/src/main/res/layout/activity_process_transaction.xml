@@ -247,7 +247,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Account Number (Optional)"
+                        android:text="@string/account_number_optional"
                         android:textSize="14sp"
                         android:textColor="@color/text_secondary"
                         android:layout_marginBottom="8dp" />
@@ -257,7 +257,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="56dp"
                         android:background="@drawable/edittext_background"
-                        android:hint="Enter account number"
+                        android:hint="@string/account_number_hint"
                         android:inputType="text"
                         android:padding="16dp"
                         android:textSize="16sp"
@@ -270,7 +270,7 @@
                         android:id="@+id/cbUseAccountNumberInUssd"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Use account number in USSD code"
+                        android:text="@string/use_account_number_in_ussd"
                         android:textSize="14sp"
                         android:textColor="@color/text_primary"
                         android:layout_marginBottom="16dp" />

@@ -13,8 +13,10 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.myapplication.R;
 import com.example.myapplication.database.entities.BalanceAdjustmentEntity;
+import com.example.myapplication.utils.LanguageManager;
 
-import java.text.NumberFormat;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -26,13 +28,28 @@ public class BalanceAdjustmentAdapter extends RecyclerView.Adapter<BalanceAdjust
     private Context context;
     private List<BalanceAdjustmentEntity> adjustments;
     private SimpleDateFormat dateFormat;
-    private NumberFormat currencyFormat;
+    private DecimalFormat numberFormat;
     
     public BalanceAdjustmentAdapter(Context context, List<BalanceAdjustmentEntity> adjustments) {
         this.context = context;
         this.adjustments = adjustments != null ? adjustments : new ArrayList<>();
-        this.dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
-        this.currencyFormat = NumberFormat.getCurrencyInstance(Locale.getDefault());
+        
+        // Get current language from LanguageManager
+        LanguageManager languageManager = LanguageManager.getInstance(context);
+        String language = languageManager.getCurrentLanguage();
+        Locale locale = new Locale(language);
+        
+        // Create date format with correct locale
+        this.dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", locale);
+        
+        // Create number format with comma as thousands separator (consistent across all languages)
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);
+        symbols.setGroupingSeparator(','); // Comma for thousands separator
+        symbols.setDecimalSeparator('.');  // Dot for decimal separator
+        
+        this.numberFormat = new DecimalFormat("#,##0.00", symbols);
+        this.numberFormat.setGroupingUsed(true);
+        this.numberFormat.setGroupingSize(3);
     }
     
     @NonNull
@@ -54,14 +71,17 @@ public class BalanceAdjustmentAdapter extends RecyclerView.Adapter<BalanceAdjust
         
         // Amount (with +/- sign)
         double amount = adjustment.getAmount();
-        String amountText = (amount >= 0 ? "+" : "") + currencyFormat.format(amount);
+        String formattedAmount = numberFormat.format(Math.abs(amount));
+        String amountText = (amount >= 0 ? "+" : "") + formattedAmount + " ¤";
         holder.tvAmount.setText(amountText);
         holder.tvAmount.setTextColor(ContextCompat.getColor(context, 
                 amount >= 0 ? R.color.success_green : R.color.error_red));
         
         // Balance before/after
-        holder.tvBalanceBefore.setText(currencyFormat.format(adjustment.getBalanceBefore()));
-        holder.tvBalanceAfter.setText(currencyFormat.format(adjustment.getBalanceAfter()));
+        String balanceBefore = numberFormat.format(adjustment.getBalanceBefore()) + " ¤";
+        String balanceAfter = numberFormat.format(adjustment.getBalanceAfter()) + " ¤";
+        holder.tvBalanceBefore.setText(balanceBefore);
+        holder.tvBalanceAfter.setText(balanceAfter);
         
         // Reason
         holder.tvReason.setText(adjustment.getReason() != null ? adjustment.getReason() : "");

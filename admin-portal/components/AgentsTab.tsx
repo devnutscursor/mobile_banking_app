@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, updateDoc, doc, setDoc, Timestamp, query, where } from 'firebase/firestore';
 import { License } from '@/lib/types';
-import { createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag, Typography, App, Skeleton } from 'antd';
-import { PlusOutlined, EditOutlined, DollarOutlined, UserOutlined, PhoneOutlined, MailOutlined, ApartmentOutlined, CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DollarOutlined, UserOutlined, PhoneOutlined, MailOutlined, ApartmentOutlined, CheckCircleTwoTone, CloseCircleTwoTone, KeyOutlined, LockOutlined } from '@ant-design/icons';
 import { db, getSecondaryAuth, signOutSecondary } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { format } from 'date-fns';
@@ -25,6 +25,11 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<User | null>(null);
   const [form] = Form.useForm();
+  const [isPasswordResetModalOpen, setIsPasswordResetModalOpen] = useState(false);
+  const [isPinResetModalOpen, setIsPinResetModalOpen] = useState(false);
+  const [selectedUserForReset, setSelectedUserForReset] = useState<User | null>(null);
+  const [passwordResetForm] = Form.useForm();
+  const [pinResetForm] = Form.useForm();
 
   useEffect(() => {
     loadData();
@@ -143,17 +148,20 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
     try {
       const values = await form.validateFields();
       
-      // Check for duplicate phone number if phone is provided
-      if (values.phone) {
-        const phoneExists = await checkPhoneExists(
-          values.phone,
-          editingAgent ? editingAgent.uid : undefined
-        );
-        
-        if (phoneExists) {
-          message.error('This phone number is already registered. Please use a different phone number.');
-          return;
-        }
+      // Check for duplicate phone number (phone is now mandatory)
+      if (!values.phone || values.phone.trim() === '') {
+        message.error('Phone number is required');
+        return;
+      }
+      
+      const phoneExists = await checkPhoneExists(
+        values.phone,
+        editingAgent ? editingAgent.uid : undefined
+      );
+      
+      if (phoneExists) {
+        message.error('This phone number is already registered. Please use a different phone number.');
+        return;
       }
       
       // Check license limit if assigning to a dealer
@@ -244,6 +252,68 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
         disabled: (agent as any).disabled || false,
       });
     }, 0);
+  };
+
+  const handleResetPassword = (agent: User) => {
+    setSelectedUserForReset(agent);
+    setIsPasswordResetModalOpen(true);
+    passwordResetForm.resetFields();
+  };
+
+  const handleResetPin = (agent: User) => {
+    setSelectedUserForReset(agent);
+    setIsPinResetModalOpen(true);
+    pinResetForm.resetFields();
+  };
+
+  const handlePasswordResetSubmit = async () => {
+    try {
+      const values = await passwordResetForm.validateFields();
+      if (!selectedUserForReset || !selectedUserForReset.email) return;
+
+      // Send password reset email to the user
+      // Note: For direct password reset without email, implement a Cloud Function with Admin SDK
+      try {
+        await sendPasswordResetEmail(getAuth(), selectedUserForReset.email);
+        message.success(`Password reset email sent to ${selectedUserForReset.email}. The user can reset their password using the link in the email.`);
+      } catch (emailError: any) {
+        message.error('Failed to send password reset email: ' + (emailError.message || 'Unknown error'));
+        console.error('Password reset email error:', emailError);
+      }
+      
+      setIsPasswordResetModalOpen(false);
+      setSelectedUserForReset(null);
+      passwordResetForm.resetFields();
+    } catch (error) {
+      const err = error as Error;
+      if (err.message) message.error(err.message);
+    }
+  };
+
+  const handlePinResetSubmit = async () => {
+    try {
+      const values = await pinResetForm.validateFields();
+      if (!selectedUserForReset) return;
+
+      // Hash the new PIN
+      const hashedPin = hashPin(values.pin);
+
+      // Update PIN in Firestore
+      const userRef = doc(db, 'users', selectedUserForReset.uid);
+      await updateDoc(userRef, {
+        phonePin: hashedPin,
+        updatedAt: Timestamp.now(),
+      });
+
+      message.success('PIN reset successfully');
+      setIsPinResetModalOpen(false);
+      setSelectedUserForReset(null);
+      pinResetForm.resetFields();
+      loadData();
+    } catch (error) {
+      const err = error as Error;
+      message.error(err.message || 'Failed to reset PIN');
+    }
   };
 
   useEffect(() => {
@@ -354,7 +424,11 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
       title: 'Actions',
       key: 'actions',
       render: (_: unknown, record: User) => (
-        <Button icon={<EditOutlined />} onClick={() => handleEdit(record)}>Edit</Button>
+        <Space>
+          <Button icon={<EditOutlined />} onClick={() => handleEdit(record)}>Edit</Button>
+          <Button icon={<KeyOutlined />} onClick={() => handleResetPassword(record)}>Reset Password</Button>
+          <Button icon={<LockOutlined />} onClick={() => handleResetPin(record)}>Reset PIN</Button>
+        </Space>
       ),
     },
   ], [dealers]);
@@ -400,7 +474,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           <Form.Item name="name" label="Name" rules={[{ required: true }]}>
             <Input prefix={<UserOutlined />} placeholder="Agent name" />
           </Form.Item>
-          <Form.Item name="phone" label="Phone">
+          <Form.Item name="phone" label="Phone" rules={[{ required: true, message: 'Phone number is required' }]}>
             <Input prefix={<PhoneOutlined />} placeholder="+1234567890" />
           </Form.Item>
           {!editingAgent && (
@@ -440,6 +514,84 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           </Form.Item>
           <Form.Item name="disabled" label="Disable User"> 
             <Switch />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Password Reset Modal */}
+      <Modal
+        open={isPasswordResetModalOpen}
+        title={`Reset Password for ${selectedUserForReset?.name || selectedUserForReset?.email}`}
+        onCancel={() => {
+          setIsPasswordResetModalOpen(false);
+          setSelectedUserForReset(null);
+          passwordResetForm.resetFields();
+        }}
+        onOk={handlePasswordResetSubmit}
+        okText="Reset Password"
+      >
+        <Form form={passwordResetForm} layout="vertical">
+          <Form.Item
+            name="newPassword"
+            label="New Password"
+            rules={[
+              { required: true, message: 'Please enter a new password' },
+              { min: 6, message: 'Password must be at least 6 characters' }
+            ]}
+          >
+            <Input.Password placeholder="Enter new password (minimum 6 characters)" />
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="Confirm Password"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: 'Please confirm the password' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Passwords do not match'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="Confirm new password" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* PIN Reset Modal */}
+      <Modal
+        open={isPinResetModalOpen}
+        title={`Reset PIN for ${selectedUserForReset?.name || selectedUserForReset?.email}`}
+        onCancel={() => {
+          setIsPinResetModalOpen(false);
+          setSelectedUserForReset(null);
+          pinResetForm.resetFields();
+        }}
+        onOk={handlePinResetSubmit}
+        okText="Reset PIN"
+      >
+        <Form form={pinResetForm} layout="vertical">
+          <Form.Item
+            name="pin"
+            label="New 6-Digit PIN"
+            rules={[
+              { required: true, message: 'Please enter a 6-digit PIN' },
+              { pattern: /^\d{6}$/, message: 'PIN must be exactly 6 digits' }
+            ]}
+          >
+            <Input.Password
+              placeholder="Enter 6-digit PIN"
+              maxLength={6}
+              onKeyPress={(e) => {
+                if (!/[0-9]/.test(e.key)) {
+                  e.preventDefault();
+                }
+              }}
+            />
           </Form.Item>
         </Form>
       </Modal>

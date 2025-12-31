@@ -92,6 +92,7 @@ public class DealerDashboardActivity extends AppCompatActivity {
 
         initViews();
         EdgeToEdgeHelper.setupHeaderInsets(headerLayout, this);
+        EdgeToEdgeHelper.setupImeInsetsForRoot(this);
         setupLanguageSpinner();
         setupClickListeners();
         loadUserData();
@@ -472,9 +473,9 @@ public class DealerDashboardActivity extends AppCompatActivity {
             String expiryDateStr = sdf.format(new java.util.Date(licenseEntity.getExpiryDate()));
             boolean isExpired = licenseEntity.isExpired();
             
-            String displayText = "License Expires: " + expiryDateStr;
+            String displayText = getString(R.string.license_expires_label) + " " + expiryDateStr;
             if (isExpired) {
-                displayText += " (Expired)";
+                displayText += " " + getString(R.string.expired);
                 tvLicenseExpiry.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.holo_red_light));
             } else {
                 tvLicenseExpiry.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.white));
@@ -491,9 +492,9 @@ public class DealerDashboardActivity extends AppCompatActivity {
                 String expiryDateStr = sdf.format(license.getExpiryDate());
                 boolean isExpired = license.isExpired();
                 
-                String displayText = "License Expires: " + expiryDateStr;
+                String displayText = getString(R.string.license_expires_label) + " " + expiryDateStr;
                 if (isExpired) {
-                    displayText += " (Expired)";
+                    displayText += " " + getString(R.string.expired);
                     tvLicenseExpiry.setTextColor(getColor(android.R.color.holo_red_light));
                 } else {
                     tvLicenseExpiry.setTextColor(getColor(android.R.color.white));
@@ -526,26 +527,26 @@ public class DealerDashboardActivity extends AppCompatActivity {
             license = licenseManager.getCurrentLicense();
         }
         
-        String message = "Email: " + currentUser.getEmail() + "\n" +
-                        "Role: " + currentUser.getRole() + "\n" +
-                        "Status: " + (currentUser.isActive() ? "Active" : "Inactive") + "\n";
+        String message = getString(R.string.email_label_details) + " " + currentUser.getEmail() + "\n" +
+                        getString(R.string.role_label_details) + " " + currentUser.getRole() + "\n" +
+                        getString(R.string.status_label_details) + " " + (currentUser.isActive() ? getString(R.string.active) : getString(R.string.inactive)) + "\n";
         
         if (license != null && license.getExpiryDate() != null) {
             java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.getDefault());
             String expiryDateStr = sdf.format(license.getExpiryDate());
             boolean isExpired = license.isExpired();
-            message += "License Expiry: " + expiryDateStr + (isExpired ? " (Expired)" : "") + "\n";
+            message += getString(R.string.license_expiry_label) + " " + expiryDateStr + (isExpired ? " " + getString(R.string.expired) : "") + "\n";
         } else {
-            message += "License Expiry: Not Available\n";
+            message += getString(R.string.license_expiry_label) + " " + getString(R.string.not_available) + "\n";
         }
         
-        message += "Created: " + (currentUser.getCreatedAt() > 0 ? new java.util.Date(currentUser.getCreatedAt()).toString() : "Unknown");
+        message += getString(R.string.created_label) + " " + (currentUser.getCreatedAt() > 0 ? new java.util.Date(currentUser.getCreatedAt()).toString() : getString(R.string.unknown));
 
         android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle("User Details")
+        builder.setTitle(getString(R.string.user_details))
                 .setMessage(message)
-                .setPositiveButton("OK", null)
-                .setNeutralButton("Change PIN", (dialog, which) -> showChangePinDialog())
+                .setPositiveButton(getString(R.string.ok), null)
+                .setNeutralButton(getString(R.string.change_pin), (dialog, which) -> showChangePinDialog())
                 .show();
     }
     
@@ -566,8 +567,8 @@ public class DealerDashboardActivity extends AppCompatActivity {
         EditText etNewPin = dialogView.findViewById(R.id.etNewPin);
         EditText etConfirmPin = dialogView.findViewById(R.id.etConfirmPin);
         
-        builder.setTitle("Change PIN")
-                .setPositiveButton("Change", (dialog, which) -> {
+        builder.setTitle(getString(R.string.change_pin))
+                .setPositiveButton(getString(R.string.change), (dialog, which) -> {
                     String currentPin = etCurrentPin.getText().toString().trim();
                     String newPin = etNewPin.getText().toString().trim();
                     String confirmPin = etConfirmPin.getText().toString().trim();

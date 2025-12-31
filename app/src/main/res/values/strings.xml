@@ -124,6 +124,24 @@
     <string name="no_dealer_assigned">No dealer assigned</string>
     <string name="logout">Logout</string>
     <string name="contact_us">Contact Us</string>
+    <string name="user_details">User Details</string>
+    <string name="email_label_details">Email:</string>
+    <string name="role_label_details">Role:</string>
+    <string name="status_label_details">Status:</string>
+    <string name="license_expiry_label">License Expiry:</string>
+    <string name="license_expires_label">License Expires:</string>
+    <string name="created_label">Created:</string>
+    <string name="change_pin">Change PIN</string>
+    <string name="change">Change</string>
+    <string name="agents_account">Agents Account</string>
+    <string name="dealer_account">Dealer Account</string>
+    <string name="total_label">Total</string>
+    <string name="cash_label">Cash</string>
+    <string name="weekly_label">Weekly</string>
+    <string name="current_label">Current</string>
+    <string name="balance_label">Balance</string>
+    <string name="expired">(Expired)</string>
+    <string name="unknown">Unknown</string>
     <string name="coming_soon">Coming Soon</string>
     
     <!-- Main Activity -->
@@ -159,10 +177,17 @@
     <!-- Customer Management -->
     <string name="customer_management">Customer Management</string>
     <string name="add_customer">Add Customer</string>
+    <string name="regular_customer">Regular Customer</string>
     <string name="search_customers">Search Customers</string>
     <string name="scan_barcode">Scan MRZ</string>
     <string name="manual_entry">Manual Entry</string>
     <string name="scanned_data">Scanned MRZ Data</string>
+    <string name="use_data">Use Data</string>
+    <string name="name_label_mrz">Name:</string>
+    <string name="dob_label_mrz">DOB:</string>
+    <string name="id_label_mrz">ID:</string>
+    <string name="document_type_label_mrz">Document Type:</string>
+    <string name="expiry_label_mrz">Expiry:</string>
     <string name="full_name">Full Name</string>
     <string name="document_type">Document Type</string>
     <string name="date_of_birth">Date of Birth</string>
@@ -224,6 +249,8 @@
     <!-- Common UI -->
     <string name="menu">Menu</string>
     <string name="stop_scanning">Stop Scanning</string>
+    <string name="mrz_position_instruction">Position the card\'s MRZ zone (3 bottom lines) in view...</string>
+    <string name="mrz_focus_instruction">Please focus and position the MRZ zone clearly. Scanning will start in 5 seconds...</string>
 
     <!-- Operator Management -->
     <string name="operator_management">Operator Management</string>
@@ -233,6 +260,14 @@
     <string name="operator_color">Operator Color</string>
     <string name="type_ussd">USSD</string>
     <string name="type_traditional">Traditional</string>
+    <string name="color_orange">Orange</string>
+    <string name="color_purple">Purple</string>
+    <string name="color_blue">Blue</string>
+    <string name="color_green">Green</string>
+    <string name="color_amber">Amber</string>
+    <string name="color_red">Red</string>
+    <string name="color_teal">Teal</string>
+    <string name="color_indigo">Indigo</string>
     <string name="operator_enabled">Active</string>
     <string name="save_operator">Save Operator</string>
     <string name="edit_operator">Edit Operator</string>
@@ -269,9 +304,26 @@
     <string name="amount">Amount</string>
     <string name="note_optional">Note (Optional)</string>
     <string name="transaction_note_hint">Add a comment for this transaction...</string>
+    <string name="account_number_optional">Account Number (Optional)</string>
+    <string name="account_number_hint">Enter account number</string>
+    <string name="account_number_required_for_regular_customer">Please enter phone number in Account Number field</string>
+    <string name="account_number_required_when_phone_empty">Account number is required when customer phone number is empty</string>
+    <string name="use_account_number_in_ussd">Use account number in USSD code</string>
     <string name="transaction_type">Transaction Type</string>
     <string name="deposit">Deposit</string>
     <string name="withdrawal">Withdrawal</string>
+    <string name="receipt_header">MOBILE BANKING</string>
+    <string name="receipt_agent">Agent:</string>
+    <string name="receipt_txn">TXN:</string>
+    <string name="receipt_customer">Customer:</string>
+    <string name="receipt_phone">Phone:</string>
+    <string name="receipt_operator">Operator:</string>
+    <string name="receipt_type">Type:</string>
+    <string name="receipt_amount">Amount:</string>
+    <string name="receipt_fee">Fee:</string>
+    <string name="receipt_date">Date:</string>
+    <string name="receipt_footer_line1">Thank you for using</string>
+    <string name="receipt_footer_line2">our service</string>
     <string name="execute_transaction">Execute Transaction</string>
     <string name="transaction_success">Transaction completed successfully!</string>
     <string name="transaction_failed">Transaction failed</string>
@@ -384,6 +436,9 @@
     <string name="daily_commission">Daily Commission</string>
     <string name="monthly_commission">Monthly Commission</string>
     <string name="yearly_commission">Yearly Commission</string>
+    <string name="daily">Daily</string>
+    <string name="monthly">Monthly</string>
+    <string name="yearly">Yearly</string>
     <string name="total_commission">Total Commission</string>
     <string name="commission_without_tax">Commission (Without Tax)</string>
     <string name="tax_amount">Tax Amount</string>
@@ -409,10 +464,12 @@
     <string name="tax_rate_range_error">Tax rate must be between 0 and 100</string>
     <string name="please_enter_valid_numbers">Please enter valid numbers</string>
     <string name="generate_report">Generate Report</string>
+    <string name="delete_commission_rate">Delete Commission Rate</string>
+    <string name="delete_commission_rate_message">Are you sure you want to delete this commission rate?</string>
+    <string name="commission_rate_deleted">Commission rate deleted</string>
     
     <!-- Additional strings for French translation compatibility -->
     <string name="agent_account">Agent Account</string>
-    <string name="dealer_account">Dealer Account</string>
     <string name="total">Total</string>
     <string name="today">Today</string>
     <string name="current">Current</string>

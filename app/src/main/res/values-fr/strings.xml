@@ -104,6 +104,23 @@
     <string name="credit">Crédit</string>
     <string name="coming_soon">Bientôt Disponible</string>
     <string name="logout">Déconnexion</string>
+    <string name="user_details">Détails de l\'Utilisateur</string>
+    <string name="email_label_details">Email:</string>
+    <string name="role_label_details">Rôle:</string>
+    <string name="status_label_details">Statut:</string>
+    <string name="license_expiry_label">Expiration de la Licence:</string>
+    <string name="license_expires_label">La Licence Expire:</string>
+    <string name="created_label">Créé:</string>
+    <string name="change_pin">Changer le Code PIN</string>
+    <string name="change">Changer</string>
+    <string name="agents_account">Compte Agent</string>
+    <string name="total_label">Total</string>
+    <string name="cash_label">Espèces</string>
+    <string name="weekly_label">Hebdomadaire</string>
+    <string name="current_label">Actuel</string>
+    <string name="balance_label">Solde</string>
+    <string name="expired">(Expiré)</string>
+    <string name="contact_us">Nous Contacter</string>
     
     <!-- Transaction Processing -->
     <string name="process_transaction">Vente</string>
@@ -112,6 +129,14 @@
     <string name="select_action">Sélectionner Action</string>
     <string name="enter_amount">Entrer Montant</string>
     <string name="amount_hint">Montant (XAF)</string>
+    <string name="note_optional">Note (Optionnel)</string>
+    <string name="transaction_note_hint">Ajouter un commentaire pour cette transaction...</string>
+    <string name="account_number_optional">Numéro de Compte (Optionnel)</string>
+    <string name="account_number_hint">Entrer le numéro de compte</string>
+    <string name="account_number_required_for_regular_customer">Veuillez entrer le numéro de téléphone dans le champ Numéro de Compte</string>
+    <string name="account_number_required_when_phone_empty">Le numéro de compte est requis lorsque le numéro de téléphone du client est vide</string>
+    <string name="use_account_number_in_ussd">Utiliser le numéro de compte dans le code USSD</string>
+    <string name="execute_transaction">Exécuter Transaction</string>
     <string name="process_transaction_button">Traiter Transaction</string>
     <string name="transaction_successful">Transaction Réussie</string>
     <string name="transaction_failed">Transaction Échouée</string>
@@ -187,9 +212,24 @@
     <string name="transaction_types">Types de Transaction</string>
     <string name="deposit">Dépôt</string>
     <string name="withdrawal">Retrait</string>
+    <string name="receipt_header">BANQUE MOBILE</string>
+    <string name="receipt_agent">Agent:</string>
+    <string name="receipt_txn">TXN:</string>
+    <string name="receipt_customer">Client:</string>
+    <string name="receipt_phone">Téléphone:</string>
+    <string name="receipt_operator">Opérateur:</string>
+    <string name="receipt_type">Type:</string>
+    <string name="receipt_amount">Montant:</string>
+    <string name="receipt_fee">Frais:</string>
+    <string name="receipt_date">Date:</string>
+    <string name="receipt_footer_line1">Merci d\'avoir utilisé</string>
+    <string name="receipt_footer_line2">notre service</string>
     <string name="daily_commission">Commission Quotidienne</string>
     <string name="monthly_commission">Commission Mensuelle</string>
     <string name="yearly_commission">Commission Annuelle</string>
+    <string name="daily">Quotidienne</string>
+    <string name="monthly">Mensuelle</string>
+    <string name="yearly">Annuelle</string>
     <string name="total_commission">Commission Totale</string>
     <string name="commission_without_tax">Commission (Sans Taxe)</string>
     <string name="tax_amount">Montant de la Taxe</string>
@@ -216,7 +256,13 @@
     <string name="tax_rate_range_error">Le taux de taxe doit être entre 0 et 100</string>
     <string name="please_enter_valid_numbers">Veuillez entrer des nombres valides</string>
     <string name="generate_report">Générer Rapport</string>
+    <string name="delete_commission_rate">Supprimer le Taux de Commission</string>
+    <string name="delete_commission_rate_message">Êtes-vous sûr de vouloir supprimer ce taux de commission ?</string>
+    <string name="commission_rate_deleted">Taux de commission supprimé</string>
     <string name="cash_balance">Solde Espèces</string>
+    <string name="operator_balance">Solde Opérateur</string>
+    <string name="balance_before">Avant</string>
+    <string name="balance_after">Après</string>
     <string name="barcode_no_data">Code-barres détecté mais aucune donnée lisible trouvée. Veuillez réessayer ou utiliser la saisie manuelle.</string>
     
     <!-- Sync Messages -->
@@ -230,13 +276,40 @@
     <!-- Customer Management -->
     <string name="customer_management">Gestion des Clients</string>
     <string name="add_customer">Ajouter Client</string>
+    <string name="regular_customer">Client Ordinaire</string>
+    <string name="search_customers">Rechercher Clients</string>
     <string name="scan_barcode">Scanner MRZ</string>
+    <string name="manual_entry">Saisie Manuelle</string>
+    <string name="scanned_data">Données MRZ Scannées</string>
+    <string name="use_data">Utiliser les Données</string>
+    <string name="name_label_mrz">Nom:</string>
+    <string name="dob_label_mrz">Date de Naissance:</string>
+    <string name="id_label_mrz">ID:</string>
+    <string name="document_type_label_mrz">Type de Document:</string>
+    <string name="expiry_label_mrz">Expiration:</string>
     <string name="scan_barcode_instruction">Positionnez la zone MRZ du document dans le cadre pour scanner</string>
+    <string name="stop_scanning">Arrêter le Scan</string>
+    <string name="mrz_position_instruction">Positionnez la zone MRZ de la carte (3 lignes du bas) dans le cadre...</string>
+    <string name="mrz_focus_instruction">Veuillez faire la mise au point et positionner clairement la zone MRZ. Le scan commencera dans 5 secondes...</string>
+    <string name="full_name">Nom Complet</string>
+    <string name="date_of_birth">Date de Naissance</string>
+    <string name="national_id">ID National</string>
+    <string name="issue_date">Date d\'Émission</string>
+    <string name="expiry_date">Date d\'Expiration</string>
+    <string name="address">Adresse</string>
+    <string name="email">Email</string>
     <string name="customer_name">Nom du Client</string>
     <string name="customer_phone">Téléphone du Client</string>
     <string name="search_by_phone_number">Rechercher par numéro de téléphone...</string>
     <string name="customer_address">Adresse du Client</string>
     <string name="customer_dob">Date de Naissance</string>
+    <string name="phone_number">Numéro de Téléphone</string>
+    <string name="age">Âge</string>
+    <string name="years_old">ans</string>
+    <string name="not_available">Non Disponible</string>
+    <string name="id_valid">ID Valide</string>
+    <string name="synced">Synchronisé</string>
+    <string name="pending_sync">Synchronisation en Attente</string>
     <string name="save_customer">Enregistrer Client</string>
     <string name="customer_saved">Client enregistré avec succès</string>
     <string name="customer_updated">Client mis à jour avec succès</string>
@@ -266,6 +339,16 @@
     <string name="operator_name">Nom de l\'Opérateur</string>
     <string name="operator_code">Code Opérateur (Optionnel)</string>
     <string name="operator_type">Type d\'Opérateur</string>
+    <string name="type_ussd">USSD</string>
+    <string name="type_traditional">Traditionnel</string>
+    <string name="color_orange">Orange</string>
+    <string name="color_purple">Violet</string>
+    <string name="color_blue">Bleu</string>
+    <string name="color_green">Vert</string>
+    <string name="color_amber">Ambre</string>
+    <string name="color_red">Rouge</string>
+    <string name="color_teal">Sarcelle</string>
+    <string name="color_indigo">Indigo</string>
     <string name="action_code">Code Action (Optionnel)</string>
     <string name="operator_color">Couleur de l\'Opérateur</string>
     <string name="save_operator">Enregistrer Opérateur</string>
@@ -276,6 +359,11 @@
     <string name="operator_deleted">Opérateur supprimé avec succès</string>
     <string name="transfer_rate">Taux de Transfert (%)</string>
     <string name="transfer">Transfert</string>
+    <string name="operator_actions">Actions Opérateur</string>
+    <string name="add_action">Ajouter Action</string>
+    <string name="action_name">Nom de l\'Action</string>
+    <string name="disable_ussd">Désactiver USSD (pour les actions de vérification uniquement)</string>
+    <string name="save_action">Enregistrer Action</string>
     
     <!-- Common -->
     <string name="confirm_transaction">Confirmer Transaction</string>

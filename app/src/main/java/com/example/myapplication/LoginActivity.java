@@ -107,6 +107,7 @@ public class LoginActivity extends AppCompatActivity {
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
 
         EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
+    EdgeToEdgeHelper.setupImeInsetsForRoot(this);
         setupLanguageSpinner();
         setupLoginTypeToggle();
         btnLogin.setOnClickListener(v -> loginUser());

@@ -1,5 +1,6 @@
 package com.example.myapplication;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
@@ -20,14 +21,33 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.myapplication.adapters.OperatorActionAdapter;
 import com.example.myapplication.database.AppDatabase;
 import com.example.myapplication.database.entities.OperatorActionEntity;
+import com.example.myapplication.utils.LanguageManager;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.SyncManager;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 public class OperatorActionsActivity extends AppCompatActivity {
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        LanguageManager languageManager = LanguageManager.getInstance(newBase);
+        String language = languageManager.getCurrentLanguage();
+        
+        Locale locale = new Locale(language);
+        Locale.setDefault(locale);
+        android.content.res.Configuration config = new android.content.res.Configuration(newBase.getResources().getConfiguration());
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            config.setLocale(locale);
+        } else {
+            config.locale = locale;
+        }
+        
+        Context context = newBase.createConfigurationContext(config);
+        super.attachBaseContext(context);
+    }
     public static final String EXTRA_OPERATOR_ID = "operatorId";
     private AppDatabase db; private SessionManager sm; private SyncManager sync;
     private String operatorId; private String uid;
@@ -44,6 +64,7 @@ public class OperatorActionsActivity extends AppCompatActivity {
         
         // Setup window insets for header
         com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupImeInsetsForRoot(this);
         
         db = AppDatabase.getDatabase(this); sm = new SessionManager(this); sync = new SyncManager(this);
         operatorId = getIntent().getStringExtra(EXTRA_OPERATOR_ID);
@@ -90,7 +111,11 @@ public class OperatorActionsActivity extends AppCompatActivity {
         CheckBox cbDisableUssd = v.findViewById(R.id.cbDisableUssd);
         
         // Setup action name spinner with Deposit/Withdrawal/Transfer
-        String[] actionNames = new String[]{"Deposit", "Withdrawal", "Transfer"};
+        String[] actionNames = new String[]{
+            getString(R.string.deposit), 
+            getString(R.string.withdrawal), 
+            getString(R.string.transfer)
+        };
         android.widget.ArrayAdapter<String> nameAdapter = new android.widget.ArrayAdapter<>(
                 this, android.R.layout.simple_spinner_item, actionNames);
         nameAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);

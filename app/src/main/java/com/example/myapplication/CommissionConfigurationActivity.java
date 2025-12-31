@@ -74,6 +74,7 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
         
         // Setup window insets for header
         com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupImeInsetsForRoot(this);
         
         database = AppDatabase.getDatabase(this);
         sessionManager = new SessionManager(this);
@@ -120,6 +121,13 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
             try {
                 List<CommissionRateEntity> rates = database.commissionRateDao()
                         .getCommissionRatesByUser(currentUser.getUid());
+                
+                // Recalculate commission rate with tax for all rates to ensure correct values
+                // This fixes any rates that were saved with the old (incorrect) calculation
+                for (CommissionRateEntity rate : rates) {
+                    rate.calculateRateWithTax();
+                }
+                
                 runOnUiThread(() -> {
                     commissionRates.clear();
                     commissionRates.addAll(rates);
@@ -137,15 +145,15 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
     
     private void onDelete(CommissionRateEntity rate) {
         new AlertDialog.Builder(this)
-                .setTitle("Delete Commission Rate")
-                .setMessage("Are you sure you want to delete this commission rate?")
-                .setPositiveButton(android.R.string.yes, (d, w) -> {
+                .setTitle(getString(R.string.delete_commission_rate))
+                .setMessage(getString(R.string.delete_commission_rate_message))
+                .setPositiveButton(R.string.ok, (d, w) -> {
                     new Thread(() -> {
                         try {
                             database.commissionRateDao().deleteCommissionRate(rate.getId());
                             runOnUiThread(() -> {
                                 loadCommissionRates();
-                                Toast.makeText(this, "Commission rate deleted", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(this, getString(R.string.commission_rate_deleted), Toast.LENGTH_SHORT).show();
                             });
                         } catch (Exception e) {
                             Log.e(TAG, "Error deleting commission rate", e);
@@ -223,6 +231,8 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
                         }
                         etCommissionRate.setText(String.format(Locale.US, "%.2f", existing.getCommissionRate()));
                         etTaxRate.setText(String.format(Locale.US, "%.2f", existing.getTaxRate()));
+                        // Recalculate to ensure correct value is displayed
+                        existing.calculateRateWithTax();
                         tvCommissionWithTax.setText(String.format(Locale.US, "%.4f%%", existing.getCommissionRateWithTax()));
                         
                         String types = existing.getTransactionTypes();
@@ -372,7 +382,9 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
             if (!TextUtils.isEmpty(commissionStr) && !TextUtils.isEmpty(taxStr)) {
                 double commissionRate = Double.parseDouble(commissionStr);
                 double taxRate = Double.parseDouble(taxStr);
-                double commissionWithTax = commissionRate * (1 + (taxRate / 100.0));
+                // Net commission = Gross commission - (Tax on gross commission)
+                // Example: 0.2% - (15% of 0.2%) = 0.2% * (1 - 15/100) = 0.2% * 0.85 = 0.17%
+                double commissionWithTax = commissionRate * (1 - (taxRate / 100.0));
                 tvCommissionWithTax.setText(String.format(Locale.US, "%.4f%%", commissionWithTax));
             } else {
                 tvCommissionWithTax.setText("0.0000%");

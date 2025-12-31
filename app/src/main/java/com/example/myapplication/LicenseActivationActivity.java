@@ -71,6 +71,7 @@ public class LicenseActivationActivity extends AppCompatActivity {
 
         View headerLayout = findViewById(R.id.headerLayout);
         EdgeToEdgeHelper.setupHeaderInsets(headerLayout, this);
+        EdgeToEdgeHelper.setupImeInsetsForRoot(this);
         setupLanguageSpinner();
         btnActivate.setOnClickListener(v -> onActivate());
         // No explicit apply here; locale is already applied via attachBaseContext

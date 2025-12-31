@@ -1,5 +1,6 @@
 package com.example.myapplication.adapters;
 
+import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -32,16 +33,24 @@ public class OperatorActionAdapter extends RecyclerView.Adapter<OperatorActionAd
 
     @Override public void onBindViewHolder(@NonNull VH h, int position) {
         OperatorActionEntity a = items.get(position);
-        h.tvActionName.setText(a.getName());
-        h.tvActionType.setText(a.getType());
+        
+        // Translate action name
+        String actionName = a.getName();
+        String translatedName = translateActionName(h.itemView.getContext(), actionName);
+        h.tvActionName.setText(translatedName);
+        
+        // Translate action type
+        String actionType = a.getType();
+        String translatedType = translateActionType(h.itemView.getContext(), actionType);
+        h.tvActionType.setText(translatedType);
         h.tvUssdTemplate.setText(a.getUssdTemplate() == null ? "" : a.getUssdTemplate());
         
         // Set icon color based on action name
-        String actionName = a.getName().toLowerCase();
+        String lowerActionName = actionName.toLowerCase();
         int iconColor;
-        if (actionName.contains("deposit")) {
+        if (lowerActionName.contains("deposit")) {
             iconColor = h.itemView.getContext().getColor(R.color.error_red);
-        } else if (actionName.contains("withdrawal") || actionName.contains("withdraw")) {
+        } else if (lowerActionName.contains("withdrawal") || lowerActionName.contains("withdraw")) {
             iconColor = h.itemView.getContext().getColor(R.color.success_green);
         } else {
             iconColor = h.itemView.getContext().getColor(R.color.primary_purple);
@@ -56,6 +65,30 @@ public class OperatorActionAdapter extends RecyclerView.Adapter<OperatorActionAd
     }
 
     @Override public int getItemCount() { return items.size(); }
+    
+    private String translateActionName(Context context, String actionName) {
+        if (actionName == null) return "";
+        String lowerName = actionName.toLowerCase();
+        if (lowerName.contains("deposit")) {
+            return context.getString(R.string.deposit);
+        } else if (lowerName.contains("withdrawal") || lowerName.contains("withdraw")) {
+            return context.getString(R.string.withdrawal);
+        } else if (lowerName.contains("transfer")) {
+            return context.getString(R.string.transfer);
+        }
+        return actionName; // Return original if no match
+    }
+    
+    private String translateActionType(Context context, String actionType) {
+        if (actionType == null) return "";
+        String upperType = actionType.toUpperCase();
+        if (upperType.contains("USSD")) {
+            return context.getString(R.string.type_ussd);
+        } else if (upperType.contains("TRADITIONAL")) {
+            return context.getString(R.string.type_traditional);
+        }
+        return actionType; // Return original if no match
+    }
 
     static class VH extends RecyclerView.ViewHolder {
         TextView tvActionName, tvActionType, tvUssdTemplate; 

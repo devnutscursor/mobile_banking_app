@@ -49,6 +49,10 @@ public class CommissionRateAdapter extends RecyclerView.Adapter<CommissionRateAd
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         CommissionRateEntity rate = items.get(position);
         
+        // Recalculate commission rate with tax to ensure correct value is displayed
+        // This fixes any rates that were saved with the old (incorrect) calculation
+        rate.calculateRateWithTax();
+        
         holder.tvOperatorName.setText(rate.getOperatorName() != null ? rate.getOperatorName() : "Unknown");
         holder.tvCommissionRate.setText(String.format(Locale.US, "%.2f%%", rate.getCommissionRate()));
         holder.tvTaxRate.setText(String.format(Locale.US, "%.2f%%", rate.getTaxRate()));

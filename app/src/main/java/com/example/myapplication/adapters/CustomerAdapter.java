@@ -42,11 +42,26 @@ public class CustomerAdapter extends RecyclerView.Adapter<CustomerAdapter.Custom
                           OnCustomerClickListener onCustomerClickListener,
                           OnCustomerEditListener onCustomerEditListener,
                           OnCustomerDeleteListener onCustomerDeleteListener) {
-        this.customers = customers;
+        this.customers = customers != null ? customers : new java.util.ArrayList<>();
         this.currentUserId = currentUserId;
         this.onCustomerClickListener = onCustomerClickListener;
         this.onCustomerEditListener = onCustomerEditListener;
         this.onCustomerDeleteListener = onCustomerDeleteListener;
+    }
+    
+    /**
+     * Update the customer list
+     */
+    public void updateCustomers(List<CustomerEntity> newCustomers) {
+        if (newCustomers != null) {
+            this.customers.clear();
+            this.customers.addAll(newCustomers);
+            android.util.Log.d("CustomerAdapter", "updateCustomers: Updated adapter with " + this.customers.size() + " customers");
+            notifyDataSetChanged();
+            android.util.Log.d("CustomerAdapter", "updateCustomers: After notifyDataSetChanged, item count: " + getItemCount());
+        } else {
+            android.util.Log.w("CustomerAdapter", "updateCustomers: newCustomers is null!");
+        }
     }
     
     @NonNull

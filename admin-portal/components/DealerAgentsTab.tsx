@@ -138,14 +138,17 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
         return;
       }
 
-      // Check for duplicate phone number if phone is provided
-      if (values.phone) {
-        const phoneExists = await checkPhoneExists(values.phone);
-        
-        if (phoneExists) {
-          message.error('This phone number is already registered. Please use a different phone number.');
-          return;
-        }
+      // Check for duplicate phone number (phone is now mandatory)
+      if (!values.phone || values.phone.trim() === '') {
+        message.error('Phone number is required');
+        return;
+      }
+      
+      const phoneExists = await checkPhoneExists(values.phone);
+      
+      if (phoneExists) {
+        message.error('This phone number is already registered. Please use a different phone number.');
+        return;
       }
 
       // Re-check license limit with fresh data before creating (prevents race conditions)
@@ -396,7 +399,8 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
           
           <Form.Item
             name="phone"
-            label="Phone (Optional)"
+            label="Phone"
+            rules={[{ required: true, message: 'Phone number is required' }]}
           >
             <Input
               prefix={<PhoneOutlined style={{ color: colors.air_force_blue[600] }} />}

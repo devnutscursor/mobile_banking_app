@@ -70,6 +70,7 @@ public class CommissionReportActivity extends AppCompatActivity {
         
         // Setup window insets for header
         com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupImeInsetsForRoot(this);
         
         database = AppDatabase.getDatabase(this);
         sessionManager = new SessionManager(this);
@@ -101,13 +102,19 @@ public class CommissionReportActivity extends AppCompatActivity {
         llBreakdownByAction = findViewById(R.id.llBreakdownByAction);
         
         // Setup period spinner
-        String[] periods = {"Daily", "Monthly", "Yearly"};
+        String[] periods = {
+            getString(R.string.daily),
+            getString(R.string.monthly),
+            getString(R.string.yearly)
+        };
         ArrayAdapter<String> periodAdapter = createOrangeSpinnerAdapter(periods);
         spinnerPeriod.setAdapter(periodAdapter);
         spinnerPeriod.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                selectedPeriod = periods[position].toLowerCase();
+                // Map translated strings back to period keys
+                String[] periodKeys = {"daily", "monthly", "yearly"};
+                selectedPeriod = periodKeys[position];
                 updateUIForPeriod();
             }
             

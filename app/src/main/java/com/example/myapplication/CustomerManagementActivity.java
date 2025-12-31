@@ -109,11 +109,20 @@ public class CustomerManagementActivity extends AppCompatActivity {
         
         // Setup window insets for header
         com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupImeInsetsForRoot(this);
         
         initDatabase();
         initViews();
         setupClickListeners();
+        setupLanguageSelector();
         loadCustomers();
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Update language flag in case language was changed elsewhere
+        updateLanguageFlag();
     }
     
     @Override
@@ -145,12 +154,24 @@ public class CustomerManagementActivity extends AppCompatActivity {
         cameraPreviewCard = findViewById(R.id.cameraPreviewCard);
         
         // Setup RecyclerView
-        recyclerViewCustomers.setLayoutManager(new LinearLayoutManager(this));
+        // Use a custom LinearLayoutManager that measures all items (important for RecyclerView inside ScrollView)
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this) {
+            @Override
+            public boolean supportsPredictiveItemAnimations() {
+                return false;
+            }
+        };
+        recyclerViewCustomers.setLayoutManager(layoutManager);
+        recyclerViewCustomers.setHasFixedSize(false); // Allow RecyclerView to resize based on content
+        recyclerViewCustomers.setNestedScrollingEnabled(true); // Enable nested scrolling
+        
         String currentUserId = (currentUser != null) ? currentUser.getUid() : "";
         Log.d(TAG, "initViews: currentUser = " + (currentUser != null ? currentUser.getEmail() : "NULL"));
         Log.d(TAG, "initViews: currentUserId = " + currentUserId);
+        Log.d(TAG, "initViews: Initial customers list size: " + customers.size());
         customerAdapter = new CustomerAdapter(customers, currentUserId, this::onCustomerClick, this::onCustomerEdit, this::onCustomerDelete);
         recyclerViewCustomers.setAdapter(customerAdapter);
+        Log.d(TAG, "initViews: Adapter created with " + customerAdapter.getItemCount() + " items");
         
         // Update UI with user info now that UI elements are initialized
         if (currentUser != null) {
@@ -248,21 +269,151 @@ public class CustomerManagementActivity extends AppCompatActivity {
         });
     }
     
+    private void setupLanguageSelector() {
+        // Find the language flag image view
+        ImageView ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        if (ivLanguageFlag == null) {
+            // Language selector might not be in the layout, skip setup
+            return;
+        }
+        
+        // Ensure languageManager is initialized
+        if (languageManager == null) {
+            languageManager = LanguageManager.getInstance(this);
+        }
+        
+        // Set initial flag based on current language
+        updateLanguageFlag();
+        
+        // Make the language selector clickable
+        View languageSelector = findViewById(R.id.ivLanguageFlag);
+        if (languageSelector != null) {
+            languageSelector.setOnClickListener(v -> {
+                // Prevent rapid language changes (debounce)
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastLanguageChangeTime < 1000) { // 1 second debounce
+                    return;
+                }
+                
+                // Toggle between English and French
+                String currentLang = languageManager.getCurrentLanguage();
+                String newLang = currentLang.equals("en") ? "fr" : "en";
+                
+                lastLanguageChangeTime = currentTime;
+                
+                // Set language and recreate activity
+                languageManager.setLanguageWithTranslation(newLang)
+                        .thenAccept(success -> {
+                            runOnUiThread(() -> {
+                                if (success) {
+                                    // Recreate activity to apply new language
+                                    recreate();
+                                } else {
+                                    Toast.makeText(this, "Failed to change language", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                        });
+            });
+        }
+    }
+    
+    private void updateLanguageFlag() {
+        ImageView ivLanguageFlag = findViewById(R.id.ivLanguageFlag);
+        if (ivLanguageFlag == null) {
+            return;
+        }
+        
+        // Ensure languageManager is initialized
+        if (languageManager == null) {
+            languageManager = LanguageManager.getInstance(this);
+        }
+        
+        String currentLang = languageManager.getCurrentLanguage();
+        
+        if ("fr".equals(currentLang)) {
+            ivLanguageFlag.setImageResource(R.drawable.ic_flag_fr);
+        } else {
+            ivLanguageFlag.setImageResource(R.drawable.ic_flag_us);
+        }
+    }
+    
     private void loadCustomers() {
         new Thread(() -> {
             List<CustomerEntity> customerList;
             
             // New requirement: every user sees only their own created customers
             if (currentUser != null) {
-                customerList = database.customerDao().getCustomersByUser(currentUser.getUid());
+                String userId = currentUser.getUid();
+                customerList = database.customerDao().getCustomersByUser(userId);
+                
+                // Debug logging
+                Log.d(TAG, "Loading customers for user: " + userId);
+                Log.d(TAG, "Found " + customerList.size() + " customers");
+                
+                // Also check if there are customers without createdBy (legacy data)
+                List<CustomerEntity> allActiveCustomers = database.customerDao().getAllActiveCustomers();
+                Log.d(TAG, "Total active customers in database: " + allActiveCustomers.size());
+                
+                // Include customers that don't have createdBy set (legacy data) or have null createdBy
+                for (CustomerEntity customer : allActiveCustomers) {
+                    if (customer.getCreatedBy() == null || customer.getCreatedBy().isEmpty()) {
+                        Log.d(TAG, "Found customer without createdBy: " + customer.getFullName() + " (ID: " + customer.getId() + ")");
+                        // Include legacy customers for the current user
+                        if (!customerList.contains(customer)) {
+                            customerList.add(customer);
+                        }
+                    }
+                }
+                
+                Log.d(TAG, "Total customers after including legacy: " + customerList.size());
             } else {
                 customerList = new java.util.ArrayList<>();
+                Log.w(TAG, "No current user - cannot load customers");
             }
             
+            // Create a final list to pass to UI thread
+            final List<CustomerEntity> finalCustomerList = new java.util.ArrayList<>(customerList);
+            Log.d(TAG, "Prepared final list with " + finalCustomerList.size() + " customers for UI thread");
+            
             runOnUiThread(() -> {
+                // Clear and update the customers list
                 customers.clear();
-                customers.addAll(customerList);
-                customerAdapter.notifyDataSetChanged();
+                customers.addAll(finalCustomerList);
+                Log.d(TAG, "Customers list updated, size: " + customers.size());
+                
+                // Update adapter with the final list directly
+                if (customerAdapter != null) {
+                    customerAdapter.updateCustomers(finalCustomerList);
+                    Log.d(TAG, "Updated adapter with " + finalCustomerList.size() + " customers");
+                    Log.d(TAG, "Adapter item count: " + customerAdapter.getItemCount());
+                    
+                    // Force RecyclerView to measure all items (important when inside ScrollView/NestedScrollView)
+                    // Calculate approximate height: each item is ~120dp, add some padding
+                    int itemCount = finalCustomerList.size();
+                    float itemHeightDp = 120f; // Approximate height per customer item in dp
+                    float totalHeightDp = (itemCount * itemHeightDp) + 32f; // Add padding
+                    int totalHeightPx = (int) (totalHeightDp * getResources().getDisplayMetrics().density);
+                    
+                    recyclerViewCustomers.post(() -> {
+                        // Set minimum height to ensure all items are measured
+                        android.view.ViewGroup.LayoutParams params = recyclerViewCustomers.getLayoutParams();
+                        params.height = Math.max(totalHeightPx, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+                        recyclerViewCustomers.setLayoutParams(params);
+                        recyclerViewCustomers.requestLayout();
+                        recyclerViewCustomers.invalidate();
+                        Log.d(TAG, "Set RecyclerView height to " + totalHeightPx + "px for " + itemCount + " items");
+                    });
+                } else {
+                    Log.e(TAG, "CustomerAdapter is null!");
+                }
+                
+                Log.d(TAG, "Updated UI with " + customers.size() + " customers");
+                
+                // Log each customer for debugging
+                for (int i = 0; i < finalCustomerList.size(); i++) {
+                    CustomerEntity c = finalCustomerList.get(i);
+                    Log.d(TAG, "Customer " + i + ": " + (c.getFullName() != null ? c.getFullName() : "null") + " (ID: " + c.getId() + ", createdBy: " + c.getCreatedBy() + ")");
+                }
             });
         }).start();
     }
@@ -313,10 +464,10 @@ public class CustomerManagementActivity extends AppCompatActivity {
         startCamera();
         
         // Show message to user
-        Toast.makeText(this, "Position the card's MRZ zone (3 bottom lines) in view...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.mrz_position_instruction), Toast.LENGTH_SHORT).show();
         
         // Show message to user to focus and position document
-        Toast.makeText(this, "Please focus and position the MRZ zone clearly. Scanning will start in 5 seconds...", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, getString(R.string.mrz_focus_instruction), Toast.LENGTH_LONG).show();
     }
     
     private void stopBarcodeScanning() {
@@ -986,14 +1137,10 @@ public class CustomerManagementActivity extends AppCompatActivity {
             customer.setExpiryDate(mrzData.expiryDate); // Already in YYYY-MM-DD format
             customer.setDocumentType(mrzData.documentTypeName);
             
-            // Set ID based on national ID number or document number
-            if (customer.getNationalIdNumber() != null && !customer.getNationalIdNumber().isEmpty()) {
-                customer.setId(customer.getNationalIdNumber());
-            } else if (mrzData.documentNumber != null && !mrzData.documentNumber.isEmpty()) {
-                customer.setId(mrzData.documentNumber);
-            } else {
-                customer.setId("customer_" + System.currentTimeMillis());
-            }
+            // IMPORTANT: Don't set ID here - let it be null so it's treated as a NEW customer
+            // The ID will be set during save, and if a customer with same National ID exists,
+            // we'll handle it in the save logic (either create new with unique ID or edit existing)
+            // This prevents MRZ scans from automatically overwriting existing customers
             
             if (currentUser != null) {
                 customer.setCreatedBy(currentUser.getUid());
@@ -1025,17 +1172,17 @@ public class CustomerManagementActivity extends AppCompatActivity {
                     ? convertDateToDDMMYYYY(customer.getExpiryDate())
                     : "";
             
-            String preview = "Name: " + (customer.getFullName() != null ? customer.getFullName() : "") +
-                    "\nDOB: " + dobDisplay +
-                    "\nID: " + (customer.getNationalIdNumber() != null ? customer.getNationalIdNumber() : "") +
-                    "\nDocument Type: " + (customer.getDocumentType() != null ? customer.getDocumentType() : "") +
-                    "\nExpiry: " + expiryDisplay;
+            String preview = getString(R.string.name_label_mrz) + " " + (customer.getFullName() != null ? customer.getFullName() : "") +
+                    "\n" + getString(R.string.dob_label_mrz) + " " + dobDisplay +
+                    "\n" + getString(R.string.id_label_mrz) + " " + (customer.getNationalIdNumber() != null ? customer.getNationalIdNumber() : "") +
+                    "\n" + getString(R.string.document_type_label_mrz) + " " + (customer.getDocumentType() != null ? customer.getDocumentType() : "") +
+                    "\n" + getString(R.string.expiry_label_mrz) + " " + expiryDisplay;
             
             runOnUiThread(() -> {
             new android.app.AlertDialog.Builder(this)
-                        .setTitle("Scanned MRZ Data")
+                        .setTitle(getString(R.string.scanned_data))
                     .setMessage(preview)
-                    .setPositiveButton("Use Data", (d, w) -> showCustomerFormDialog(customer, true))
+                    .setPositiveButton(getString(R.string.use_data), (d, w) -> showCustomerFormDialog(customer, true))
                     .setNegativeButton(android.R.string.cancel, null)
                     .show();
             });
@@ -1361,7 +1508,9 @@ public class CustomerManagementActivity extends AppCompatActivity {
             etEmail.setText(customer.getEmail());
         }
         
-        builder.setTitle(customer.getId() == null ? getString(R.string.add_customer) : getString(R.string.edit_customer))
+        // Determine dialog title: "Add Customer" for new customers (null ID or from MRZ), "Edit Customer" for existing
+        boolean isNewCustomer = customer.getId() == null || fromBarcode;
+        builder.setTitle(isNewCustomer ? getString(R.string.add_customer) : getString(R.string.edit_customer))
                 // Attach labels now; we will override positive button click after show to prevent auto-dismiss
                 .setPositiveButton(getString(R.string.save_customer), null)
                 .setNegativeButton(getString(android.R.string.cancel), null);
@@ -1375,6 +1524,15 @@ public class CustomerManagementActivity extends AppCompatActivity {
                 if (validateCustomerForm(etFullName, etDateOfBirth, etNationalId, etIssueDate, etExpiryDate, etEmail, etPhoneNumber)) {
                     String selectedDocType = spinnerDocumentType.getSelectedItemPosition() >= 0 ? 
                             documentTypes[spinnerDocumentType.getSelectedItemPosition()] : null;
+                    
+                    // CRITICAL FIX: For MRZ scans (fromBarcode=true), ensure customer ID is null so it's treated as new
+                    // This prevents overwriting existing customers when scanning the same document
+                    if (fromBarcode) {
+                        Log.d(TAG, "MRZ scan detected - resetting customer ID to null to treat as new customer");
+                        customer.setId(null);
+                        customer.setCreatedAt(0); // Reset createdAt to ensure it's set during save
+                    }
+                    
                     saveCustomer(customer, etFullName, etDateOfBirth, selectedDocType, etNationalId, etIssueDate, etExpiryDate, etPhoneNumber, etAddress, etEmail);
                     dialog.dismiss();
                 } else {
@@ -1395,10 +1553,7 @@ public class CustomerManagementActivity extends AppCompatActivity {
             etNationalId.setError(getString(R.string.required_fields_missing));
             return false;
         }
-        if (TextUtils.isEmpty(etPhoneNumber.getText())) {
-            etPhoneNumber.setError(getString(R.string.required_fields_missing));
-            return false;
-        }
+        // Phone number is now optional
         
         // Validate date formats - All dates use DD-MM-YYYY format for input
         if (!TextUtils.isEmpty(etDateOfBirth.getText()) && !isValidDateFormat(etDateOfBirth.getText().toString())) {
@@ -1571,16 +1726,19 @@ public class CustomerManagementActivity extends AppCompatActivity {
                     
                     // Check if customer with same phone number already exists for this agent (for new customers only)
                     // This is separate check to show dialog for phone duplicates
+                    // IMPORTANT: This check prevents saving - if duplicate found, return early
                     if (phoneNumber != null && !phoneNumber.isEmpty() && currentUser != null) {
                         CustomerEntity existingCustomerByPhone = database.customerDao().getCustomerByPhoneNumberAndUser(phoneNumber, currentUser.getUid());
                         if (existingCustomerByPhone != null) {
+                            Log.d(TAG, "Duplicate phone number detected: " + phoneNumber + " for customer: " + existingCustomerByPhone.getFullName());
                             // Show dialog offering to select existing customer
+                            // CRITICAL: This return prevents the save from happening
                             CustomerEntity finalExistingCustomer = existingCustomerByPhone;
                             runOnUiThread(() -> {
                                 showDuplicatePhoneDialog(finalExistingCustomer, customer, etFullName, etDateOfBirth, 
                                         documentType, etNationalId, etIssueDate, etExpiryDate, etPhoneNumber, etAddress, etEmail);
                             });
-                            return;
+                            return; // Prevent save - customer with this phone already exists
                         }
                     }
                 } else {
@@ -1599,24 +1757,54 @@ public class CustomerManagementActivity extends AppCompatActivity {
                     }
                     
                     // For editing existing customers, check phone number but exclude current customer ID
+                    // IMPORTANT: This check prevents saving - if duplicate found, return early
                     if (phoneNumber != null && !phoneNumber.isEmpty() && currentUser != null) {
                         CustomerEntity existingCustomerByPhone = database.customerDao().getCustomerByPhoneNumberAndUserExcluding(
                                 phoneNumber, currentUser.getUid(), customer.getId());
                         if (existingCustomerByPhone != null) {
+                            Log.d(TAG, "Duplicate phone number detected during edit: " + phoneNumber + " for customer: " + existingCustomerByPhone.getFullName());
                             // Show dialog offering to select existing customer
+                            // CRITICAL: This return prevents the save from happening
                             CustomerEntity finalExistingCustomer = existingCustomerByPhone;
                             runOnUiThread(() -> {
                                 showDuplicatePhoneDialog(finalExistingCustomer, customer, etFullName, etDateOfBirth, 
                                         documentType, etNationalId, etIssueDate, etExpiryDate, etPhoneNumber, etAddress, etEmail);
                             });
-                            return;
+                            return; // Prevent save - customer with this phone already exists
                         }
                     }
                 }
                 
                 // Set customer data
                 if (customer.getId() == null) {
-                    customer.setId(etNationalId.getText().toString());
+                    // For new customers, check if a customer with this National ID already exists
+                    // If it exists with a different phone number, generate a unique ID
+                    // If it exists with the same phone number, it would have been caught by duplicate check above
+                    String nationalIdValue = etNationalId.getText().toString().trim();
+                    String uniqueId;
+                    
+                    if (nationalIdValue != null && !nationalIdValue.isEmpty() && currentUser != null) {
+                        // Check if customer with this National ID exists (regardless of phone)
+                        CustomerEntity existingByNationalId = database.customerDao().getCustomerByNationalIdAndUser(
+                                nationalIdValue, currentUser.getUid());
+                        
+                        if (existingByNationalId != null) {
+                            // Customer with this National ID exists - generate unique ID to allow same National ID with different phone
+                            // Format: nationalId_timestamp to ensure uniqueness
+                            uniqueId = nationalIdValue + "_" + System.currentTimeMillis();
+                            Log.d(TAG, "Customer with National ID " + nationalIdValue + " exists. Generated unique ID: " + uniqueId);
+                        } else {
+                            // No existing customer with this National ID - use National ID as ID
+                            uniqueId = nationalIdValue;
+                            Log.d(TAG, "New customer with National ID: " + nationalIdValue);
+                        }
+                    } else {
+                        // No National ID provided - generate unique ID
+                        uniqueId = "customer_" + System.currentTimeMillis();
+                        Log.d(TAG, "No National ID provided. Generated unique ID: " + uniqueId);
+                    }
+                    
+                    customer.setId(uniqueId);
                     if (currentUser != null) {
                         customer.setCreatedBy(currentUser.getUid());
                     }

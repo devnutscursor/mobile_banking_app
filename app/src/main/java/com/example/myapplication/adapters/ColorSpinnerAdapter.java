@@ -43,12 +43,31 @@ public class ColorSpinnerAdapter extends ArrayAdapter<String> {
         TextView tv = view.findViewById(R.id.tvText);
         View swatch = view.findViewById(R.id.viewSwatch);
         if (tv != null) {
-            tv.setText(colorName);
+            // Display translated color name
+            String translatedName = getTranslatedColorName(view.getContext(), colorName);
+            tv.setText(translatedName);
         }
         if (swatch != null) {
             int colorRes = mapColor(colorName);
             swatch.getBackground().setTint(view.getContext().getColor(colorRes));
         }
+    }
+    
+    private String getTranslatedColorName(Context context, String colorKey) {
+        // Map color keys to string resource IDs
+        int resId;
+        switch (colorKey) {
+            case "orange": resId = R.string.color_orange; break;
+            case "purple": resId = R.string.color_purple; break;
+            case "blue": resId = R.string.color_blue; break;
+            case "green": resId = R.string.color_green; break;
+            case "amber": resId = R.string.color_amber; break;
+            case "red": resId = R.string.color_red; break;
+            case "teal": resId = R.string.color_teal; break;
+            case "indigo": resId = R.string.color_indigo; break;
+            default: return colorKey; // Fallback to key if no translation
+        }
+        return context.getString(resId);
     }
 
     private int mapColor(String c) {

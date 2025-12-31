@@ -85,6 +85,7 @@ public class CashRegisterActivity extends AppCompatActivity {
         
         // Setup window insets for header
         com.example.myapplication.utils.EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
+        com.example.myapplication.utils.EdgeToEdgeHelper.setupImeInsetsForRoot(this);
         
         // Initialize components
         database = AppDatabase.getDatabase(this);
@@ -968,51 +969,52 @@ public class CashRegisterActivity extends AppCompatActivity {
             java.util.List<String> receiptLines = new java.util.ArrayList<>();
             
             // Header - centered
-            receiptLines.add("MOBILE BANKING");
+            receiptLines.add(getString(R.string.receipt_header));
             receiptLines.add(""); // Empty line
             
             // Agent info
             if (!agentName.isEmpty()) {
-                receiptLines.add("Agent: " + agentName);
+                receiptLines.add(getString(R.string.receipt_agent) + " " + agentName);
             }
             
             // Separator
             receiptLines.add("--------------------------------");
             
             // Transaction details
-            receiptLines.add("TXN: " + transaction.getId());
+            receiptLines.add(getString(R.string.receipt_txn) + " " + transaction.getId());
             
             // Customer name - wrap if too long
             String customerName = transaction.getCustomerName() != null ? transaction.getCustomerName() : "";
-            receiptLines.add("Customer: " + customerName);
+            receiptLines.add(getString(R.string.receipt_customer) + " " + customerName);
             
             // Phone
             String phone = transaction.getCustomerPhone() != null ? transaction.getCustomerPhone() : "";
-            receiptLines.add("Phone: " + phone);
+            receiptLines.add(getString(R.string.receipt_phone) + " " + phone);
             
             // Operator
             String operator = transaction.getOperatorName() != null ? transaction.getOperatorName() : "";
-            receiptLines.add("Operator: " + operator);
+            receiptLines.add(getString(R.string.receipt_operator) + " " + operator);
             
-            // Type
+            // Type - translate transaction type
             String type = transaction.getTransactionType() != null ? transaction.getTransactionType() : "";
-            receiptLines.add("Type: " + type);
+            String translatedType = translateTransactionType(type);
+            receiptLines.add(getString(R.string.receipt_type) + " " + translatedType);
             
             // Amount
-            receiptLines.add("Amount: " + amountStr);
+            receiptLines.add(getString(R.string.receipt_amount) + " " + amountStr);
             
             // Fees
-            receiptLines.add("Fee: " + feeStr);
+            receiptLines.add(getString(R.string.receipt_fee) + " " + feeStr);
             
             // Date
-            receiptLines.add("Date: " + dateStr);
+            receiptLines.add(getString(R.string.receipt_date) + " " + dateStr);
             
             // Separator
             receiptLines.add("--------------------------------");
             
             // Footer
-            receiptLines.add("Thank you for using");
-            receiptLines.add("our service");
+            receiptLines.add(getString(R.string.receipt_footer_line1));
+            receiptLines.add(getString(R.string.receipt_footer_line2));
             receiptLines.add(""); // Empty line at end
 
             // Render to bitmap for 58mm thermal printer
@@ -1398,5 +1400,23 @@ public class CashRegisterActivity extends AppCompatActivity {
             Log.e(TAG, "Error opening USSD dialer", e);
             Toast.makeText(this, "Failed to open dialer: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
+    }
+    
+    /**
+     * Translate transaction type to current language
+     */
+    private String translateTransactionType(String type) {
+        if (type == null || type.trim().isEmpty()) {
+            return "";
+        }
+        String lowerType = type.toLowerCase();
+        if (lowerType.contains("deposit")) {
+            return getString(R.string.deposit);
+        } else if (lowerType.contains("withdrawal") || lowerType.contains("withdraw")) {
+            return getString(R.string.withdrawal);
+        } else if (lowerType.contains("transfer")) {
+            return getString(R.string.transfer);
+        }
+        return type; // Return original if no match
     }
 }

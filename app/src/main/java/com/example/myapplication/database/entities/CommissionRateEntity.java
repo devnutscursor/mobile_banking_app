@@ -50,8 +50,10 @@ public class CommissionRateEntity {
     
     // Helper method to calculate commission rate with tax
     public void calculateRateWithTax() {
-        // Formula: rate_with_tax = rate * (1 + tax_rate/100)
-        this.commissionRateWithTax = this.commissionRate * (1 + (this.taxRate / 100.0));
+        // Formula: rate_with_tax = rate * (1 - tax_rate/100)
+        // Net commission = Gross commission - (Tax on gross commission)
+        // Example: 0.2% - (15% of 0.2%) = 0.2% * (1 - 15/100) = 0.2% * 0.85 = 0.17%
+        this.commissionRateWithTax = this.commissionRate * (1 - (this.taxRate / 100.0));
     }
     
     // Getters and Setters

@@ -54,7 +54,7 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
   };
 
   const generateLicenseKey = (): string => {
-    // Generate a unique license key: LIC-YYYYMMDD-HHMMSS-XXXX
+    // Generate a unique alphanumeric license key: LIC-YYYYMMDD-HHMMSS-XXXX
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -63,8 +63,12 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
     const minutes = String(now.getMinutes()).padStart(2, '0');
     const seconds = String(now.getSeconds()).padStart(2, '0');
     
-    // Generate random 4-digit suffix
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    // Generate random alphanumeric 4-character suffix (uppercase letters and numbers)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let randomSuffix = '';
+    for (let i = 0; i < 4; i++) {
+      randomSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
     
     return `LIC-${year}${month}${day}-${hours}${minutes}${seconds}-${randomSuffix}`;
   };
@@ -85,8 +89,13 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
     }
     
     if (attempts >= maxAttempts) {
-      // Fallback: add timestamp to ensure uniqueness
-      key = `LIC-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      // Fallback: add timestamp with alphanumeric suffix to ensure uniqueness
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let randomSuffix = '';
+      for (let i = 0; i < 6; i++) {
+        randomSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      key = `LIC-${Date.now()}-${randomSuffix}`;
     }
     
     return key;
