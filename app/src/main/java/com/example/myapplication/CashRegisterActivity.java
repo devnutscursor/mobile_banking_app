@@ -969,52 +969,51 @@ public class CashRegisterActivity extends AppCompatActivity {
             java.util.List<String> receiptLines = new java.util.ArrayList<>();
             
             // Header - centered
-            receiptLines.add(getString(R.string.receipt_header));
+            receiptLines.add("MOBILE BANKING");
             receiptLines.add(""); // Empty line
             
             // Agent info
             if (!agentName.isEmpty()) {
-                receiptLines.add(getString(R.string.receipt_agent) + " " + agentName);
+                receiptLines.add("Agent: " + agentName);
             }
             
             // Separator
             receiptLines.add("--------------------------------");
             
             // Transaction details
-            receiptLines.add(getString(R.string.receipt_txn) + " " + transaction.getId());
+            receiptLines.add("TXN: " + transaction.getId());
             
             // Customer name - wrap if too long
             String customerName = transaction.getCustomerName() != null ? transaction.getCustomerName() : "";
-            receiptLines.add(getString(R.string.receipt_customer) + " " + customerName);
+            receiptLines.add("Customer: " + customerName);
             
             // Phone
             String phone = transaction.getCustomerPhone() != null ? transaction.getCustomerPhone() : "";
-            receiptLines.add(getString(R.string.receipt_phone) + " " + phone);
+            receiptLines.add("Phone: " + phone);
             
             // Operator
             String operator = transaction.getOperatorName() != null ? transaction.getOperatorName() : "";
-            receiptLines.add(getString(R.string.receipt_operator) + " " + operator);
+            receiptLines.add("Operator: " + operator);
             
-            // Type - translate transaction type
+            // Type
             String type = transaction.getTransactionType() != null ? transaction.getTransactionType() : "";
-            String translatedType = translateTransactionType(type);
-            receiptLines.add(getString(R.string.receipt_type) + " " + translatedType);
+            receiptLines.add("Type: " + type);
             
             // Amount
-            receiptLines.add(getString(R.string.receipt_amount) + " " + amountStr);
+            receiptLines.add("Amount: " + amountStr);
             
             // Fees
-            receiptLines.add(getString(R.string.receipt_fee) + " " + feeStr);
+            receiptLines.add("Fee: " + feeStr);
             
             // Date
-            receiptLines.add(getString(R.string.receipt_date) + " " + dateStr);
+            receiptLines.add("Date: " + dateStr);
             
             // Separator
             receiptLines.add("--------------------------------");
             
             // Footer
-            receiptLines.add(getString(R.string.receipt_footer_line1));
-            receiptLines.add(getString(R.string.receipt_footer_line2));
+            receiptLines.add("Thank you for using");
+            receiptLines.add("our service");
             receiptLines.add(""); // Empty line at end
 
             // Render to bitmap for 58mm thermal printer
@@ -1400,23 +1399,5 @@ public class CashRegisterActivity extends AppCompatActivity {
             Log.e(TAG, "Error opening USSD dialer", e);
             Toast.makeText(this, "Failed to open dialer: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
-    }
-    
-    /**
-     * Translate transaction type to current language
-     */
-    private String translateTransactionType(String type) {
-        if (type == null || type.trim().isEmpty()) {
-            return "";
-        }
-        String lowerType = type.toLowerCase();
-        if (lowerType.contains("deposit")) {
-            return getString(R.string.deposit);
-        } else if (lowerType.contains("withdrawal") || lowerType.contains("withdraw")) {
-            return getString(R.string.withdrawal);
-        } else if (lowerType.contains("transfer")) {
-            return getString(R.string.transfer);
-        }
-        return type; // Return original if no match
     }
 }

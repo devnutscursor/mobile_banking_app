@@ -121,13 +121,6 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
             try {
                 List<CommissionRateEntity> rates = database.commissionRateDao()
                         .getCommissionRatesByUser(currentUser.getUid());
-                
-                // Recalculate commission rate with tax for all rates to ensure correct values
-                // This fixes any rates that were saved with the old (incorrect) calculation
-                for (CommissionRateEntity rate : rates) {
-                    rate.calculateRateWithTax();
-                }
-                
                 runOnUiThread(() -> {
                     commissionRates.clear();
                     commissionRates.addAll(rates);
@@ -231,8 +224,6 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
                         }
                         etCommissionRate.setText(String.format(Locale.US, "%.2f", existing.getCommissionRate()));
                         etTaxRate.setText(String.format(Locale.US, "%.2f", existing.getTaxRate()));
-                        // Recalculate to ensure correct value is displayed
-                        existing.calculateRateWithTax();
                         tvCommissionWithTax.setText(String.format(Locale.US, "%.4f%%", existing.getCommissionRateWithTax()));
                         
                         String types = existing.getTransactionTypes();
@@ -382,9 +373,7 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
             if (!TextUtils.isEmpty(commissionStr) && !TextUtils.isEmpty(taxStr)) {
                 double commissionRate = Double.parseDouble(commissionStr);
                 double taxRate = Double.parseDouble(taxStr);
-                // Net commission = Gross commission - (Tax on gross commission)
-                // Example: 0.2% - (15% of 0.2%) = 0.2% * (1 - 15/100) = 0.2% * 0.85 = 0.17%
-                double commissionWithTax = commissionRate * (1 - (taxRate / 100.0));
+                double commissionWithTax = commissionRate * (1 + (taxRate / 100.0));
                 tvCommissionWithTax.setText(String.format(Locale.US, "%.4f%%", commissionWithTax));
             } else {
                 tvCommissionWithTax.setText("0.0000%");

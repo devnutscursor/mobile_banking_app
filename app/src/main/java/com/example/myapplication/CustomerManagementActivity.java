@@ -1553,7 +1553,10 @@ public class CustomerManagementActivity extends AppCompatActivity {
             etNationalId.setError(getString(R.string.required_fields_missing));
             return false;
         }
-        // Phone number is now optional
+        if (TextUtils.isEmpty(etPhoneNumber.getText())) {
+            etPhoneNumber.setError(getString(R.string.required_fields_missing));
+            return false;
+        }
         
         // Validate date formats - All dates use DD-MM-YYYY format for input
         if (!TextUtils.isEmpty(etDateOfBirth.getText()) && !isValidDateFormat(etDateOfBirth.getText().toString())) {

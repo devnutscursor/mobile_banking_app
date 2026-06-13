@@ -125,7 +125,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     private CustomerEntity createRegularCustomer() {
         CustomerEntity regularCustomer = new CustomerEntity();
         regularCustomer.setId(REGULAR_CUSTOMER_ID);
-        regularCustomer.setFullName(getString(R.string.regular_customer));
+        regularCustomer.setFullName("Regular Customer");
         regularCustomer.setPhoneNumber(""); // Will be set from account number field
         return regularCustomer;
     }
@@ -773,8 +773,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     }
 
     private void searchCustomersByPhone(String phoneQuery) {
-        String trimmedQuery = phoneQuery != null ? phoneQuery.trim() : "";
-        if (TextUtils.isEmpty(trimmedQuery)) {
+        if (TextUtils.isEmpty(phoneQuery)) {
             // If search is empty, load all customers
             loadCustomers();
             return;
@@ -785,30 +784,15 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 List<CustomerEntity> searchResults;
                 if (activeUserId != null) {
                     // Search customers by phone number for current user
-                    // Normalize the search query (remove spaces, dashes, etc. for better matching)
-                    String normalizedQuery = trimmedQuery.replaceAll("[\\s\\-\\(\\)\\+]", "");
-                    searchResults = database.customerDao().searchCustomersByUser(activeUserId, normalizedQuery);
-                    
-                    // Also try searching with the original query in case phone numbers are stored with formatting
-                    if (searchResults.isEmpty()) {
-                        searchResults = database.customerDao().searchCustomersByUser(activeUserId, trimmedQuery);
-                    }
+                    searchResults = database.customerDao().searchCustomersByUser(activeUserId, phoneQuery);
                 } else {
                     searchResults = new ArrayList<>();
                 }
 
-                // Create final copy for lambda
-                final List<CustomerEntity> finalSearchResults = new ArrayList<>(searchResults);
-                
                 runOnUiThread(() -> {
                     customers.clear();
-                    customers.addAll(finalSearchResults);
+                    customers.addAll(searchResults);
                     updateCustomerSpinner();
-                    // Reset spinner selection to Regular Customer after search
-                    if (spinnerCustomer != null && spinnerCustomer.getCount() > 1) {
-                        spinnerCustomer.setSelection(1, false); // Position 1 = Regular Customer
-                        selectedCustomer = createRegularCustomer();
-                    }
                 });
 
             } catch (Exception e) {
@@ -936,7 +920,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         customerNames.add("+ " + getString(R.string.add_customer));
         
         // Add "Regular Customer" as default option (position 1)
-        customerNames.add(getString(R.string.regular_customer));
+        customerNames.add("Regular Customer");
         
         for (CustomerEntity customer : customers) {
             String name = customer.getFullName();
@@ -1692,7 +1676,10 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             etNationalId.setError(getString(R.string.required_fields_missing));
             return false;
         }
-        // Phone number is now optional
+        if (TextUtils.isEmpty(etPhoneNumber.getText())) {
+            etPhoneNumber.setError(getString(R.string.required_fields_missing));
+            return false;
+        }
         
         // Save customer in background thread
         new Thread(() -> {
@@ -1829,25 +1816,15 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             return false;
         }
 
-        // Account number is mandatory for ALL customers who don't have a phone number
-        String customerPhone = null;
+        // For Regular Customer, account number field must be filled (it contains the phone number)
         if (REGULAR_CUSTOMER_ID.equals(selectedCustomer.getId())) {
-            // Regular Customer always needs account number (it contains the phone number)
-            customerPhone = ""; // Regular Customer has no phone by default
-        } else {
-            // Check if customer has phone number
-            customerPhone = selectedCustomer.getPhoneNumber();
-        }
-        
-        // If customer has no phone number, account number field must be filled
-        if (customerPhone == null || customerPhone.trim().isEmpty()) {
             if (etAccountNumber == null || etAccountNumber.getText() == null) {
-                Toast.makeText(this, getString(R.string.account_number_required_when_phone_empty), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Please enter phone number in Account Number field", Toast.LENGTH_SHORT).show();
                 return false;
             }
             String accountNumber = etAccountNumber.getText().toString().trim();
             if (accountNumber.isEmpty()) {
-                Toast.makeText(this, getString(R.string.account_number_required_when_phone_empty), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Please enter phone number in Account Number field", Toast.LENGTH_SHORT).show();
                 return false;
             }
         }
@@ -1973,24 +1950,20 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         transaction.setActionName(selectedAction.getName());
         transaction.setCustomerId(selectedCustomer.getId());
         
-        // Get phone number: use account number field if customer has no phone number
+        // For Regular Customer, get phone from account number field
         String customerPhone;
         String customerName;
         if (REGULAR_CUSTOMER_ID.equals(selectedCustomer.getId())) {
-            // Regular Customer: always use account number field for phone
+            // Regular Customer: use account number field for phone
             if (etAccountNumber != null && etAccountNumber.getText() != null) {
                 customerPhone = etAccountNumber.getText().toString().trim();
             } else {
                 customerPhone = "";
             }
-            customerName = getString(R.string.regular_customer);
+            customerName = "Regular Customer";
         } else {
-            // Regular customer: use customer's phone number, or account number if phone is empty
+            // Regular customer: use customer's phone number
             customerPhone = selectedCustomer.getPhoneNumber() != null ? selectedCustomer.getPhoneNumber() : "";
-            // If customer has no phone number, use account number field
-            if (customerPhone.trim().isEmpty() && etAccountNumber != null && etAccountNumber.getText() != null) {
-                customerPhone = etAccountNumber.getText().toString().trim();
-            }
             customerName = selectedCustomer.getFullName();
             if (customerName == null || customerName.trim().isEmpty()) {
                 customerName = customerPhone != null && !customerPhone.trim().isEmpty()
@@ -2096,15 +2069,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             }
             Log.d(TAG, "Regular Customer - using phone from account number field: " + phoneNumber);
         } else {
-            // Regular customer: use customer's phone number, or account number if phone is empty
+            // Regular customer: use customer's phone number
             phoneNumber = selectedCustomer.getPhoneNumber() != null ? selectedCustomer.getPhoneNumber() : "";
-            // If customer has no phone number, use account number field
-            if (phoneNumber.trim().isEmpty() && etAccountNumber != null && etAccountNumber.getText() != null) {
-                phoneNumber = etAccountNumber.getText().toString().trim();
-                Log.d(TAG, "Customer has no phone - using account number field: " + phoneNumber);
-            } else {
-                Log.d(TAG, "Regular customer - using customer phone: " + phoneNumber);
-            }
+            Log.d(TAG, "Regular customer - using customer phone: " + phoneNumber);
         }
         
         // Build USSD code using actual codes from database
