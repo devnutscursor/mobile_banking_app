@@ -12,6 +12,10 @@ export interface User {
   createdAt: Timestamp | Date;
   updatedAt: Timestamp | Date;
   virtualCredit?: number;
+  /** Sum of operator_balances for this user (computed in admin UI). */
+  operatorBalance?: number;
+  /** virtualCredit + operatorBalance (computed in admin UI). */
+  totalCredit?: number;
   totalCreditUsed?: number;
   totalCreditEarned?: number;
   creditUpdatedAt?: Timestamp | Date;
@@ -36,10 +40,12 @@ export interface Transaction {
   actionId: string;
   amount: number;
   status: 'pending' | 'processing' | 'successful' | 'failed';
+  paymentStatus?: 'paid' | 'unpaid';
   createdAt: Timestamp | Date;
   updatedAt: Timestamp | Date;
   ussdCode?: string;
   notes?: string;
+  userNotes?: string;
 }
 
 export interface Customer {

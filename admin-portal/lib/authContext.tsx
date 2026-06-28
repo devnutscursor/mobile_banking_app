@@ -22,7 +22,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !auth) {
+      setLoading(false);
+      return;
+    }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -55,6 +58,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (!auth) {
+      throw new Error('Firebase is not configured. Check admin-portal/.env.local');
+    }
+
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
     

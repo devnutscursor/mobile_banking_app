@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.myapplication.R;
 import com.example.myapplication.database.entities.TransactionEntity;
+import com.example.myapplication.utils.TransactionDisplayUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -85,6 +86,17 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         String actionName = transaction.getActionName();
         String localizedActionName = getLocalizedActionName(actionName);
         holder.tvOperatorAction.setText(transaction.getOperatorName() + " - " + localizedActionName);
+
+        String userNotes = com.example.myapplication.utils.TransactionNotesHelper.getUserNotes(transaction);
+        if (holder.tvNotesSnippet != null) {
+            if (userNotes.isEmpty()) {
+                holder.tvNotesSnippet.setVisibility(View.GONE);
+            } else {
+                holder.tvNotesSnippet.setVisibility(View.VISIBLE);
+                String snippet = userNotes.length() > 60 ? userNotes.substring(0, 57) + "..." : userNotes;
+                holder.tvNotesSnippet.setText(snippet);
+            }
+        }
         
         // Amount with thousands separator
         String formattedAmount = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(transaction.getAmount());
@@ -200,41 +212,11 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
      * Get localized transaction type string
      */
     private String getLocalizedTransactionType(String type) {
-        if (type == null) return "";
-        
-        String typeLower = type.toLowerCase();
-        switch (typeLower) {
-            case "deposit":
-                return context.getString(R.string.deposit);
-            case "withdrawal":
-                return context.getString(R.string.withdrawal);
-            case "transfer":
-                return context.getString(R.string.transfer);
-            default:
-                return type; // Return original if no translation found
-        }
+        return TransactionDisplayUtils.getLocalizedTransactionType(context, type);
     }
-    
-    /**
-     * Get localized action name string
-     * Actions like "Transfer", "Deposit", "Withdrawal" should be translated
-     */
+
     private String getLocalizedActionName(String actionName) {
-        if (actionName == null) return "";
-        
-        String actionLower = actionName.toLowerCase().trim();
-        
-        // Check for common transaction action names and translate them
-        if (actionLower.equals("transfer") || actionLower.equals("transfert")) {
-            return context.getString(R.string.transfer);
-        } else if (actionLower.equals("deposit") || actionLower.equals("dépôt")) {
-            return context.getString(R.string.deposit);
-        } else if (actionLower.equals("withdrawal") || actionLower.equals("retrait")) {
-            return context.getString(R.string.withdrawal);
-        }
-        
-        // Return original if no translation found
-        return actionName;
+        return TransactionDisplayUtils.getLocalizedActionName(context, actionName);
     }
     
     /**
@@ -267,6 +249,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
         TextView tvTransactionCode;
         TextView tvCustomerName;
         TextView tvOperatorAction;
+        TextView tvNotesSnippet;
         TextView tvAmount;
         TextView tvType;
         TextView tvStatus;
@@ -281,6 +264,7 @@ public class CashRegisterAdapter extends RecyclerView.Adapter<CashRegisterAdapte
             tvTransactionCode = itemView.findViewById(R.id.tvTransactionCode);
             tvCustomerName = itemView.findViewById(R.id.tvCustomerName);
             tvOperatorAction = itemView.findViewById(R.id.tvOperatorAction);
+            tvNotesSnippet = itemView.findViewById(R.id.tvNotesSnippet);
             tvAmount = itemView.findViewById(R.id.tvAmount);
             tvType = itemView.findViewById(R.id.tvType);
             tvStatus = itemView.findViewById(R.id.tvStatus);

@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -64,6 +65,9 @@ public class CashRegisterActivity extends AppCompatActivity {
     private TextView tvEmpty;
     private ImageView btnBack;
     private EditText etSearchTransactions;
+    private Spinner spinnerPaymentFilter;
+    private String paymentFilter = "all";
+    private UserEntity currentUserEntity;
     
     private AppDatabase database;
     private SessionManager sessionManager;
@@ -94,6 +98,7 @@ public class CashRegisterActivity extends AppCompatActivity {
         balanceHelper = new OperatorBalanceHelper(database);
         languageManager = LanguageManager.getInstance(this);
         activeUserId = sessionManager.getCurrentUser() != null ? sessionManager.getCurrentUser().getUid() : null;
+        currentUserEntity = sessionManager.getCurrentUser();
         
         if (activeUserId == null) {
             Toast.makeText(this, "No active user session", Toast.LENGTH_SHORT).show();
@@ -105,6 +110,35 @@ public class CashRegisterActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recyclerViewTransactions);
         tvEmpty = findViewById(R.id.tvEmpty);
         etSearchTransactions = findViewById(R.id.etSearchTransactions);
+        spinnerPaymentFilter = findViewById(R.id.spinnerPaymentFilter);
+        
+        if (spinnerPaymentFilter != null) {
+            ArrayAdapter<CharSequence> paymentAdapter = new ArrayAdapter<CharSequence>(
+                    this, R.layout.spinner_status_item,
+                    getResources().getTextArray(R.array.payment_status_filter)) {
+                @Override
+                public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                    View view = super.getDropDownView(position, convertView, parent);
+                    TextView textView = (TextView) view;
+                    textView.setTextColor(getResources().getColor(R.color.white, null));
+                    return view;
+                }
+            };
+            spinnerPaymentFilter.setAdapter(paymentAdapter);
+            spinnerPaymentFilter.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    switch (position) {
+                        case 1: paymentFilter = "paid"; break;
+                        case 2: paymentFilter = "unpaid"; break;
+                        default: paymentFilter = "all"; break;
+                    }
+                    filterTransactions(etSearchTransactions != null ? etSearchTransactions.getText().toString() : "");
+                }
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {}
+            });
+        }
         
         // Header
         TextView tvHeaderTitle = findViewById(R.id.tvHeaderTitle);
@@ -224,6 +258,7 @@ public class CashRegisterActivity extends AppCompatActivity {
         super.onResume();
         // Update language flag in case language was changed elsewhere
         updateLanguageFlag();
+        com.example.myapplication.utils.OperatorBalanceSyncHelper.pushPendingBalancesForUser(this, activeUserId);
         // Refresh transactions when returning to activity (e.g., after processing new transactions)
         loadPendingTransactions();
     }
@@ -277,6 +312,17 @@ public class CashRegisterActivity extends AppCompatActivity {
                 }
             }
         }
+
+        if (!"all".equals(paymentFilter)) {
+            List<TransactionEntity> paymentFiltered = new java.util.ArrayList<>();
+            for (TransactionEntity transaction : filtered) {
+                String ps = transaction.getPaymentStatus() != null ? transaction.getPaymentStatus() : "paid";
+                if (paymentFilter.equals(ps)) {
+                    paymentFiltered.add(transaction);
+                }
+            }
+            filtered = paymentFiltered;
+        }
         
         if (filtered.isEmpty()) {
             recyclerView.setVisibility(View.GONE);
@@ -301,7 +347,11 @@ public class CashRegisterActivity extends AppCompatActivity {
         TextView tvAmount = dialogView.findViewById(R.id.tvAmount);
         TextView tvType = dialogView.findViewById(R.id.tvType);
         TextView tvCurrentStatus = dialogView.findViewById(R.id.tvCurrentStatus);
+        TextView tvNotes = dialogView.findViewById(R.id.tvNotes);
+        TextView tvPaymentStatus = dialogView.findViewById(R.id.tvPaymentStatus);
         Spinner spinnerStatus = dialogView.findViewById(R.id.spinnerStatus);
+        Spinner spinnerPaymentStatus = dialogView.findViewById(R.id.spinnerPaymentStatus);
+        TextView tvUpdatePaymentStatusLabel = dialogView.findViewById(R.id.tvUpdatePaymentStatusLabel);
         Button btnUpdateStatus = dialogView.findViewById(R.id.btnUpdateStatus);
         Button btnCancel = dialogView.findViewById(R.id.btnCancel);
         Button btnCancelTransaction = dialogView.findViewById(R.id.btnCancelTransaction);
@@ -315,7 +365,12 @@ public class CashRegisterActivity extends AppCompatActivity {
         tvAction.setText(transaction.getActionName());
         String formattedAmount = com.example.myapplication.utils.NumberFormatter.formatWithThousandsSeparator(transaction.getAmount());
         tvAmount.setText(formattedAmount + " F");
-        tvType.setText(transaction.getTransactionType());
+        tvType.setText(com.example.myapplication.utils.TransactionDisplayUtils
+                .getLocalizedTransactionType(this, transaction.getTransactionType()));
+        String userNotes = com.example.myapplication.utils.TransactionNotesHelper.getUserNotes(transaction);
+        tvNotes.setText(userNotes.isEmpty() ? getString(R.string.no_notes) : userNotes);
+        String paymentStatus = transaction.getPaymentStatus() != null ? transaction.getPaymentStatus() : "paid";
+        tvPaymentStatus.setText("paid".equals(paymentStatus) ? getString(R.string.payment_status_paid) : getString(R.string.payment_status_unpaid));
         // Display localized status value
         tvCurrentStatus.setText(convertStatusToDisplayValue(transaction.getStatus()));
         
@@ -347,6 +402,27 @@ public class CashRegisterActivity extends AppCompatActivity {
         if (currentStatusIndex >= 0) {
             spinnerStatus.setSelection(currentStatusIndex);
         }
+
+        boolean canEditPaymentStatus = currentUserEntity != null
+                && ("dealer".equalsIgnoreCase(currentUserEntity.getRole())
+                || "agent".equalsIgnoreCase(currentUserEntity.getRole()));
+        if (canEditPaymentStatus && spinnerPaymentStatus != null) {
+            tvUpdatePaymentStatusLabel.setVisibility(View.VISIBLE);
+            spinnerPaymentStatus.setVisibility(View.VISIBLE);
+            ArrayAdapter<CharSequence> paymentAdapter = new ArrayAdapter<CharSequence>(
+                    this, R.layout.spinner_status_item,
+                    getResources().getTextArray(R.array.payment_status_options)) {
+                @Override
+                public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                    View view = super.getDropDownView(position, convertView, parent);
+                    TextView textView = (TextView) view;
+                    textView.setTextColor(getResources().getColor(R.color.white, null));
+                    return view;
+                }
+            };
+            spinnerPaymentStatus.setAdapter(paymentAdapter);
+            spinnerPaymentStatus.setSelection("unpaid".equals(paymentStatus) ? 1 : 0);
+        }
         
         // Show cancel transaction button only if transaction is not already canceled
         String normalizedStatus = normalizeStatusToEnglish(transaction.getStatus());
@@ -369,6 +445,11 @@ public class CashRegisterActivity extends AppCompatActivity {
         btnUpdateStatus.setOnClickListener(v -> {
             String newStatus = spinnerStatus.getSelectedItem().toString();
             updateTransactionStatus(transaction, newStatus);
+            if (canEditPaymentStatus && spinnerPaymentStatus != null && spinnerPaymentStatus.getVisibility() == View.VISIBLE) {
+                int paymentIndex = spinnerPaymentStatus.getSelectedItemPosition();
+                String newPaymentStatus = paymentIndex == 1 ? "unpaid" : "paid";
+                updateTransactionPaymentStatus(transaction, newPaymentStatus);
+            }
             dialog.dismiss();
         });
         
@@ -511,6 +592,21 @@ public class CashRegisterActivity extends AppCompatActivity {
                     Toast.makeText(this, getString(R.string.error_updating_status) + ": " + e.getMessage(), 
                             Toast.LENGTH_SHORT).show();
                 });
+            }
+        }).start();
+    }
+
+    private void updateTransactionPaymentStatus(TransactionEntity transaction, String newPaymentStatus) {
+        new Thread(() -> {
+            try {
+                transaction.setPaymentStatus(newPaymentStatus);
+                transaction.setUpdatedAt(System.currentTimeMillis());
+                transaction.setNeedsSync(true);
+                database.transactionDao().updateTransaction(transaction);
+                syncTransactionToFirestore(transaction);
+                runOnUiThread(() -> loadPendingTransactions());
+            } catch (Exception e) {
+                Log.e(TAG, "Error updating payment status", e);
             }
         }).start();
     }
@@ -825,6 +921,9 @@ public class CashRegisterActivity extends AppCompatActivity {
         try {
             Map<String, Object> transactionData = new HashMap<>();
             transactionData.put("status", transaction.getStatus());
+            transactionData.put("paymentStatus", transaction.getPaymentStatus() != null ? transaction.getPaymentStatus() : "paid");
+            transactionData.put("userNotes", transaction.getUserNotes());
+            transactionData.put("notes", transaction.getNotes());
             transactionData.put("updatedAt", transaction.getUpdatedAt());
             transactionData.put("lastUpdated", FieldValue.serverTimestamp());
             
@@ -968,52 +1067,67 @@ public class CashRegisterActivity extends AppCompatActivity {
             // Build receipt content with proper formatting
             java.util.List<String> receiptLines = new java.util.ArrayList<>();
             
-            // Header - centered
-            receiptLines.add("MOBILE BANKING");
+            // Header - centered (localized)
+            receiptLines.add(getString(R.string.receipt_header));
             receiptLines.add(""); // Empty line
             
             // Agent info
             if (!agentName.isEmpty()) {
-                receiptLines.add("Agent: " + agentName);
+                receiptLines.add(getString(R.string.agent) + ": " + agentName);
             }
             
             // Separator
             receiptLines.add("--------------------------------");
             
             // Transaction details
-            receiptLines.add("TXN: " + transaction.getId());
+            receiptLines.add(getString(R.string.transaction_code) + ": " + transaction.getId());
             
             // Customer name - wrap if too long
             String customerName = transaction.getCustomerName() != null ? transaction.getCustomerName() : "";
-            receiptLines.add("Customer: " + customerName);
+            receiptLines.add(getString(R.string.customer) + ": " + customerName);
             
             // Phone
             String phone = transaction.getCustomerPhone() != null ? transaction.getCustomerPhone() : "";
-            receiptLines.add("Phone: " + phone);
+            receiptLines.add(getString(R.string.phone) + ": " + phone);
             
             // Operator
             String operator = transaction.getOperatorName() != null ? transaction.getOperatorName() : "";
-            receiptLines.add("Operator: " + operator);
+            receiptLines.add(getString(R.string.operator) + ": " + operator);
+
+            // Action
+            String actionName = transaction.getActionName() != null ? transaction.getActionName() : "";
+            receiptLines.add(getString(R.string.receipt_action) + ": " + actionName);
             
             // Type
-            String type = transaction.getTransactionType() != null ? transaction.getTransactionType() : "";
-            receiptLines.add("Type: " + type);
+            String type = com.example.myapplication.utils.TransactionDisplayUtils
+                    .getLocalizedTransactionType(this, transaction.getTransactionType());
+            receiptLines.add(getString(R.string.type) + ": " + type);
             
             // Amount
-            receiptLines.add("Amount: " + amountStr);
+            receiptLines.add(getString(R.string.amount) + ": " + amountStr);
             
             // Fees
-            receiptLines.add("Fee: " + feeStr);
+            receiptLines.add(getString(R.string.fee) + ": " + feeStr);
+
+            // Payment status
+            String paymentStatus = transaction.getPaymentStatus() != null ? transaction.getPaymentStatus() : "paid";
+            receiptLines.add(getString(R.string.receipt_payment_status) + ": " + paymentStatus);
+
+            // User notes
+            String userNotes = com.example.myapplication.utils.TransactionNotesHelper.getUserNotes(transaction);
+            if (!userNotes.isEmpty()) {
+                receiptLines.add(getString(R.string.receipt_notes) + ": " + userNotes);
+            }
             
             // Date
-            receiptLines.add("Date: " + dateStr);
+            receiptLines.add(getString(R.string.date) + ": " + dateStr);
             
             // Separator
             receiptLines.add("--------------------------------");
             
-            // Footer
-            receiptLines.add("Thank you for using");
-            receiptLines.add("our service");
+            // Footer (localized)
+            receiptLines.add(getString(R.string.receipt_footer_line1));
+            receiptLines.add(getString(R.string.receipt_footer_line2));
             receiptLines.add(""); // Empty line at end
 
             // Render to bitmap for 58mm thermal printer
@@ -1124,6 +1238,16 @@ public class CashRegisterActivity extends AppCompatActivity {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, fos);
             fos.flush();
             fos.close();
+
+            // Try direct Bluetooth ESC/POS if printer MAC is configured
+            StringBuilder escPosText = new StringBuilder();
+            for (String line : receiptLines) {
+                escPosText.append(line != null ? line : "").append('\n');
+            }
+            if (com.example.myapplication.utils.ReceiptPrinterHelper.printEscPos(this, escPosText.toString())) {
+                Toast.makeText(this, getString(R.string.print_success), Toast.LENGTH_SHORT).show();
+                return;
+            }
 
             android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
                     this,
@@ -1393,7 +1517,7 @@ public class CashRegisterActivity extends AppCompatActivity {
             intent.setData(android.net.Uri.parse("tel:" + ussdCode));
             startActivity(intent);
             
-            Toast.makeText(this, "USSD code opened in dialer. This will not affect your balance.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.ussd_code_opened_no_balance), Toast.LENGTH_LONG).show();
             
         } catch (Exception e) {
             Log.e(TAG, "Error opening USSD dialer", e);

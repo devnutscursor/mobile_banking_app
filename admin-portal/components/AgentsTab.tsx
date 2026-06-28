@@ -2,15 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, updateDoc, doc, setDoc, Timestamp, query, where } from 'firebase/firestore';
-import { License } from '@/lib/types';
 import { createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag, Typography, App, Skeleton } from 'antd';
 import { PlusOutlined, EditOutlined, DollarOutlined, UserOutlined, PhoneOutlined, MailOutlined, ApartmentOutlined, CheckCircleTwoTone, CloseCircleTwoTone, KeyOutlined, LockOutlined } from '@ant-design/icons';
 import { db, getSecondaryAuth, signOutSecondary } from '@/lib/firebase';
-import { User } from '@/lib/types';
+import { User, License } from '@/lib/types';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
+import { attachBalanceTotals, loadOperatorBalanceSumsByUserId } from '@/lib/operatorBalanceUtils';
+import { CREDIT_BALANCE_HELP, creditColumnTitle } from '@/lib/creditColumnTitles';
 import { hashPin } from '@/lib/pinHasher';
 
 interface AgentsTabProps {
@@ -39,10 +40,20 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
     try {
       setLoading(true);
       
+      const balanceSums = await loadOperatorBalanceSumsByUserId();
+
       // Load agents
       const agentsQuery = query(collection(db, 'users'), where('role', '==', 'agent'));
       const agentsSnapshot = await getDocs(agentsQuery);
-      const agentsData = agentsSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+      const agentsData = attachBalanceTotals(
+        agentsSnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User)),
+        balanceSums
+      );
+      agentsData.sort((a, b) => {
+        const at = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt).getTime();
+        const bt = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt).getTime();
+        return bt - at;
+      });
       setAgents(agentsData);
 
       // Load dealers for dropdown
@@ -61,17 +72,22 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
     if (!dealerId) return true; // No dealer assigned, no limit check needed
     
     try {
-      // Find license assigned to this dealer
-      const licensesSnapshot = await getDocs(
-        query(collection(db, 'licenses'), where('assignedToUserId', '==', dealerId))
-      );
+      // Load all licenses and filter client-side to handle array assignedToUserId
+      const licensesSnapshot = await getDocs(collection(db, 'licenses'));
+      const assignedLicense = licensesSnapshot.docs
+        .map(doc => ({ ...doc.data(), licenseKey: doc.id } as License))
+        .find(license => {
+          if (!license.assignedToUserId) return false;
+          if (Array.isArray(license.assignedToUserId)) {
+            return license.assignedToUserId.includes(dealerId);
+          }
+          return license.assignedToUserId === dealerId;
+        });
       
       let maxAgentCount: number | null = null;
       
-      if (!licensesSnapshot.empty) {
-        const licenseDoc = licensesSnapshot.docs[0];
-        const licenseData = licenseDoc.data() as License;
-        maxAgentCount = licenseData.maxAgentCount ?? null;
+      if (assignedLicense) {
+        maxAgentCount = assignedLicense.maxAgentCount ?? null;
       }
 
       if (maxAgentCount === null) return true; // Unlimited
@@ -178,13 +194,18 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
       
       if (editingAgent) {
         const agentRef = doc(db, 'users', editingAgent.uid);
+        const previousVirtualCredit = Number((editingAgent as any).virtualCredit) || 0;
+        const nextVirtualCredit = Number(values.virtualCredit) || 0;
+        const creditChanged = previousVirtualCredit !== nextVirtualCredit;
+        const now = Timestamp.now();
         await updateDoc(agentRef, {
           name: values.name,
           phone: values.phone ? normalizePhone(values.phone) : null,
           dealerId: values.dealerId || null,
-          virtualCredit: values.virtualCredit,
+          virtualCredit: nextVirtualCredit,
           disabled: values.disabled ?? false,
-          updatedAt: Timestamp.now(),
+          updatedAt: now,
+          ...(creditChanged ? { creditUpdatedAt: now } : {}),
         });
         setTimeout(() => message.success('Agent updated'), 0);
       } else {
@@ -380,7 +401,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
       },
     },
     {
-      title: 'Virtual Credit',
+      title: creditColumnTitle('virtual'),
       dataIndex: 'virtualCredit',
       key: 'virtualCredit',
       align: 'right' as const,
@@ -389,6 +410,26 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           <DollarOutlined />
           <Typography.Text style={{ color: colors.beige[500] }}>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
         </Space>
+      ),
+    },
+    {
+      title: creditColumnTitle('operator'),
+      dataIndex: 'operatorBalance',
+      key: 'operatorBalance',
+      align: 'right' as const,
+      render: (v: number) => (
+        <Typography.Text>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
+      ),
+    },
+    {
+      title: creditColumnTitle('total'),
+      dataIndex: 'totalCredit',
+      key: 'totalCredit',
+      align: 'right' as const,
+      render: (v: number) => (
+        <Typography.Text strong style={{ color: colors.air_force_blue[600] }}>
+          {formatCurrencyWithSymbol(v || 0)}
+        </Typography.Text>
       ),
     },
     {
@@ -452,7 +493,10 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingAgent(null); setIsModalOpen(true); }}>Add Agent</Button>
       }
     >
-      <Table rowKey="uid" dataSource={agents} columns={columns} pagination={{ pageSize: 10 }} scroll={{ x: 1000 }} />
+      <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 12 }}>
+        {CREDIT_BALANCE_HELP}
+      </Typography.Text>
+      <Table rowKey="uid" dataSource={agents} columns={columns} pagination={{ pageSize: 10 }} scroll={{ x: 1200 }} />
 
       <Modal
         open={isModalOpen}

@@ -13,7 +13,6 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { colors } from '@/lib/theme';
-import AntdProvider from '@/components/AntdProvider';
 
 const { Header, Content } = Layout;
 const { Text } = Typography;
@@ -28,22 +27,22 @@ export default function DealerDashboardLayout({
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/login');
+      router.replace('/login');
     } else if (!loading && user && user.role !== 'dealer') {
       // Redirect to appropriate dashboard based on role
       if (user.role === 'admin') {
-        router.push('/dashboard');
+        router.replace('/dashboard');
       } else if (user.role === 'agent') {
-        router.push('/agent/dashboard');
+        router.replace('/agent/dashboard');
       } else {
-        router.push('/login');
+        router.replace('/login');
       }
     }
   }, [user, loading, router]);
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/login');
+    router.replace('/login');
   };
 
   const menuItems: MenuProps['items'] = [
@@ -78,8 +77,7 @@ export default function DealerDashboardLayout({
   }
 
   return (
-    <AntdProvider>
-      <Layout style={{ minHeight: '100vh', background: colors.rich_black[500] }}>
+    <Layout style={{ minHeight: '100vh', background: colors.rich_black[500] }}>
         {/* Header */}
         <Header 
           style={{
@@ -169,24 +167,6 @@ export default function DealerDashboardLayout({
           {children}
         </Content>
       </Layout>
-      <style jsx global>{`
-        @media (min-width: 768px) {
-          .dashboard-content {
-            padding: 24px !important;
-          }
-        }
-        @media (min-width: 1024px) {
-          .dashboard-content {
-            padding: 32px !important;
-          }
-        }
-        @media (max-width: 640px) {
-          .header-title {
-            display: none !important;
-          }
-        }
-      `}</style>
-    </AntdProvider>
   );
 }
 

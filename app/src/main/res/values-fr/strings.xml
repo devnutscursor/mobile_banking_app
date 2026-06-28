@@ -51,6 +51,7 @@
     <string name="buy_virtual_credit">Acheter Crédit Virtuel</string>
     <string name="buy_credit">Achat</string>
     <string name="buy_credit_info">Contactez votre revendeur pour acheter des crédits supplémentaires pour votre compte.</string>
+    <string name="current_balances">Soldes Actuels</string>
     <string name="add_credits">Ajouter Crédits</string>
     <string name="process_transactions">Vente</string>
     <string name="my_reports">Mes Rapports</string>
@@ -112,11 +113,23 @@
     <string name="license_expires_label">La Licence Expire:</string>
     <string name="created_label">Créé:</string>
     <string name="change_pin">Changer le Code PIN</string>
+    <string name="current_pin">Code PIN actuel</string>
+    <string name="enter_current_pin_hint">Entrez le code PIN actuel à 6 chiffres</string>
+    <string name="new_pin">Nouveau code PIN</string>
+    <string name="enter_new_pin_hint">Entrez le nouveau code PIN à 6 chiffres</string>
+    <string name="confirm_new_pin">Confirmer le nouveau code PIN</string>
+    <string name="confirm_new_pin_hint">Confirmez le nouveau code PIN à 6 chiffres</string>
+    <string name="pin_must_be_6_digits">Le code PIN doit comporter 6 chiffres</string>
+    <string name="new_pin_mismatch">Le nouveau code PIN et la confirmation ne correspondent pas</string>
+    <string name="current_pin_not_set">Code PIN actuel non défini. Veuillez contacter le support.</string>
+    <string name="current_pin_incorrect">Le code PIN actuel est incorrect</string>
+    <string name="pin_changed_successfully">Code PIN modifié avec succès</string>
+    <string name="pin_change_failed">Échec de la modification du code PIN : %1$s</string>
     <string name="change">Changer</string>
     <string name="agents_account">Compte Agent</string>
     <string name="total_label">Total</string>
     <string name="cash_label">Espèces</string>
-    <string name="weekly_label">Hebdomadaire</string>
+    <string name="weekly_label">Hebdo.</string>
     <string name="current_label">Actuel</string>
     <string name="balance_label">Solde</string>
     <string name="expired">(Expiré)</string>
@@ -139,9 +152,12 @@
     <string name="execute_transaction">Exécuter Transaction</string>
     <string name="process_transaction_button">Traiter Transaction</string>
     <string name="transaction_successful">Transaction Réussie</string>
+    <string name="transaction_success">Transaction terminée avec succès !</string>
     <string name="transaction_failed">Transaction Échouée</string>
     <string name="ussd_code_generated">Code USSD Généré</string>
     <string name="ussd_code_opened">Code USSD ouvert dans le composeur</string>
+    <string name="ussd_code_opened_marked_success">Code USSD ouvert dans le composeur. Transaction marquée comme réussie.</string>
+    <string name="ussd_code_opened_no_balance">Code USSD ouvert dans le composeur. Cela n\'affectera pas votre solde.</string>
     <string name="select_all_fields">Veuillez sélectionner tous les champs</string>
     <string name="enter_valid_amount">Veuillez entrer un montant valide</string>
     <string name="processing_transaction">Traitement de la transaction...</string>
@@ -300,7 +316,22 @@
     <string name="email">Email</string>
     <string name="customer_name">Nom du Client</string>
     <string name="customer_phone">Téléphone du Client</string>
-    <string name="search_by_phone_number">Rechercher par numéro de téléphone...</string>
+    <string name="search_by_phone_number">Rechercher par nom, téléphone ou ID...</string>
+    <string name="payment_status">Statut de paiement</string>
+    <string name="payment_status_paid">Payé</string>
+    <string name="payment_status_unpaid">Non payé</string>
+    <string name="payment_status_all">Tous les paiements</string>
+    <string name="notes">Notes</string>
+    <string name="no_notes">Aucune note</string>
+    <string name="receipt_action">Action</string>
+    <string name="receipt_notes">Notes</string>
+    <string name="receipt_payment_status">Paiement</string>
+    <string name="deposit_rate">Taux dépôt (%)</string>
+    <string name="withdrawal_rate">Taux retrait (%)</string>
+    <string name="fee">Frais</string>
+    <string name="date">Date</string>
+    <string name="phone">Téléphone</string>
+    <string name="print_success">Reçu envoyé à l\'imprimante</string>
     <string name="customer_address">Adresse du Client</string>
     <string name="customer_dob">Date de Naissance</string>
     <string name="phone_number">Numéro de Téléphone</string>
@@ -386,6 +417,17 @@
         <item>en_attente</item>
         <item>réussi</item>
         <item>annulé</item>
+    </string-array>
+
+    <string-array name="payment_status_filter">
+        <item>@string/payment_status_all</item>
+        <item>@string/payment_status_paid</item>
+        <item>@string/payment_status_unpaid</item>
+    </string-array>
+
+    <string-array name="payment_status_options">
+        <item>@string/payment_status_paid</item>
+        <item>@string/payment_status_unpaid</item>
     </string-array>
     
     <!-- First Login Sync -->

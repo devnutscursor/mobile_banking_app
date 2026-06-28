@@ -41,12 +41,14 @@
     </LinearLayout>
 
     <ScrollView
+        android:id="@+id/loginScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/headerLayout"
         android:fillViewport="true"
         android:clipToPadding="false"
-        android:paddingTop="0dp">
+        android:paddingTop="0dp"
+        android:scrollbars="none">
 
         <LinearLayout
             android:layout_width="match_parent"

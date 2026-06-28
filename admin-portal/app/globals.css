@@ -226,3 +226,181 @@ body {
   background-size: 1000px 100%;
   animation: shimmer 2s infinite;
 }
+
+/* ── Form controls: focus, hover, autofill (dark theme) ── */
+
+/* Subtle focus ring — replaces Ant Design / browser white outline */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-input-number-affix-wrapper,
+.ant-picker,
+.ant-select-selector,
+.ant-input-textarea textarea {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.ant-input:hover,
+.ant-input-affix-wrapper:not(.ant-input-affix-wrapper-disabled):hover,
+.ant-input-number:hover,
+.ant-input-number-affix-wrapper:hover,
+.ant-picker:hover,
+.ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+  border-color: var(--air-force-blue-500) !important;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper-focused,
+.ant-input-number-focused,
+.ant-input-number-affix-wrapper-focused,
+.ant-picker-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--midnight-green-700) !important;
+  box-shadow: 0 0 0 2px rgba(32, 121, 156, 0.22) !important;
+  outline: none !important;
+}
+
+/* Inner input inherits dark bg */
+.ant-input-affix-wrapper,
+.ant-input-affix-wrapper .ant-input,
+.ant-input-password .ant-input {
+  background-color: #011118 !important;
+  background: #011118 !important;
+}
+
+/* ── Browser / Google Password Manager autofill (dark theme) ──
+   Must use literal hex — Chrome ignores CSS vars in autofill rules. */
+.ant-input-affix-wrapper input:-webkit-autofill,
+.ant-input-affix-wrapper input:-webkit-autofill:hover,
+.ant-input-affix-wrapper input:-webkit-autofill:focus,
+.ant-input-affix-wrapper input:-webkit-autofill:active,
+.ant-input-password input:-webkit-autofill,
+.ant-input-password input:-webkit-autofill:hover,
+.ant-input-password input:-webkit-autofill:focus,
+.ant-input-password input:-webkit-autofill:active,
+.ant-input:-webkit-autofill,
+.ant-input:-webkit-autofill:hover,
+.ant-input:-webkit-autofill:focus,
+.ant-input:-webkit-autofill:active,
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+input:autofill,
+input:autofill:hover,
+input:autofill:focus,
+input:autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #011118 inset !important;
+  box-shadow: 0 0 0 1000px #011118 inset !important;
+  -webkit-text-fill-color: #eff6e0 !important;
+  caret-color: #eff6e0 !important;
+  color: #eff6e0 !important;
+  background-color: #011118 !important;
+  background-clip: content-box !important;
+  transition: background-color 99999s ease-in-out 0s, color 99999s ease-in-out 0s !important;
+}
+
+/* Chrome 120+ internal autofill selected state */
+.ant-input-affix-wrapper input:-internal-autofill-selected,
+.ant-input-password input:-internal-autofill-selected,
+input:-internal-autofill-selected {
+  appearance: none !important;
+  background-color: #011118 !important;
+  background-image: none !important;
+  -webkit-box-shadow: 0 0 0 1000px #011118 inset !important;
+  box-shadow: 0 0 0 1000px #011118 inset !important;
+  -webkit-text-fill-color: #eff6e0 !important;
+  color: #eff6e0 !important;
+}
+
+/* Keep entire affix wrapper dark when Google fills credentials */
+.ant-input-affix-wrapper:has(input:-webkit-autofill),
+.ant-input-affix-wrapper:has(input:autofill),
+.ant-input-affix-wrapper:has(input:-internal-autofill-selected),
+.ant-input-affix-wrapper-status-success:has(input:-webkit-autofill) {
+  background-color: #011118 !important;
+  background: #011118 !important;
+  border-color: #476874 !important;
+}
+
+/* Delay autofill bg repaint (Chrome hack) */
+@keyframes portal-autofill-dark {
+  to {
+    background-color: #011118;
+    color: #eff6e0;
+  }
+}
+
+.ant-input-affix-wrapper input:-webkit-autofill,
+.ant-input-password input:-webkit-autofill {
+  animation-name: portal-autofill-dark;
+  animation-fill-mode: both;
+}
+
+/* Login page — extra specificity for Google Password Manager */
+.portal-login-field.ant-input-affix-wrapper,
+.portal-login-field.ant-input-affix-wrapper input {
+  background-color: #011118 !important;
+}
+
+.portal-login-field.ant-input-affix-wrapper input:-webkit-autofill,
+.portal-login-field.ant-input-affix-wrapper input:-internal-autofill-selected {
+  -webkit-box-shadow: 0 0 0 1000px #011118 inset !important;
+  box-shadow: 0 0 0 1000px #011118 inset !important;
+  -webkit-text-fill-color: #eff6e0 !important;
+  color: #eff6e0 !important;
+}
+
+/* Modal / form inputs match container */
+.ant-modal .ant-input,
+.ant-modal .ant-input-affix-wrapper,
+.ant-modal .ant-input-number,
+.ant-modal .ant-picker,
+.ant-modal .ant-select-selector {
+  background-color: var(--rich-black-400) !important;
+}
+
+/* Space.Compact / input groups (e.g. license key + Generate) */
+.ant-space-compact .ant-input:focus,
+.ant-space-compact .ant-input-focused,
+.ant-input-group .ant-input:focus,
+.ant-input-group .ant-input-focused {
+  border-color: var(--midnight-green-700) !important;
+  box-shadow: 0 0 0 2px rgba(32, 121, 156, 0.22) !important;
+  z-index: 1;
+}
+
+.ant-space-compact .ant-input:hover,
+.ant-input-group .ant-input:hover {
+  border-color: var(--air-force-blue-500) !important;
+}
+
+/* Don't lift cards while interacting with form fields */
+.glass-card.hover-lift:focus-within {
+  transform: none;
+  box-shadow: 0 20px 60px rgba(1, 22, 30, 0.7);
+}
+
+/* Dashboard layout responsive padding (was styled-jsx in layout — breaks App Router) */
+@media (min-width: 768px) {
+  .dashboard-content {
+    padding: 24px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-content {
+    padding: 32px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-title {
+    display: none !important;
+  }
+}

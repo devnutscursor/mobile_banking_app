@@ -90,6 +90,10 @@ public class DealerDashboardActivity extends AppCompatActivity {
         languageManager = LanguageManager.getInstance(this);
         firestore = FirebaseFirestore.getInstance();
 
+        if (sessionManager.redirectToLoginIfNotLicensed(this)) {
+            return;
+        }
+
         initViews();
         EdgeToEdgeHelper.setupHeaderInsets(headerLayout, this);
         EdgeToEdgeHelper.setupImeInsetsForRoot(this);
@@ -574,18 +578,18 @@ public class DealerDashboardActivity extends AppCompatActivity {
                     String confirmPin = etConfirmPin.getText().toString().trim();
                     
                     if (currentPin.length() != 6 || newPin.length() != 6 || confirmPin.length() != 6) {
-                        Toast.makeText(this, "PIN must be 6 digits", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, getString(R.string.pin_must_be_6_digits), Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    
+
                     if (!newPin.equals(confirmPin)) {
-                        Toast.makeText(this, "New PIN and confirm PIN do not match", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, getString(R.string.new_pin_mismatch), Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    
+
                     changePin(currentPin, newPin);
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(getString(R.string.cancel), null)
                 .show();
     }
     
@@ -643,13 +647,12 @@ public class DealerDashboardActivity extends AppCompatActivity {
                     
                     String hashedCurrentPin = documentSnapshot.getString("phonePin");
                     if (hashedCurrentPin == null || hashedCurrentPin.isEmpty()) {
-                        Toast.makeText(this, "Current PIN not set. Please contact support.", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, getString(R.string.current_pin_not_set), Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    
-                    // Verify current PIN
+
                     if (!com.example.myapplication.utils.PinHasher.verifyPin(currentPin, hashedCurrentPin)) {
-                        Toast.makeText(this, "Current PIN is incorrect", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, getString(R.string.current_pin_incorrect), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     
@@ -659,10 +662,10 @@ public class DealerDashboardActivity extends AppCompatActivity {
                     db.collection("users").document(currentUser.getUid())
                             .update("phonePin", hashedNewPin, "updatedAt", com.google.firebase.firestore.FieldValue.serverTimestamp())
                             .addOnSuccessListener(aVoid -> {
-                                Toast.makeText(this, "PIN changed successfully", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(this, getString(R.string.pin_changed_successfully), Toast.LENGTH_SHORT).show();
                             })
                             .addOnFailureListener(e -> {
-                                Toast.makeText(this, "Failed to change PIN: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                                Toast.makeText(this, getString(R.string.pin_change_failed, e.getMessage()), Toast.LENGTH_SHORT).show();
                             });
                 })
                 .addOnFailureListener(e -> {
@@ -689,9 +692,11 @@ public class DealerDashboardActivity extends AppCompatActivity {
         loadLicenseExpiry();
         
         // Check for sync prompt on dashboard resume
-        com.example.myapplication.utils.SyncPromptManager syncPromptManager = 
-            new com.example.myapplication.utils.SyncPromptManager(this);
-        syncPromptManager.maybePromptOnDashboardResume();
+        if (!com.example.myapplication.utils.SyncPromptManager.isSyncInProgress()) {
+            com.example.myapplication.utils.SyncPromptManager syncPromptManager =
+                    new com.example.myapplication.utils.SyncPromptManager(this);
+            syncPromptManager.maybePromptOnDashboardResume();
+        }
     }
 
     private void performDataSync() {
@@ -742,11 +747,16 @@ public class DealerDashboardActivity extends AppCompatActivity {
             
             @Override
             public void onSyncComplete(boolean success, String message) {
+                if (success) {
+                    com.example.myapplication.utils.SyncPromptManager.markSyncCompleted(DealerDashboardActivity.this);
+                } else {
+                    com.example.myapplication.utils.SyncPromptManager.markSyncFailed();
+                }
                 runOnUiThread(() -> {
                     progressDialog.dismiss();
                     if (success) {
-                        Toast.makeText(DealerDashboardActivity.this, 
-                                "Sync completed successfully", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(DealerDashboardActivity.this,
+                                getString(R.string.sync_completed_successfully), Toast.LENGTH_SHORT).show();
                         // Check if user is disabled after sync
                         checkUserDisabledStatus();
                         // Refresh UI with synced data

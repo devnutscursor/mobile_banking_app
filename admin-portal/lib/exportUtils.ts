@@ -32,11 +32,12 @@ export function exportTransactionsToExcel(
       'Action': action?.name || 'N/A',
       'Amount': txn.amount.toFixed(2),
       'Status': txn.status,
+      'Payment Status': txn.paymentStatus || 'paid',
       'Agent/Dealer': user?.name || 'N/A',
       'Email': user?.email || 'N/A',
       'Role': user?.role || 'N/A',
       'USSD Code': txn.ussdCode || '',
-      'Notes': txn.notes || '',
+      'Notes': txn.userNotes || txn.notes || '',
     };
   });
 

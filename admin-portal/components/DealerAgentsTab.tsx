@@ -152,15 +152,20 @@ export default function DealerAgentsTab({ onAgentsUpdated }: DealerAgentsTabProp
       }
 
       // Re-check license limit with fresh data before creating (prevents race conditions)
-      const licensesSnapshot = await getDocs(
-        query(collection(db, 'licenses'), where('assignedToUserId', '==', currentUser.uid))
-      );
+      const allLicensesSnapshot = await getDocs(collection(db, 'licenses'));
+      const assignedLicense = allLicensesSnapshot.docs
+        .map(doc => ({ ...doc.data(), licenseKey: doc.id } as License))
+        .find(license => {
+          if (!license.assignedToUserId) return false;
+          if (Array.isArray(license.assignedToUserId)) {
+            return license.assignedToUserId.includes(currentUser.uid);
+          }
+          return license.assignedToUserId === currentUser.uid;
+        });
       
       let maxAgentCount: number | null = null;
-      if (!licensesSnapshot.empty) {
-        const licenseDoc = licensesSnapshot.docs[0];
-        const licenseData = licenseDoc.data() as License;
-        maxAgentCount = licenseData.maxAgentCount ?? null;
+      if (assignedLicense) {
+        maxAgentCount = assignedLicense.maxAgentCount ?? null;
       }
 
       // Count current agents with fresh query

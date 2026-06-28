@@ -107,12 +107,47 @@ public class LoginActivity extends AppCompatActivity {
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
 
         EdgeToEdgeHelper.setupHeaderInsets(findViewById(R.id.headerLayout), this);
-    EdgeToEdgeHelper.setupImeInsetsForRoot(this);
+
+        android.widget.ScrollView loginScrollView = findViewById(R.id.loginScrollView);
+        EdgeToEdgeHelper.setupImeInsets(loginScrollView);
+        setupLoginFieldScroll(loginScrollView);
+
         setupLanguageSpinner();
         setupLoginTypeToggle();
         btnLogin.setOnClickListener(v -> loginUser());
         
         // No explicit apply here; locale is already applied via attachBaseContext
+    }
+
+    private void setupLoginFieldScroll(android.widget.ScrollView scrollView) {
+        if (scrollView == null) {
+            return;
+        }
+
+        View.OnFocusChangeListener scrollOnFocus = (v, hasFocus) -> {
+            if (!hasFocus) {
+                return;
+            }
+            scrollView.postDelayed(() -> {
+                int fieldTop = v.getTop();
+                View fieldParent = (View) v.getParent();
+                while (fieldParent != null && fieldParent != scrollView.getChildAt(0)) {
+                    fieldTop += fieldParent.getTop();
+                    fieldParent = (View) fieldParent.getParent();
+                }
+                int offset = (int) (120 * getResources().getDisplayMetrics().density);
+                scrollView.smoothScrollTo(0, Math.max(0, fieldTop - offset));
+            }, 150);
+        };
+
+        etEmail.setOnFocusChangeListener(scrollOnFocus);
+        etPassword.setOnFocusChangeListener(scrollOnFocus);
+        if (etPhone != null) {
+            etPhone.setOnFocusChangeListener(scrollOnFocus);
+        }
+        if (etPin != null) {
+            etPin.setOnFocusChangeListener(scrollOnFocus);
+        }
     }
 
     private void setupLanguageSpinner() {
@@ -179,8 +214,8 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void setupLoginTypeToggle() {
-        // Default to email login
-        isPhoneLogin = false;
+        // Default to phone + PIN login
+        isPhoneLogin = true;
         updateLoginTypeUI();
 
         tvLoginTypeEmail.setOnClickListener(v -> {
@@ -354,11 +389,12 @@ public class LoginActivity extends AppCompatActivity {
             return false;
         }
         
-        // For now, we'll use simple string comparison
-        // In production, you should use proper password hashing (BCrypt, etc.)
+        // Verify against stored hash (supports legacy plaintext migration)
         String storedPassword = credential.getPasswordHash();
-        
-        if (password.equals(storedPassword)) {
+        if (com.example.myapplication.utils.PasswordHasher.verifyPassword(password, storedPassword)) {
+            if (!storedPassword.contains(":")) {
+                sessionManager.storeCredentials(email, password, credential.getUserId());
+            }
             Log.d("LoginActivity", "Password validated for offline login: " + email);
             return true;
         } else {
@@ -628,30 +664,14 @@ public class LoginActivity extends AppCompatActivity {
             userEntity.setUpdatedAt(user.getUpdatedAt() != null ? user.getUpdatedAt().getTime() : now);
             userEntity.setLastSyncAt(now);
             
-            com.example.myapplication.database.AppDatabase db = 
+            com.example.myapplication.database.AppDatabase db =
                 com.example.myapplication.database.AppDatabase.getDatabase(this);
             db.userDao().insertUser(userEntity);
             Log.d("LoginActivity", "User saved to local database: UID=" + user.getUid() + ", Email=" + user.getEmail());
-            
-            // Create a temporary session so the user is "logged in" even before license validation
-            // This allows them to proceed to license activation if needed
-            com.example.myapplication.database.entities.SessionEntity session = 
-                db.sessionDao().getCurrentSession();
-            if (session == null) {
-                // Create new session if it doesn't exist
-                session = new com.example.myapplication.database.entities.SessionEntity("current_session");
-                db.sessionDao().insertSession(session);
-            }
-            
-            session.setUserId(user.getUid());
-            session.setEmail(user.getEmail() != null ? user.getEmail() : "");
-            session.setRole(user.getRole() != null ? user.getRole() : "agent");
-            session.setLoggedIn(true);
-            session.setLoginTime(now);
-            session.setLastActivityTime(now);
-            db.sessionDao().updateSession(session);
-            Log.d("LoginActivity", "Temporary session created: UserID=" + user.getUid() + ", Email=" + user.getEmail() + ", LoggedIn=" + session.isLoggedIn());
-            
+
+            // Pending session: keep user for license screen but do not grant dashboard access yet
+            sessionManager.beginPendingLicenseSession(user);
+
         } catch (Exception e) {
             Log.e("LoginActivity", "Error saving user/session to database: " + e.getMessage(), e);
         }
@@ -678,7 +698,7 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onInvalid(String reason) {
                 showError(getString(R.string.license_invalid) + ": " + reason);
-                // Navigate to license activation
+                sessionManager.beginPendingLicenseSession(user);
                 Intent intent = new Intent(LoginActivity.this, LicenseActivationActivity.class);
                 startActivity(intent);
                 finish();

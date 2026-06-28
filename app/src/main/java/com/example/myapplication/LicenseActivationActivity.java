@@ -64,6 +64,37 @@ public class LicenseActivationActivity extends AppCompatActivity {
         sessionManager = new SessionManager(this);
         languageManager = LanguageManager.getInstance(this);
 
+        if (sessionManager.canAccessDashboard()) {
+            authManager.getCurrentUser(new AuthManager.AuthCallback() {
+                @Override
+                public void onSuccess(User user) {
+                    navigateToDashboard(user);
+                }
+
+                @Override
+                public void onError(String error) {
+                    finish();
+                }
+            });
+            return;
+        }
+        if (!sessionManager.hasPendingLicenseActivation() && !authManager.isLoggedIn()) {
+            sessionManager.clearPendingLicenseSession();
+            authManager.logout();
+            android.content.Intent loginIntent = new android.content.Intent(this, LoginActivity.class);
+            loginIntent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(loginIntent);
+            finish();
+            return;
+        }
+
+        getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                exitToLoginWithoutLicense();
+            }
+        });
+
         etLicenseKey = findViewById(R.id.etLicenseKey);
         btnActivate = findViewById(R.id.btnActivate);
         tvStatus = findViewById(R.id.tvStatus);
@@ -216,6 +247,15 @@ public class LicenseActivationActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private void exitToLoginWithoutLicense() {
+        sessionManager.clearPendingLicenseSession();
+        authManager.logout();
+        android.content.Intent intent = new android.content.Intent(this, LoginActivity.class);
+        intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
     }
 }
 

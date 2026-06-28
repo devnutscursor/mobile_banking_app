@@ -7,13 +7,14 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.myapplication.utils.AuthManager;
 import com.example.myapplication.utils.SessionManager;
 import com.example.myapplication.utils.TermsAndPrivacyManager;
+import com.example.myapplication.utils.ToastHelper;
 
 public class SplashActivity extends AppCompatActivity {
 
@@ -110,14 +111,10 @@ public class SplashActivity extends AppCompatActivity {
         Button btnAccept = dialogView.findViewById(R.id.btnAccept);
         Button btnDecline = dialogView.findViewById(R.id.btnDecline);
         
-        // Explicitly set Accept button colors to ensure visibility
-        btnAccept.setTextColor(getResources().getColor(android.R.color.white, null));
-        btnAccept.setBackgroundColor(getResources().getColor(R.color.primary_purple, null));
-        
         // Accept button click
         btnAccept.setOnClickListener(v -> {
             if (!cbAcceptTerms.isChecked()) {
-                Toast.makeText(this, getString(R.string.must_accept_terms), Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, getString(R.string.must_accept_terms));
                 return;
             }
             
@@ -142,15 +139,18 @@ public class SplashActivity extends AppCompatActivity {
      * Check user login status and navigate accordingly
      */
     private void checkUserAndNavigate() {
-        if (sessionManager.isLoggedIn()) {
-            // User is logged in, navigate to appropriate dashboard
+        if (sessionManager.canAccessDashboard()) {
             navigateToDashboard();
         } else {
-            // User is not logged in, go to login activity
+            if (sessionManager.hasPendingLicenseActivation()) {
+                sessionManager.clearPendingLicenseSession();
+                AuthManager.getInstance(this).logout();
+            }
             Intent intent = new Intent(this, LoginActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
         }
-        
+
         finish(); // Close splash activity
     }
     

@@ -61,6 +61,16 @@
 
             </androidx.cardview.widget.CardView>
 
+            <Spinner
+                android:id="@+id/spinnerPaymentFilter"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/spinner_light_background_with_arrow"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:layout_marginBottom="12dp"
+                android:popupBackground="@drawable/spinner_dropdown_background" />
+
         </LinearLayout>
 
         <!-- Transactions RecyclerView -->

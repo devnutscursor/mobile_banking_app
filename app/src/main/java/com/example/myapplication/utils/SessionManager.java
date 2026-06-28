@@ -3,6 +3,7 @@ package com.example.myapplication.utils;
 import android.content.Context;
 import android.util.Log;
 
+import com.example.myapplication.LoginActivity;
 import com.example.myapplication.database.AppDatabase;
 import com.example.myapplication.database.entities.UserEntity;
 import com.example.myapplication.database.entities.LicenseEntity;
@@ -37,6 +38,89 @@ public class SessionManager {
      */
     public boolean isLoggedIn() {
         return currentSession != null && currentSession.isLoggedIn();
+    }
+
+    /**
+     * True only after successful online license validation/activation ({@link #startOnlineSession}).
+     */
+    public boolean canAccessDashboard() {
+        return isLoggedIn() && isFirstLoginComplete();
+    }
+
+    /**
+     * Authenticated online but license not yet validated — user may activate a key.
+     */
+    public boolean hasPendingLicenseActivation() {
+        return currentSession != null
+                && currentSession.getUserId() != null
+                && !isFirstLoginComplete();
+    }
+
+    /**
+     * User saved during login before license validation; works even when not logged in yet.
+     */
+    public UserEntity getUserForLicenseActivation() {
+        if (currentSession == null || currentSession.getUserId() == null) {
+            return null;
+        }
+        return database.userDao().getUserById(currentSession.getUserId());
+    }
+
+    /**
+     * Store user identity after auth, without granting dashboard access until license is valid.
+     */
+    public void beginPendingLicenseSession(User user) {
+        if (user == null) {
+            return;
+        }
+        Log.d(TAG, "Beginning pending license session for: " + user.getEmail());
+        UserEntity userEntity = convertUserToEntity(user);
+        database.userDao().insertUser(userEntity);
+
+        long now = System.currentTimeMillis();
+        currentSession.setUserId(user.getUid());
+        currentSession.setEmail(user.getEmail());
+        currentSession.setRole(user.getRole());
+        currentSession.setLicenseKey(null);
+        currentSession.setLoggedIn(false);
+        currentSession.setFirstLoginComplete(false);
+        currentSession.setLoginTime(now);
+        currentSession.setLastActivityTime(now);
+        database.sessionDao().updateSession(currentSession);
+    }
+
+    /**
+     * Clear in-progress login when user leaves license activation without activating.
+     */
+    public void clearPendingLicenseSession() {
+        Log.d(TAG, "Clearing pending license session");
+        if (currentSession != null) {
+            currentSession.setUserId(null);
+            currentSession.setEmail(null);
+            currentSession.setRole(null);
+            currentSession.setLicenseKey(null);
+            currentSession.setLoggedIn(false);
+            currentSession.setFirstLoginComplete(false);
+            database.sessionDao().updateSession(currentSession);
+        }
+    }
+
+    /**
+     * Block dashboard when license session is incomplete; sends user back to login.
+     *
+     * @return true if redirect was performed
+     */
+    public boolean redirectToLoginIfNotLicensed(android.app.Activity activity) {
+        if (canAccessDashboard()) {
+            return false;
+        }
+        clearPendingLicenseSession();
+        AuthManager.getInstance(activity).logout();
+        android.content.Intent intent = new android.content.Intent(activity, LoginActivity.class);
+        intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        activity.startActivity(intent);
+        activity.finish();
+        return true;
     }
     
     /**
@@ -401,8 +485,9 @@ public class SessionManager {
      * Store user credentials for offline login
      */
     public void storeCredentials(String email, String password, String userId) {
+        String hashed = com.example.myapplication.utils.PasswordHasher.hashPassword(password);
         com.example.myapplication.database.entities.CredentialEntity credential = 
-            new com.example.myapplication.database.entities.CredentialEntity(email, password, userId);
+            new com.example.myapplication.database.entities.CredentialEntity(email, hashed, userId);
         database.credentialDao().insertCredential(credential);
         Log.d(TAG, "Stored credentials for: " + email + " (UserID: " + userId + ")");
         

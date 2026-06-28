@@ -83,7 +83,7 @@ public class CommissionCalculator {
             commission.setOperatorName(transaction.getOperatorName());
             
             // Calculate commission
-            double commissionRate = rate.getCommissionRate();
+            double commissionRate = rate.getRateForTransactionType(transactionType);
             double taxRate = rate.getTaxRate();
             commission.calculateCommission(commissionBaseAmount, commissionRate, taxRate);
             
