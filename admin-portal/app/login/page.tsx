@@ -1,45 +1,154 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Script from 'next/script';
 import { useAuth } from '@/lib/authContext';
 import { Form, Input, Button, Card, Typography, message, Space } from 'antd';
 import { MailOutlined, LockOutlined, LoginOutlined, BankOutlined } from '@ant-design/icons';
 import { colors } from '@/lib/theme';
-import AntdProvider from '@/components/AntdProvider';
 
 const { Title, Text } = Typography;
 
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: string | HTMLElement,
+        options: {
+          sitekey: string;
+          callback?: (token: string) => void;
+          'expired-callback'?: () => void;
+          'error-callback'?: () => void;
+        },
+      ) => string;
+      reset: (widgetId: string) => void;
+      remove: (widgetId: string) => void;
+    };
+  }
+}
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+const TURNSTILE_FORCE_LOCAL = process.env.NEXT_PUBLIC_TURNSTILE_FORCE_LOCAL === 'true';
+
+function isLocalhost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+function isTurnstileRequired(): boolean {
+  if (!TURNSTILE_SITE_KEY) return false;
+  if (isLocalhost() && !TURNSTILE_FORCE_LOCAL) return false;
+  return true;
+}
+
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileReady, setTurnstileReady] = useState(false);
+  const turnstileRef = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
   const { signIn, user } = useAuth();
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
+  const turnstileRequired = isTurnstileRequired();
 
-  // Redirect after successful login based on user role
-  useEffect(() => {
-    if (user) {
-      messageApi.success('Login successful! Redirecting...');
-      setTimeout(() => {
-        if (user.role === 'admin') {
-          router.push('/dashboard');
-        } else if (user.role === 'dealer') {
-          router.push('/dealer/dashboard');
-        } else if (user.role === 'agent') {
-          router.push('/agent/dashboard');
-        } else {
-          router.push('/dashboard');
-        }
-      }, 300);
+  const renderTurnstile = useCallback(() => {
+    if (!turnstileRequired || !turnstileRef.current || !window.turnstile || widgetIdRef.current) {
+      return;
     }
-  }, [user, router, messageApi]);
+
+    widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY!,
+      callback: (token: string) => setTurnstileToken(token),
+      'expired-callback': () => setTurnstileToken(null),
+      'error-callback': () => setTurnstileToken(null),
+    });
+    setTurnstileReady(true);
+  }, [turnstileRequired]);
+
+  useEffect(() => {
+    if (window.turnstile) {
+      renderTurnstile();
+    }
+  }, [renderTurnstile]);
+
+  useEffect(() => {
+    return () => {
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
+      }
+    };
+  }, []);
+
+  // Redirect if already signed in (or after login)
+  useEffect(() => {
+    if (loading || !user) return;
+
+    const target =
+      user.role === 'admin'
+        ? '/dashboard'
+        : user.role === 'dealer'
+          ? '/dealer/dashboard'
+          : user.role === 'agent'
+            ? '/agent/dashboard'
+            : null;
+
+    if (target) {
+      router.replace(target);
+    }
+  }, [user, loading, router]);
+
+  const verifyTurnstile = async (): Promise<boolean> => {
+    if (!turnstileRequired) {
+      return true;
+    }
+
+    if (!turnstileToken) {
+      messageApi.error('Please complete the security verification.');
+      return false;
+    }
+
+    try {
+      const response = await fetch('/api/verify-turnstile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: turnstileToken }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        messageApi.error(result.error || 'Security verification failed. Please try again.');
+        if (widgetIdRef.current && window.turnstile) {
+          window.turnstile.reset(widgetIdRef.current);
+        }
+        setTurnstileToken(null);
+        return false;
+      }
+
+      return true;
+    } catch {
+      messageApi.error('Security verification failed. Please try again.');
+      return false;
+    }
+  };
 
   const onFinish = async (values: { email: string; password: string }) => {
     setLoading(true);
 
     try {
+      const verified = await verifyTurnstile();
+      if (!verified) {
+        setLoading(false);
+        return;
+      }
+
       await signIn(values.email, values.password);
-      // User state will update via useEffect, which will handle redirect
+      messageApi.success('Login successful! Redirecting...');
+      // Redirect handled by useEffect when user state updates
     } catch (err) {
       const error = err as Error;
       messageApi.error(error.message || 'Failed to sign in. Please check your credentials.');
@@ -48,8 +157,15 @@ export default function LoginPage() {
   };
 
   return (
-    <AntdProvider>
+    <>
       {contextHolder}
+      {turnstileRequired && (
+        <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          strategy="afterInteractive"
+          onLoad={renderTurnstile}
+        />
+      )}
       <div 
         className="min-h-screen flex items-center justify-center p-4 animated-gradient"
         style={{
@@ -80,7 +196,7 @@ export default function LoginPage() {
         }} />
 
         <Card
-          className="glass-card hover-lift"
+          className="glass-card"
           style={{
             width: '100%',
             maxWidth: 450,
@@ -119,7 +235,6 @@ export default function LoginPage() {
             <Form
               name="login"
               onFinish={onFinish}
-              autoComplete="off"
               layout="vertical"
               requiredMark={false}
               style={{ marginTop: 32 }}
@@ -135,12 +250,8 @@ export default function LoginPage() {
                   prefix={<MailOutlined style={{ color: colors.air_force_blue[600] }} />}
                   placeholder="admin@test.com"
                   size="large"
-                  style={{
-                    borderRadius: 12,
-                    background: colors.rich_black[400],
-                    border: `1px solid ${colors.air_force_blue[300]}`,
-                    color: colors.beige[500],
-                  }}
+                  autoComplete="email"
+                  className="portal-login-field"
                 />
               </Form.Item>
 
@@ -152,20 +263,23 @@ export default function LoginPage() {
                   prefix={<LockOutlined style={{ color: colors.air_force_blue[600] }} />}
                   placeholder="••••••••"
                   size="large"
-                  style={{
-                    borderRadius: 12,
-                    background: colors.rich_black[400],
-                    border: `1px solid ${colors.air_force_blue[300]}`,
-                    color: colors.beige[500],
-                  }}
+                  autoComplete="current-password"
+                  className="portal-login-field"
                 />
               </Form.Item>
 
-              <Form.Item style={{ marginBottom: 0, marginTop: 32 }}>
+              {turnstileRequired && (
+                <Form.Item style={{ marginBottom: 16 }}>
+                  <div ref={turnstileRef} style={{ display: 'flex', justifyContent: 'center' }} />
+                </Form.Item>
+              )}
+
+              <Form.Item style={{ marginBottom: 0, marginTop: turnstileRequired ? 16 : 32 }}>
                 <Button
                   type="primary"
                   htmlType="submit"
                   loading={loading}
+                  disabled={turnstileRequired && turnstileReady && !turnstileToken}
                   size="large"
                   icon={<LoginOutlined />}
                   block
@@ -187,12 +301,12 @@ export default function LoginPage() {
             {/* Footer */}
             <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${colors.air_force_blue[300]}40` }}>
               <Text style={{ color: colors.air_force_blue[600], fontSize: 12 }}>
-                🔒 Secured with Firebase Auth • Admin, Dealer & Agent Access
+                🔒 Secured with Firebase Auth{turnstileRequired ? ' & Cloudflare Turnstile' : ''} • Admin, Dealer & Agent Access
               </Text>
             </div>
           </Space>
         </Card>
       </div>
-    </AntdProvider>
+    </>
   );
 }

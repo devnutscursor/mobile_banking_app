@@ -34,7 +34,9 @@ public class TransactionEntity {
     
     // Transaction status
     private String status; // "pending", "completed", "failed"
+    private String paymentStatus; // "paid" or "unpaid"
     private String notes;
+    private String userNotes; // Agent-entered comment (separate from system metadata in notes)
     
     // Metadata
     private long createdAt;
@@ -47,6 +49,7 @@ public class TransactionEntity {
         // Use UUID for guaranteed uniqueness
         this.id = "txn_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         this.status = "pending";
+        this.paymentStatus = "paid";
         this.needsSync = true;
         long now = System.currentTimeMillis();
         this.createdAt = now;
@@ -109,6 +112,12 @@ public class TransactionEntity {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    public String getPaymentStatus() { return paymentStatus; }
+    public void setPaymentStatus(String paymentStatus) { this.paymentStatus = paymentStatus; }
+
+    public String getUserNotes() { return userNotes; }
+    public void setUserNotes(String userNotes) { this.userNotes = userNotes; }
 
     public long getCreatedAt() { return createdAt; }
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }

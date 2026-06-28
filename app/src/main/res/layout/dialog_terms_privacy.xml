@@ -113,12 +113,11 @@
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="@color/error_red"
-            android:backgroundTint="@android:color/transparent"
+            android:background="@android:color/transparent"
             android:layout_marginEnd="8dp"
             android:minHeight="64dp"
             android:minWidth="120dp"
-            android:paddingVertical="16dp"
-            style="@style/Widget.MaterialComponents.Button.TextButton" />
+            android:paddingVertical="16dp" />
 
         <Button
             android:id="@+id/btnAccept"
@@ -128,13 +127,12 @@
             android:text="@string/accept"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="@android:color/white"
-            android:background="@color/primary_purple"
+            android:textColor="@color/white"
+            android:background="@drawable/button_accept_terms"
             android:minHeight="64dp"
             android:minWidth="120dp"
             android:paddingVertical="16dp"
-            android:stateListAnimator="@null"
-            style="@style/Widget.MaterialComponents.Button" />
+            android:stateListAnimator="@null" />
 
     </LinearLayout>
 

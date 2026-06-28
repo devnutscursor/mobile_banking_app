@@ -7,7 +7,7 @@
     android:background="@drawable/modern_glass_card"
     android:padding="24dp">
 
-    <!-- Title -->
+    <!-- Title (fixed) -->
     <TextView
         android:id="@+id/tvDialogTitle"
         android:layout_width="match_parent"
@@ -16,173 +16,255 @@
         android:textSize="18sp"
         android:textStyle="bold"
         android:textColor="@color/primary_purple"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="12dp" />
 
-    <!-- Operator Selection -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/select_operator_for_commission"
-        android:textSize="13sp"
-        android:textColor="@color/black"
-        android:layout_marginBottom="8dp" />
-
-    <Spinner
-        android:id="@+id/spinnerOperator"
-        android:layout_width="match_parent"
-        android:layout_height="50dp"
-        android:background="@drawable/spinner_background_with_arrow"
-        android:paddingStart="12dp"
-        android:paddingEnd="40dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp"
-        android:layout_marginBottom="16dp"
-        android:popupBackground="@drawable/spinner_dropdown_background"
-        android:textColor="@color/black" />
-
-    <!-- Commission Rate -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/commission_rate"
-        android:textSize="13sp"
-        android:textColor="@color/black"
-        android:layout_marginBottom="8dp" />
-
-    <EditText
-        android:id="@+id/etCommissionRate"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:background="@drawable/edittext_background"
-        android:hint="@string/enter_commission_rate"
-        android:inputType="numberDecimal"
-        android:padding="16dp"
-        android:textSize="16sp"
-        android:textColor="@color/black"
-        android:textColorHint="#666666"
-        android:layout_marginBottom="16dp" />
-
-    <!-- Tax Rate -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/tax_rate"
-        android:textSize="13sp"
-        android:textColor="@color/black"
-        android:layout_marginBottom="8dp" />
-
-    <EditText
-        android:id="@+id/etTaxRate"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:background="@drawable/edittext_background"
-        android:hint="@string/enter_tax_rate"
-        android:inputType="numberDecimal"
-        android:padding="16dp"
-        android:textSize="16sp"
-        android:textColor="@color/black"
-        android:textColorHint="#666666"
-        android:layout_marginBottom="8dp" />
-
-    <!-- Commission with Tax Display -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/commission_rate_with_tax"
-        android:textSize="13sp"
-        android:textColor="@color/black"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:id="@+id/tvCommissionWithTax"
+    <!-- Scrollable form -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollCommissionDialog"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="0.0000%"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:textColor="@color/black"
-        android:padding="12dp"
-        android:background="@drawable/edittext_background"
-        android:layout_marginBottom="16dp" />
+        android:maxHeight="360dp"
+        android:fillViewport="true"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="false"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp">
 
-    <!-- Transaction Types -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/transaction_types"
-        android:textSize="13sp"
-        android:textColor="@color/black"
-        android:layout_marginBottom="8dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
-    <CheckBox
-        android:id="@+id/cbDeposit"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/deposit"
-        android:textSize="14sp"
-        android:textColor="@color/black"
-        android:layout_marginBottom="2dp" />
+            <!-- Operator Selection -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/select_operator_for_commission"
+                android:textSize="13sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="8dp" />
 
-    <CheckBox
-        android:id="@+id/cbWithdrawal"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/withdrawal"
-        android:textSize="14sp"
-        android:textColor="@color/black"
-        android:layout_marginBottom="2dp" />
+            <Spinner
+                android:id="@+id/spinnerOperator"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:background="@drawable/spinner_background_with_arrow"
+                android:paddingStart="12dp"
+                android:paddingEnd="40dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:layout_marginBottom="16dp"
+                android:popupBackground="@drawable/spinner_dropdown_background"
+                android:textColor="@color/black" />
 
-    <CheckBox
-        android:id="@+id/cbTransfer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/transfer"
-        android:textSize="14sp"
-        android:textColor="@color/black"
-        android:layout_marginBottom="16dp" />
+            <!-- Commission Rate -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/commission_rate"
+                android:textSize="13sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="8dp" />
 
-    <!-- Buttons -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="end">
+            <EditText
+                android:id="@+id/etCommissionRate"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:background="@drawable/edittext_background"
+                android:hint="@string/enter_commission_rate"
+                android:inputType="numberDecimal"
+                android:padding="16dp"
+                android:textSize="16sp"
+                android:textColor="@color/black"
+                android:textColorHint="#666666"
+                android:layout_marginBottom="16dp" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCancel"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:text="@string/cancel"
-            android:textColor="@color/primary_purple"
-            android:insetLeft="0dp"
-            android:insetRight="0dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            app:cornerRadius="12dp"
-            app:strokeColor="@color/primary_purple"
-            app:strokeWidth="1dp"
-            app:backgroundTint="@android:color/white"
-            android:paddingStart="24dp"
-            android:paddingEnd="24dp"
-            android:layout_marginEnd="12dp"
-            android:textSize="14sp" />
+            <!-- Tax Rate -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tax_rate"
+                android:textSize="13sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="8dp" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSave"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:text="@string/save"
-            android:textColor="@color/white"
-            android:insetLeft="0dp"
-            android:insetRight="0dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            app:cornerRadius="12dp"
-            app:backgroundTint="@color/primary_purple"
-            android:paddingStart="24dp"
-            android:paddingEnd="24dp"
-            android:textSize="14sp" />
+            <EditText
+                android:id="@+id/etTaxRate"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:background="@drawable/edittext_background"
+                android:hint="@string/enter_tax_rate"
+                android:inputType="numberDecimal"
+                android:padding="16dp"
+                android:textSize="16sp"
+                android:textColor="@color/black"
+                android:textColorHint="#666666"
+                android:layout_marginBottom="8dp" />
 
-    </LinearLayout>
+            <!-- Commission with Tax Display -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/commission_rate_with_tax"
+                android:textSize="13sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tvCommissionWithTax"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="0.0000%"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/black"
+                android:padding="12dp"
+                android:background="@drawable/edittext_background"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Transaction Types -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/transaction_types"
+                android:textSize="13sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="8dp" />
+
+            <CheckBox
+                android:id="@+id/cbDeposit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/deposit"
+                android:textSize="14sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="2dp" />
+
+            <CheckBox
+                android:id="@+id/cbWithdrawal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/withdrawal"
+                android:textSize="14sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="2dp" />
+
+            <CheckBox
+                android:id="@+id/cbTransfer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/transfer"
+                android:textSize="14sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/deposit_rate"
+                android:textSize="13sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="8dp" />
+
+            <EditText
+                android:id="@+id/etDepositRate"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:background="@drawable/edittext_background"
+                android:hint="@string/deposit_rate"
+                android:inputType="numberDecimal"
+                android:padding="16dp"
+                android:textSize="16sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/withdrawal_rate"
+                android:textSize="13sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="8dp" />
+
+            <EditText
+                android:id="@+id/etWithdrawalRate"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:background="@drawable/edittext_background"
+                android:hint="@string/withdrawal_rate"
+                android:inputType="numberDecimal"
+                android:padding="16dp"
+                android:textSize="16sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/transfer_rate"
+                android:textSize="13sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="8dp" />
+
+            <EditText
+                android:id="@+id/etTransferRate"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:background="@drawable/edittext_background"
+                android:hint="@string/transfer_rate"
+                android:inputType="numberDecimal"
+                android:padding="16dp"
+                android:textSize="16sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Buttons inside scroll so they are never clipped off-screen -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="end"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnCancel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:text="@string/cancel"
+                    android:textColor="@color/primary_purple"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    app:cornerRadius="12dp"
+                    app:strokeColor="@color/primary_purple"
+                    app:strokeWidth="1dp"
+                    app:backgroundTint="@android:color/white"
+                    android:paddingStart="24dp"
+                    android:paddingEnd="24dp"
+                    android:layout_marginEnd="12dp"
+                    android:textSize="14sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSave"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:text="@string/save"
+                    android:textColor="@color/white"
+                    android:insetLeft="0dp"
+                    android:insetRight="0dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    app:cornerRadius="12dp"
+                    app:backgroundTint="@color/primary_purple"
+                    android:paddingStart="24dp"
+                    android:paddingEnd="24dp"
+                    android:textSize="14sp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>

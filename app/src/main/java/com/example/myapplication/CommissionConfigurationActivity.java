@@ -7,6 +7,9 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -19,6 +22,7 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.widget.NestedScrollView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -160,8 +164,12 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
     private void showAddEditDialog(@Nullable CommissionRateEntity existing) {
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_commission_rate, null);
         
+        NestedScrollView scrollCommissionDialog = dialogView.findViewById(R.id.scrollCommissionDialog);
         Spinner spinnerOperator = dialogView.findViewById(R.id.spinnerOperator);
         EditText etCommissionRate = dialogView.findViewById(R.id.etCommissionRate);
+        EditText etDepositRate = dialogView.findViewById(R.id.etDepositRate);
+        EditText etWithdrawalRate = dialogView.findViewById(R.id.etWithdrawalRate);
+        EditText etTransferRate = dialogView.findViewById(R.id.etTransferRate);
         EditText etTaxRate = dialogView.findViewById(R.id.etTaxRate);
         TextView tvCommissionWithTax = dialogView.findViewById(R.id.tvCommissionWithTax);
         CheckBox cbDeposit = dialogView.findViewById(R.id.cbDeposit);
@@ -223,6 +231,12 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
                             }
                         }
                         etCommissionRate.setText(String.format(Locale.US, "%.2f", existing.getCommissionRate()));
+                        etDepositRate.setText(String.format(Locale.US, "%.2f",
+                                existing.getDepositRate() > 0 ? existing.getDepositRate() : existing.getCommissionRate()));
+                        etWithdrawalRate.setText(String.format(Locale.US, "%.2f",
+                                existing.getWithdrawalRate() > 0 ? existing.getWithdrawalRate() : existing.getCommissionRate()));
+                        etTransferRate.setText(String.format(Locale.US, "%.2f",
+                                existing.getTransferRate() > 0 ? existing.getTransferRate() : existing.getCommissionRate()));
                         etTaxRate.setText(String.format(Locale.US, "%.2f", existing.getTaxRate()));
                         tvCommissionWithTax.setText(String.format(Locale.US, "%.4f%%", existing.getCommissionRateWithTax()));
                         
@@ -267,6 +281,9 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
                 calculateAndDisplayCommissionWithTax(etCommissionRate, etTaxRate, tvCommissionWithTax);
             }
         });
+
+        setupCommissionDialogFieldScrolling(scrollCommissionDialog,
+                etCommissionRate, etTaxRate, etDepositRate, etWithdrawalRate, etTransferRate);
         
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)
@@ -336,6 +353,12 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
                 rate.setOperatorName(selectedOperator.getName());
                 rate.setCommissionRate(commissionRate);
                 rate.setTaxRate(taxRate);
+                double depositRate = parseRateOrDefault(etDepositRate, commissionRate);
+                double withdrawalRate = parseRateOrDefault(etWithdrawalRate, commissionRate);
+                double transferRate = parseRateOrDefault(etTransferRate, commissionRate);
+                rate.setDepositRate(depositRate);
+                rate.setWithdrawalRate(withdrawalRate);
+                rate.setTransferRate(transferRate);
                 rate.setTransactionTypes(transactionTypes);
                 rate.setUpdatedAt(System.currentTimeMillis());
                 rate.setNeedsSync(true);
@@ -363,6 +386,49 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
         });
         
         dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+    private void setupCommissionDialogFieldScrolling(NestedScrollView scrollView, EditText... fields) {
+        if (scrollView == null || fields == null) {
+            return;
+        }
+        View.OnFocusChangeListener listener = (v, hasFocus) -> {
+            if (hasFocus) {
+                scrollView.postDelayed(() -> scrollDialogFieldIntoView(scrollView, v), 120);
+            }
+        };
+        for (EditText field : fields) {
+            if (field != null) {
+                field.setOnFocusChangeListener(listener);
+                field.setOnClickListener(v -> scrollView.postDelayed(
+                        () -> scrollDialogFieldIntoView(scrollView, v), 120));
+            }
+        }
+    }
+
+    private void scrollDialogFieldIntoView(NestedScrollView scrollView, View target) {
+        if (scrollView == null || target == null) {
+            return;
+        }
+        int fieldTop = 0;
+        View current = target;
+        while (current != null && current != scrollView) {
+            fieldTop += current.getTop();
+            ViewParent parent = current.getParent();
+            if (parent instanceof View) {
+                current = (View) parent;
+            } else {
+                break;
+            }
+        }
+        int padding = (int) (48 * getResources().getDisplayMetrics().density);
+        scrollView.smoothScrollTo(0, Math.max(0, fieldTop - padding));
     }
     
     private void calculateAndDisplayCommissionWithTax(EditText etCommissionRate, EditText etTaxRate, TextView tvCommissionWithTax) {
@@ -381,6 +447,17 @@ public class CommissionConfigurationActivity extends AppCompatActivity {
         } catch (NumberFormatException e) {
             tvCommissionWithTax.setText("0.0000%");
         }
+    }
+
+    private double parseRateOrDefault(EditText field, double defaultRate) {
+        if (field == null || field.getText() == null) {
+            return defaultRate;
+        }
+        String value = field.getText().toString().trim();
+        if (TextUtils.isEmpty(value)) {
+            return defaultRate;
+        }
+        return Double.parseDouble(value);
     }
 }
 

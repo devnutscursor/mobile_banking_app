@@ -630,7 +630,10 @@ public class FirstLoginSyncService {
                                 newTransaction.setTransactionType(doc.getString("transactionType"));
                                 newTransaction.setAmount(doc.getDouble("amount") != null ? doc.getDouble("amount") : 0.0);
                                 newTransaction.setStatus(doc.getString("status"));
+                                newTransaction.setPaymentStatus(doc.getString("paymentStatus") != null
+                                        ? doc.getString("paymentStatus") : "paid");
                                 newTransaction.setNotes(doc.getString("notes"));
+                                newTransaction.setUserNotes(doc.getString("userNotes"));
                                 newTransaction.setChannel(doc.getString("channel"));
                                 newTransaction.setCreditBefore(doc.getDouble("creditBefore") != null ? doc.getDouble("creditBefore") : 0.0);
                                 newTransaction.setCreditAfter(doc.getDouble("creditAfter") != null ? doc.getDouble("creditAfter") : 0.0);
@@ -671,19 +674,19 @@ public class FirstLoginSyncService {
         CountDownLatch latch = new CountDownLatch(1);
         final Exception[] error = {null};
 
-        // Clear existing local balances for a clean first sync
-        try {
-            database.operatorBalanceDao().deleteAllBalancesForUser(userId);
-            Log.d(TAG, "Cleared local operator balances for user: " + userId + " before first sync");
-        } catch (Exception e) {
-            Log.w(TAG, "Failed to clear local operator balances for user: " + userId, e);
-        }
-
+        // Only replace local balances when Firestore has data for this user
         firestore.collection("operator_balances")
                 .whereEqualTo("userId", userId)
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     try {
+                        if (queryDocumentSnapshots.isEmpty()) {
+                            Log.d(TAG, "No operator balances in Firestore for user " + userId + "; keeping local balances");
+                            return;
+                        }
+                        database.operatorBalanceDao().deleteAllBalancesForUser(userId);
+                        Log.d(TAG, "Cleared local operator balances for user: " + userId + " before first sync");
+
                         for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
                             String docId = doc.getId();
                             String operatorId = doc.getString("operatorId");

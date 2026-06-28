@@ -10,6 +10,8 @@ import { User } from '@/lib/types';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
+import { attachBalanceTotals, loadOperatorBalanceSumsByUserId } from '@/lib/operatorBalanceUtils';
+import { CREDIT_BALANCE_HELP, creditColumnTitle } from '@/lib/creditColumnTitles';
 import { hashPin } from '@/lib/pinHasher';
 
 interface DealersTabProps {
@@ -36,9 +38,19 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
   const loadDealers = async () => {
     try {
       setLoading(true);
+      const balanceSums = await loadOperatorBalanceSumsByUserId();
+
       const q = query(collection(db, 'users'), where('role', '==', 'dealer'));
       const snapshot = await getDocs(q);
-      const dealersData = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User));
+      const dealersData = attachBalanceTotals(
+        snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as User)),
+        balanceSums
+      );
+      dealersData.sort((a, b) => {
+        const at = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt).getTime();
+        const bt = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt).getTime();
+        return bt - at;
+      });
       setDealers(dealersData);
     } catch (error) {
       console.error('Error loading dealers:', error);
@@ -98,12 +110,17 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
       
       if (editingDealer) {
         const dealerRef = doc(db, 'users', editingDealer.uid);
+        const previousVirtualCredit = Number((editingDealer as any).virtualCredit) || 0;
+        const nextVirtualCredit = Number(values.virtualCredit) || 0;
+        const creditChanged = previousVirtualCredit !== nextVirtualCredit;
+        const now = Timestamp.now();
         await updateDoc(dealerRef, {
           name: values.name,
           phone: values.phone ? normalizePhone(values.phone) : null,
-          virtualCredit: values.virtualCredit,
+          virtualCredit: nextVirtualCredit,
           disabled: values.disabled ?? false,
-          updatedAt: Timestamp.now(),
+          updatedAt: now,
+          ...(creditChanged ? { creditUpdatedAt: now } : {}),
         });
         setTimeout(() => message.success('Dealer updated'), 0);
       } else {
@@ -278,7 +295,7 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
       ),
     },
     {
-      title: 'Virtual Credit',
+      title: creditColumnTitle('virtual'),
       dataIndex: 'virtualCredit',
       key: 'virtualCredit',
       align: 'right' as const,
@@ -287,6 +304,26 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
           <DollarOutlined />
           <Typography.Text style={{ color: colors.beige[500] }}>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
         </Space>
+      ),
+    },
+    {
+      title: creditColumnTitle('operator'),
+      dataIndex: 'operatorBalance',
+      key: 'operatorBalance',
+      align: 'right' as const,
+      render: (v: number) => (
+        <Typography.Text>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
+      ),
+    },
+    {
+      title: creditColumnTitle('total'),
+      dataIndex: 'totalCredit',
+      key: 'totalCredit',
+      align: 'right' as const,
+      render: (v: number) => (
+        <Typography.Text strong style={{ color: colors.air_force_blue[600] }}>
+          {formatCurrencyWithSymbol(v || 0)}
+        </Typography.Text>
       ),
     },
     {
@@ -354,12 +391,15 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
           }}>Add Dealer</Button>
         }
       >
+        <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 12 }}>
+          {CREDIT_BALANCE_HELP}
+        </Typography.Text>
         <Table
           rowKey="uid"
           dataSource={dealers}
           columns={columns}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1200 }}
         />
       </Card>
 

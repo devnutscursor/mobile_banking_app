@@ -53,16 +53,23 @@ public class AuthManager {
             Log.d("AuthManager", "Firebase Auth user is null, checking SessionManager for phone+PIN login");
             SessionManager sessionManager = new SessionManager(context);
             UserEntity sessionUser = sessionManager.getCurrentUser();
-            
             if (sessionUser != null && sessionManager.isLoggedIn()) {
-                Log.d("AuthManager", "Found user in SessionManager: " + sessionUser.getEmail());
-                // Convert UserEntity to User
+                Log.d("AuthManager", "Found logged-in user in SessionManager: " + sessionUser.getEmail());
                 User user = convertUserEntityToUser(sessionUser);
                 currentUser = user;
                 callback.onSuccess(user);
                 return;
             }
-            
+
+            UserEntity pendingUser = sessionManager.getUserForLicenseActivation();
+            if (pendingUser != null && sessionManager.hasPendingLicenseActivation()) {
+                Log.d("AuthManager", "Found pending license user in SessionManager: " + pendingUser.getEmail());
+                User user = convertUserEntityToUser(pendingUser);
+                currentUser = user;
+                callback.onSuccess(user);
+                return;
+            }
+
             Log.d("AuthManager", "No user found in SessionManager either");
             callback.onError("No user logged in");
             return;

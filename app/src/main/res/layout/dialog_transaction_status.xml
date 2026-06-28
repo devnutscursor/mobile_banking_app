@@ -148,7 +148,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="16dp">
+        android:layout_marginBottom="8dp">
 
         <TextView
             android:layout_width="120dp"
@@ -169,12 +169,86 @@
 
     </LinearLayout>
 
+    <!-- Notes -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="@string/notes"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tvNotes"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/no_notes"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+    </LinearLayout>
+
+    <!-- Payment Status -->
+    <LinearLayout
+        android:id="@+id/layoutPaymentStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="@string/payment_status"
+            android:textSize="13sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tvPaymentStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/payment_status_paid"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/black" />
+
+    </LinearLayout>
+
     <!-- Divider -->
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/border_light"
         android:layout_marginBottom="16dp" />
+
+    <!-- Update Payment Status (dealer) -->
+    <TextView
+        android:id="@+id/tvUpdatePaymentStatusLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/payment_status"
+        android:textSize="13sp"
+        android:textColor="@color/black"
+        android:layout_marginBottom="8dp"
+        android:visibility="gone" />
+
+    <Spinner
+        android:id="@+id/spinnerPaymentStatus"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/spinner_light_background_with_arrow"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:layout_marginBottom="16dp"
+        android:popupBackground="@drawable/spinner_dropdown_background"
+        android:visibility="gone" />
 
     <!-- Current Status -->
     <LinearLayout

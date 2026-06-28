@@ -34,7 +34,7 @@ import com.example.myapplication.database.dao.CommissionDao;
     entities = {UserEntity.class, LicenseEntity.class, SessionEntity.class, CredentialEntity.class, CustomerEntity.class,
             OperatorEntity.class, OperatorActionEntity.class, TransactionEntity.class, BalanceAdjustmentEntity.class,
             CommissionRateEntity.class, CommissionEntity.class, OperatorBalanceEntity.class},
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {

@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,7 +19,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
+import com.example.myapplication.utils.ToastHelper;
 import android.text.TextUtils;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
@@ -116,6 +118,11 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     private OperatorActionEntity selectedAction;
     private CustomerEntity selectedCustomer;
     private String selectedTransactionType;
+
+    private final Handler customerSearchHandler = new Handler(Looper.getMainLooper());
+    private Runnable customerSearchRunnable;
+    private int customerSearchSequence = 0;
+    private static final long CUSTOMER_SEARCH_DEBOUNCE_MS = 300;
 
     private double availableCredit = 0.0; // Current operator-specific balance
     
@@ -279,7 +286,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                                     // Recreate activity to apply new language
                                     recreate();
                                 } else {
-                                    Toast.makeText(this, "Failed to change language", Toast.LENGTH_SHORT).show();
+                                    ToastHelper.show(this, "Failed to change language");
                                 }
                             });
                         });
@@ -382,7 +389,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                searchCustomersByPhone(s.toString());
+                scheduleCustomerSearch(s.toString());
             }
 
             @Override
@@ -531,7 +538,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Log.e(TAG, "Error loading user data", e);
                 runOnUiThread(() -> {
-                    Toast.makeText(this, "Error loading user data: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    ToastHelper.showLong(this, "Error loading user data: " + e.getMessage());
                 });
             }
         }).start();
@@ -715,14 +722,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> {
                     if (operators.isEmpty()) {
-                        Toast.makeText(this, getString(R.string.no_operators), Toast.LENGTH_SHORT).show();
+                        ToastHelper.show(this, getString(R.string.no_operators));
                     }
                     updateOperatorSpinner();
                 });
 
             } catch (Exception e) {
                 Log.e(TAG, "Error loading operators", e);
-                runOnUiThread(() -> Toast.makeText(this, "Error loading operators", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> ToastHelper.show(this, "Error loading operators"));
             }
         }).start();
     }
@@ -737,14 +744,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> {
                     if (actions.isEmpty()) {
-                        Toast.makeText(this, getString(R.string.no_actions), Toast.LENGTH_SHORT).show();
+                        ToastHelper.show(this, getString(R.string.no_actions));
                     }
                     updateActionSpinner();
                 });
 
             } catch (Exception e) {
                 Log.e(TAG, "Error loading actions", e);
-                runOnUiThread(() -> Toast.makeText(this, "Error loading actions", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> ToastHelper.show(this, "Error loading actions"));
             }
         }).start();
     }
@@ -760,21 +767,29 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> {
                     if (customers.isEmpty()) {
-                        Toast.makeText(this, getString(R.string.no_customers), Toast.LENGTH_SHORT).show();
+                        ToastHelper.show(this, getString(R.string.no_customers));
                     }
                     updateCustomerSpinner();
                 });
 
             } catch (Exception e) {
                 Log.e(TAG, "Error loading customers", e);
-                runOnUiThread(() -> Toast.makeText(this, "Error loading customers", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> ToastHelper.show(this, "Error loading customers"));
             }
         }).start();
     }
 
-    private void searchCustomersByPhone(String phoneQuery) {
-        if (TextUtils.isEmpty(phoneQuery)) {
-            // If search is empty, load all customers
+    private void scheduleCustomerSearch(String query) {
+        if (customerSearchRunnable != null) {
+            customerSearchHandler.removeCallbacks(customerSearchRunnable);
+        }
+        final int searchId = ++customerSearchSequence;
+        customerSearchRunnable = () -> searchCustomers(query, searchId);
+        customerSearchHandler.postDelayed(customerSearchRunnable, CUSTOMER_SEARCH_DEBOUNCE_MS);
+    }
+
+    private void searchCustomers(String query, int searchId) {
+        if (TextUtils.isEmpty(query)) {
             loadCustomers();
             return;
         }
@@ -783,23 +798,30 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             try {
                 List<CustomerEntity> searchResults;
                 if (activeUserId != null) {
-                    // Search customers by phone number for current user
-                    searchResults = database.customerDao().searchCustomersByUser(activeUserId, phoneQuery);
+                    searchResults = database.customerDao().searchCustomersByUser(activeUserId, query);
                 } else {
                     searchResults = new ArrayList<>();
                 }
 
                 runOnUiThread(() -> {
+                    if (searchId != customerSearchSequence) {
+                        return;
+                    }
                     customers.clear();
                     customers.addAll(searchResults);
-                    updateCustomerSpinner();
+                    updateCustomerSpinner(selectedCustomer);
                 });
 
             } catch (Exception e) {
-                Log.e(TAG, "Error searching customers by phone", e);
-                runOnUiThread(() -> Toast.makeText(this, "Error searching customers", Toast.LENGTH_SHORT).show());
+                Log.e(TAG, "Error searching customers", e);
+                runOnUiThread(() -> ToastHelper.show(this, "Error searching customers"));
             }
         }).start();
+    }
+
+    /** @deprecated Use {@link #searchCustomers(String, int)} with debounce */
+    private void searchCustomersByPhone(String phoneQuery) {
+        scheduleCustomerSearch(phoneQuery);
     }
 
     private void updateOperatorSpinner() {
@@ -914,6 +936,10 @@ public class ProcessTransactionActivity extends AppCompatActivity {
     }
 
     private void updateCustomerSpinner() {
+        updateCustomerSpinner(selectedCustomer);
+    }
+
+    private void updateCustomerSpinner(CustomerEntity preserveSelection) {
         List<String> customerNames = new ArrayList<>();
         
         // Add "Add Customer" option at the beginning
@@ -975,12 +1001,30 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         // Store the current listener
         AdapterView.OnItemSelectedListener currentListener = spinnerCustomer.getOnItemSelectedListener();
         
-        // Temporarily remove listener to prevent triggering on initial setup
+        // Temporarily remove listener to prevent triggering on programmatic selection
         spinnerCustomer.setOnItemSelectedListener(null);
-        
-        // Always select Regular Customer as default (position 1)
-        spinnerCustomer.setSelection(1, false); // Position 1 = Regular Customer - false = don't trigger listener
-        selectedCustomer = createRegularCustomer();
+
+        int selectionIndex = 1; // Regular Customer default
+        CustomerEntity resolvedSelection = createRegularCustomer();
+
+        if (preserveSelection != null) {
+            if (REGULAR_CUSTOMER_ID.equals(preserveSelection.getId())) {
+                selectionIndex = 1;
+                resolvedSelection = createRegularCustomer();
+            } else {
+                for (int i = 0; i < customers.size(); i++) {
+                    CustomerEntity customer = customers.get(i);
+                    if (customer.getId() != null && customer.getId().equals(preserveSelection.getId())) {
+                        selectionIndex = i + 2; // offset for Add Customer + Regular Customer
+                        resolvedSelection = customer;
+                        break;
+                    }
+                }
+            }
+        }
+
+        spinnerCustomer.setSelection(selectionIndex, false);
+        selectedCustomer = resolvedSelection;
         
         // Clear any touch listener that might have been set when there were no customers
         spinnerCustomer.setOnTouchListener(null);
@@ -1146,7 +1190,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Error starting camera", e);
-                Toast.makeText(this, "Error starting camera", Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, "Error starting camera");
             }
         }, ContextCompat.getMainExecutor(this));
     }
@@ -1179,7 +1223,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                             String normalizedMRZ = normalizeMRZ(mrzText);
                             isScanning = false;
                             runOnUiThread(() -> {
-                                Toast.makeText(this, "Processing MRZ...", Toast.LENGTH_SHORT).show();
+                                ToastHelper.show(this, "Processing MRZ...");
                                 processMRZDataForDialog(normalizedMRZ, parentDialog, etFullName, etDateOfBirth, 
                                         spinnerDocumentType, documentTypes, etNationalId, etIssueDate, etExpiryDate);
                                 scannerDialog.dismiss();
@@ -1460,7 +1504,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         try {
             MRZParser.MRZData mrzData = MRZParser.parseMRZ(mrzText);
             if (mrzData == null || !mrzData.isValid()) {
-                Toast.makeText(this, "Unable to read MRZ data. Please try again.", Toast.LENGTH_LONG).show();
+                ToastHelper.showLong(this, "Unable to read MRZ data. Please try again.");
                 return;
             }
             
@@ -1493,10 +1537,10 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 }
             }
             
-            Toast.makeText(this, "MRZ data loaded successfully", Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, "MRZ data loaded successfully");
         } catch (Exception e) {
             Log.e(TAG, "Error processing MRZ data", e);
-            Toast.makeText(this, "Error processing MRZ data", Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, "Error processing MRZ data");
         }
     }
     
@@ -1659,7 +1703,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 // Restore listener
                 spinnerCustomer.setOnItemSelectedListener(currentListener);
                 
-                Toast.makeText(this, getString(R.string.customer_saved), Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, getString(R.string.customer_saved));
             }
         }, 300); // Small delay to ensure customers list is updated
     }
@@ -1695,7 +1739,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                             nationalId, phoneNumber, currentUserEntity.getUid());
                     if (existingCustomer != null) {
                         runOnUiThread(() -> {
-                            Toast.makeText(this, "Customer with this National ID and phone number already exists for your account", Toast.LENGTH_SHORT).show();
+                            ToastHelper.show(this, "Customer with this National ID and phone number already exists for your account");
                         });
                         return;
                     }
@@ -1745,15 +1789,13 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 database.customerDao().insertCustomer(customer);
                 
                 runOnUiThread(() -> {
-                    Toast.makeText(this, getString(R.string.customer_saved), Toast.LENGTH_SHORT).show();
+                    ToastHelper.show(this, getString(R.string.customer_saved));
                 });
                 
             } catch (Exception e) {
                 Log.e(TAG, "Error saving customer", e);
-                runOnUiThread(() -> {
-                    Toast.makeText(this, getString(R.string.transaction_failed) + ": " + e.getMessage(), 
-                            Toast.LENGTH_LONG).show();
-                });
+                runOnUiThread(() -> ToastHelper.showLong(this,
+                        getString(R.string.transaction_failed) + ": " + e.getMessage()));
             }
         }).start();
         
@@ -1780,7 +1822,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         // Check credit availability
         if (!checkCreditAvailability(amount)) {
             Log.d(TAG, "Insufficient credit");
-            Toast.makeText(this, getString(R.string.insufficient_credit), Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(this, getString(R.string.insufficient_credit));
             return;
         }
 
@@ -1802,29 +1844,42 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
     private boolean validateTransaction() {
         if (selectedOperator == null) {
-            Toast.makeText(this, getString(R.string.select_operator), Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, getString(R.string.select_operator));
             return false;
         }
 
         if (selectedAction == null) {
-            Toast.makeText(this, getString(R.string.select_action), Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, getString(R.string.select_action));
             return false;
         }
 
         if (selectedCustomer == null) {
-            Toast.makeText(this, getString(R.string.select_customer), Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, getString(R.string.select_customer));
             return false;
         }
 
         // For Regular Customer, account number field must be filled (it contains the phone number)
         if (REGULAR_CUSTOMER_ID.equals(selectedCustomer.getId())) {
             if (etAccountNumber == null || etAccountNumber.getText() == null) {
-                Toast.makeText(this, "Please enter phone number in Account Number field", Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, getString(R.string.account_number_required_for_regular_customer));
                 return false;
             }
             String accountNumber = etAccountNumber.getText().toString().trim();
             if (accountNumber.isEmpty()) {
-                Toast.makeText(this, "Please enter phone number in Account Number field", Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, getString(R.string.account_number_required_for_regular_customer));
+                return false;
+            }
+        } else {
+            String customerPhone = selectedCustomer.getPhoneNumber();
+            boolean phoneEmpty = customerPhone == null || customerPhone.trim().isEmpty();
+            boolean useAccountInUssd = cbUseAccountNumberInUssd != null && cbUseAccountNumberInUssd.isChecked();
+            String accountNumber = (etAccountNumber != null && etAccountNumber.getText() != null)
+                    ? etAccountNumber.getText().toString().trim() : "";
+
+            if ((phoneEmpty || useAccountInUssd) && accountNumber.isEmpty()) {
+                ToastHelper.showLong(this, phoneEmpty
+                        ? getString(R.string.account_number_required_when_phone_empty)
+                        : getString(R.string.account_number_required_for_regular_customer));
                 return false;
             }
         }
@@ -1833,18 +1888,18 @@ public class ProcessTransactionActivity extends AppCompatActivity {
 
         String amountStr = etAmount.getText().toString().trim();
         if (amountStr.isEmpty()) {
-            Toast.makeText(this, getString(R.string.invalid_amount), Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, getString(R.string.invalid_amount));
             return false;
         }
 
         try {
             double amount = com.example.myapplication.utils.NumberFormatter.getNumericValue(amountStr);
             if (amount <= 0) {
-                Toast.makeText(this, getString(R.string.invalid_amount), Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, getString(R.string.invalid_amount));
                 return false;
             }
         } catch (NumberFormatException e) {
-            Toast.makeText(this, getString(R.string.invalid_amount), Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, getString(R.string.invalid_amount));
             return false;
         }
 
@@ -1903,7 +1958,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         String ussdCode = generateUssdCode(amount);
         
         if (ussdCode == null || ussdCode.isEmpty()) {
-            Toast.makeText(this, getString(R.string.transaction_failed), Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, getString(R.string.transaction_failed));
             return;
         }
 
@@ -1932,12 +1987,12 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 // Update credit immediately for successful transaction
                 updateUserCredit(transaction);
                 
-                Toast.makeText(this, getString(R.string.transaction_success), Toast.LENGTH_LONG).show();
+                ToastHelper.showLong(this, getString(R.string.transaction_success));
                 finish();
             });
         } catch (Exception e) {
             Log.e(TAG, "Error in executeNonUssdTransaction", e);
-            Toast.makeText(this, "Transaction failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(this, "Transaction failed: " + e.getMessage());
         }
     }
 
@@ -2008,13 +2063,14 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         }
         transaction.setCreditAfter(creditAfter);
         
-        // Set note if provided
+        // Set user note if provided (system metadata goes in notes separately)
         if (etNote != null && etNote.getText() != null) {
             String note = etNote.getText().toString().trim();
             if (!note.isEmpty()) {
-                transaction.setNotes(note);
+                transaction.setUserNotes(note);
             }
         }
+        transaction.setPaymentStatus("paid");
         
         // Set account number if provided (append to notes)
         if (etAccountNumber != null && etAccountNumber.getText() != null) {
@@ -2120,7 +2176,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             intent.setData(Uri.parse("tel:" + ussdCode));
             startActivity(intent);
             
-            Toast.makeText(this, "USSD code opened in dialer. Transaction marked as successful.", Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(this, getString(R.string.ussd_code_opened_marked_success));
             
             // Transaction already marked as successful and credit already updated
             // Just add a note for reference
@@ -2133,7 +2189,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
             
         } catch (Exception e) {
             Log.e(TAG, "Error opening USSD dialer", e);
-            Toast.makeText(this, getString(R.string.transaction_failed), Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, getString(R.string.transaction_failed));
             
             // Mark transaction as failed and reverse credit
             new Thread(() -> {
@@ -2178,10 +2234,8 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 
             } catch (Exception e) {
                 Log.e(TAG, "Error saving transaction", e);
-                runOnUiThread(() -> {
-                    Toast.makeText(this, getString(R.string.transaction_failed) + ": " + e.getMessage(), 
-                            Toast.LENGTH_LONG).show();
-                });
+                runOnUiThread(() -> ToastHelper.showLong(this,
+                        getString(R.string.transaction_failed) + ": " + e.getMessage()));
             }
         }).start();
     }
@@ -2205,7 +2259,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         data.put("creditBefore", transaction.getCreditBefore());
         data.put("creditAfter", transaction.getCreditAfter());
         data.put("status", transaction.getStatus());
+        data.put("paymentStatus", transaction.getPaymentStatus() != null ? transaction.getPaymentStatus() : "paid");
         data.put("notes", transaction.getNotes());
+        data.put("userNotes", transaction.getUserNotes());
         data.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getCreatedAt())));
         data.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getUpdatedAt())));
 
@@ -2297,6 +2353,7 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 
                 // Update cash balance (cash balance is still global per user, not per operator)
                 user.setCashBalance(newCashBalance);
+                user.setUpdatedAt(System.currentTimeMillis());
                 database.userDao().updateUser(user);
                 currentUserEntity = user; // Update reference
                 
@@ -2304,6 +2361,8 @@ public class ProcessTransactionActivity extends AppCompatActivity {
                 runOnUiThread(() -> updateCreditDisplay());
                 
                 Log.d(TAG, "Operator-specific balance updated for " + selectedOperator.getName() + ": " + newCredit + ", Cash balance updated: " + newCashBalance);
+                com.example.myapplication.utils.OperatorBalanceSyncHelper.pushPendingBalancesForUser(
+                        ProcessTransactionActivity.this, activeUserId);
             } catch (Exception e) {
                 Log.e(TAG, "Error updating credit/cash locally", e);
             }
@@ -2353,9 +2412,9 @@ public class ProcessTransactionActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == CAMERA_PERMISSION_REQUEST) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Camera permission granted. Please try scanning again.", Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, "Camera permission granted. Please try scanning again.");
             } else {
-                Toast.makeText(this, "Camera permission is required for barcode scanning", Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, "Camera permission is required for barcode scanning");
             }
         }
     }

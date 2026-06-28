@@ -17,7 +17,6 @@ import {
   DownloadOutlined,
 } from '@ant-design/icons';
 import { colors } from '@/lib/theme';
-import AntdProvider from '@/components/AntdProvider';
 import DealersTab from '@/components/DealersTab';
 import AgentsTab from '@/components/AgentsTab';
 import LicensesTab from '@/components/LicensesTab';
@@ -309,7 +308,6 @@ export default function DashboardPage() {
   ];
 
   return (
-    <AntdProvider>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* Page Title */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
@@ -437,6 +435,5 @@ export default function DashboardPage() {
         </>
       )}
       </Space>
-    </AntdProvider>
   );
 }

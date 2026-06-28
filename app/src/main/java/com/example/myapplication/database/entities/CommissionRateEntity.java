@@ -19,7 +19,10 @@ public class CommissionRateEntity {
     private String operatorName;
     
     // Commission rates (as percentages, e.g., 0.4 for 0.4%)
-    private double commissionRate; // Base commission rate (exclusive of tax)
+    private double commissionRate; // Legacy / fallback rate
+    private double depositRate;
+    private double withdrawalRate;
+    private double transferRate;
     private double taxRate; // Tax rate (e.g., 15 for 15%)
     
     // Calculated fields (for display)
@@ -88,6 +91,32 @@ public class CommissionRateEntity {
     public double getCommissionRateWithTax() { return commissionRateWithTax; }
     public void setCommissionRateWithTax(double commissionRateWithTax) { 
         this.commissionRateWithTax = commissionRateWithTax; 
+    }
+
+    public double getDepositRate() { return depositRate; }
+    public void setDepositRate(double depositRate) { this.depositRate = depositRate; }
+
+    public double getWithdrawalRate() { return withdrawalRate; }
+    public void setWithdrawalRate(double withdrawalRate) { this.withdrawalRate = withdrawalRate; }
+
+    public double getTransferRate() { return transferRate; }
+    public void setTransferRate(double transferRate) { this.transferRate = transferRate; }
+
+    /** Rate for a transaction type; falls back to commissionRate when per-type rate is unset. */
+    public double getRateForTransactionType(String transactionType) {
+        if (transactionType == null) {
+            return commissionRate;
+        }
+        switch (transactionType.toLowerCase()) {
+            case "deposit":
+                return depositRate > 0 ? depositRate : commissionRate;
+            case "withdrawal":
+                return withdrawalRate > 0 ? withdrawalRate : commissionRate;
+            case "transfer":
+                return transferRate > 0 ? transferRate : commissionRate;
+            default:
+                return commissionRate;
+        }
     }
     
     public String getTransactionTypes() { return transactionTypes; }

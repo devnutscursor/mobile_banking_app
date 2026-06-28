@@ -112,6 +112,9 @@ export const theme: ThemeConfig = {
     // Box shadow
     boxShadow: '0 4px 20px rgba(1, 22, 30, 0.4)',
     boxShadowSecondary: '0 2px 8px rgba(1, 22, 30, 0.3)',
+
+    // Remove default bright focus ring on dark UI
+    controlOutlineWidth: 0,
   },
   components: {
     Button: {
@@ -140,14 +143,38 @@ export const theme: ThemeConfig = {
     Input: {
       colorBgContainer: colors.rich_black[400],
       colorBorder: colors.air_force_blue[300],
+      colorText: colors.beige[500],
       colorTextPlaceholder: colors.air_force_blue[600],
       activeBorderColor: colors.midnight_green[700],
       hoverBorderColor: colors.air_force_blue[500],
+      activeShadow: '0 0 0 2px rgba(32, 121, 156, 0.22)',
+      paddingBlock: 10,
+      paddingInline: 12,
+    },
+    InputNumber: {
+      colorBgContainer: colors.rich_black[400],
+      colorBorder: colors.air_force_blue[300],
+      colorText: colors.beige[500],
+      activeBorderColor: colors.midnight_green[700],
+      hoverBorderColor: colors.air_force_blue[500],
+      activeShadow: '0 0 0 2px rgba(32, 121, 156, 0.22)',
+    },
+    DatePicker: {
+      colorBgContainer: colors.rich_black[400],
+      colorBorder: colors.air_force_blue[300],
+      colorText: colors.beige[500],
+      activeBorderColor: colors.midnight_green[700],
+      hoverBorderColor: colors.air_force_blue[500],
+      activeShadow: '0 0 0 2px rgba(32, 121, 156, 0.22)',
     },
     Select: {
       colorBgContainer: colors.rich_black[400],
       colorBorder: colors.air_force_blue[300],
+      colorText: colors.beige[500],
       optionSelectedBg: colors.midnight_green[600],
+      activeBorderColor: colors.midnight_green[700],
+      hoverBorderColor: colors.air_force_blue[500],
+      activeShadow: '0 0 0 2px rgba(32, 121, 156, 0.22)',
     },
     Modal: {
       contentBg: colors.midnight_green[400],

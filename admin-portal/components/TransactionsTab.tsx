@@ -1,20 +1,25 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, query, orderBy, limit, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, limit, where, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Transaction, User, Customer, Operator, OperatorAction } from '@/lib/types';
-import { Card, Select, Space, Table, Tag, Typography, Input, DatePicker, InputNumber, Row, Col, Skeleton, Button } from 'antd';
+import { Card, Select, Space, Table, Tag, Typography, Input, DatePicker, InputNumber, Row, Col, Skeleton, Button, App } from 'antd';
 import { CheckCircleTwoTone, CloseCircleTwoTone, ClockCircleTwoTone, SearchOutlined, FilterOutlined, DownloadOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import dayjs from 'dayjs';
 import { exportTransactionsToExcel } from '@/lib/exportUtils';
 import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
+import { useAuth } from '@/lib/authContext';
 
 const { RangePicker } = DatePicker;
 
 export default function TransactionsTab() {
+  const { message } = App.useApp();
+  const { user: currentUser } = useAuth();
+  const canEditPaymentStatus =
+    currentUser?.role === 'dealer' || currentUser?.role === 'agent';
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [users, setUsers] = useState<{ [key: string]: User }>({});
   const [customers, setCustomers] = useState<{ [key: string]: Customer }>({});
@@ -22,6 +27,7 @@ export default function TransactionsTab() {
   const [actions, setActions] = useState<{ [key: string]: OperatorAction }>({});
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
   const [limitCount, setLimitCount] = useState(50);
   const [searchTerm, setSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState<string>('all');
@@ -125,9 +131,31 @@ export default function TransactionsTab() {
       if (minAmount !== null && txn.amount < minAmount) return false;
       if (maxAmount !== null && txn.amount > maxAmount) return false;
 
+      // Payment status filter (client-side to avoid composite index)
+      if (paymentStatusFilter !== 'all') {
+        const txnPaymentStatus = txn.paymentStatus || 'paid';
+        if (txnPaymentStatus !== paymentStatusFilter) return false;
+      }
+
       return true;
     });
-  }, [transactions, searchTerm, userFilter, operatorFilter, actionFilter, dateRange, minAmount, maxAmount, customers, users]);
+  }, [transactions, searchTerm, userFilter, operatorFilter, actionFilter, dateRange, minAmount, maxAmount, paymentStatusFilter, customers, users]);
+
+  const handlePaymentStatusChange = async (transactionId: string, paymentStatus: 'paid' | 'unpaid') => {
+    try {
+      await updateDoc(doc(db, 'transactions', transactionId), {
+        paymentStatus,
+        updatedAt: Timestamp.now(),
+      });
+      setTransactions(prev =>
+        prev.map(txn => (txn.id === transactionId ? { ...txn, paymentStatus } : txn))
+      );
+      message.success('Payment status updated');
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      message.error('Failed to update payment status');
+    }
+  };
 
   const uniqueUsers = Array.from(new Set(transactions.map(t => t.userId).filter(Boolean)));
   const uniqueOperators = Array.from(new Set(transactions.map(t => t.operatorId).filter(Boolean)));
@@ -192,7 +220,43 @@ export default function TransactionsTab() {
         return <Tag icon={<ClockCircleTwoTone />} color="warning">Pending</Tag>;
       },
     },
-  ], [users, customers, operators, actions]);
+    {
+      title: 'Payment',
+      dataIndex: 'paymentStatus',
+      key: 'paymentStatus',
+      render: (paymentStatus: 'paid' | 'unpaid' | undefined, record: Transaction) => {
+        const status = paymentStatus || 'paid';
+        if (canEditPaymentStatus && record.id) {
+          return (
+            <Select
+              value={status}
+              size="small"
+              style={{ width: 100 }}
+              onChange={(value: 'paid' | 'unpaid') => handlePaymentStatusChange(record.id!, value)}
+              options={[
+                { value: 'paid', label: 'Paid' },
+                { value: 'unpaid', label: 'Unpaid' },
+              ]}
+            />
+          );
+        }
+        return (
+          <Tag color={status === 'paid' ? 'success' : 'warning'}>
+            {status === 'paid' ? 'Paid' : 'Unpaid'}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Comment',
+      key: 'comment',
+      ellipsis: true,
+      render: (_: unknown, record: Transaction) => {
+        const comment = record.userNotes || record.notes;
+        return comment || <Typography.Text type="secondary">—</Typography.Text>;
+      },
+    },
+  ], [users, customers, operators, actions, canEditPaymentStatus]);
 
   if (loading) {
     return (
@@ -234,6 +298,19 @@ export default function TransactionsTab() {
                   { value: 'failed', label: 'Failed' },
                   { value: 'pending', label: 'Pending' },
                   { value: 'processing', label: 'Processing' },
+                ]}
+                suffixIcon={<FilterOutlined />}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={8} lg={4}>
+              <Select
+                value={paymentStatusFilter}
+                onChange={(v) => setPaymentStatusFilter(v)}
+                style={{ width: '100%' }}
+                options={[
+                  { value: 'all', label: 'All Payments' },
+                  { value: 'paid', label: 'Paid' },
+                  { value: 'unpaid', label: 'Unpaid' },
                 ]}
                 suffixIcon={<FilterOutlined />}
               />
@@ -340,7 +417,7 @@ export default function TransactionsTab() {
         />
         {filteredTransactions.length === 0 && (
           <Typography.Text type="secondary">
-            {searchTerm || statusFilter !== 'all' || userFilter !== 'all' || operatorFilter !== 'all' || actionFilter !== 'all' || dateRange || minAmount || maxAmount
+            {searchTerm || statusFilter !== 'all' || paymentStatusFilter !== 'all' || userFilter !== 'all' || operatorFilter !== 'all' || actionFilter !== 'all' || dateRange || minAmount || maxAmount
               ? 'No transactions match your filters'
               : 'No transactions found'}
           </Typography.Text>

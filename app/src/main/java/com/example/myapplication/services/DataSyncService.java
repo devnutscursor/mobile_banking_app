@@ -126,7 +126,15 @@ public class DataSyncService {
                     callback.onSyncProgress("Validating license...", progress.incrementAndGet(), totalSteps);
                 }
                 checkLicenseExpiry(userId);
-                
+
+                // Ensure user record reflects successful sync (avoids false "needs sync" prompts)
+                UserEntity syncedUser = database.userDao().getUserById(userId);
+                if (syncedUser != null) {
+                    long now = System.currentTimeMillis();
+                    syncedUser.setLastSyncAt(now);
+                    database.userDao().updateUser(syncedUser);
+                }
+
                 Log.d(TAG, "Comprehensive sync completed successfully for user: " + userId);
                 if (callback != null) {
                     callback.onSyncComplete(true, "Sync completed successfully");
@@ -343,183 +351,272 @@ public class DataSyncService {
             // Don't throw - sync is still successful, just recalculation failed
         }
 
+        // Recalculation marks balances as needsSync; push them before sync completes
+        pushPendingOperatorBalances(userId);
+
         Log.d(TAG, "=== OPERATOR BALANCES SYNC COMPLETE for user: " + userId + " ===");
+    }
+
+    private void pushPendingOperatorBalances(String userId) throws Exception {
+        List<OperatorBalanceEntity> pending =
+                database.operatorBalanceDao().getNeedingSyncForUser(userId);
+        if (pending.isEmpty()) {
+            return;
+        }
+
+        Log.d(TAG, "Pushing " + pending.size() + " operator balances after recalculation");
+        for (OperatorBalanceEntity balance : pending) {
+            CountDownLatch pushLatch = new CountDownLatch(1);
+            final Exception[] pushError = {null};
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("userId", balance.getUserId());
+            data.put("operatorId", balance.getOperatorId());
+            data.put("balance", balance.getBalance());
+            data.put("totalCreditUsed", balance.getTotalCreditUsed());
+            data.put("totalCreditEarned", balance.getTotalCreditEarned());
+            data.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(balance.getCreatedAt())));
+            data.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(balance.getUpdatedAt())));
+
+            String docId = balance.getId();
+            firestore.collection("operator_balances").document(docId)
+                    .set(data, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnSuccessListener(aVoid -> pushLatch.countDown())
+                    .addOnFailureListener(e -> {
+                        pushError[0] = e;
+                        pushLatch.countDown();
+                    });
+
+            pushLatch.await();
+            if (pushError[0] != null) {
+                throw pushError[0];
+            }
+
+            balance.setNeedsSync(false);
+            balance.setLastSyncAt(System.currentTimeMillis());
+            database.operatorBalanceDao().updateBalance(balance);
+        }
     }
     
     /**
-     * Bidirectional sync user data (credit, profile info)
-     * First pushes local changes to Firestore, then pulls latest from Firestore
+     * Bidirectional sync user data (credit, profile info).
+     * Reads Firestore first so admin virtual-credit edits are not overwritten by stale local data.
      */
     private void syncUserData(String userId) throws Exception {
         Log.d(TAG, "=== SYNCING USER DATA (BIDIRECTIONAL) for user: " + userId + " ===");
-        
-        // Step 1: Push local user data to Firestore if modified
+
         UserEntity localUser = database.userDao().getUserById(userId);
-        if (localUser != null) {
-            Log.d(TAG, "Local user found: " + userId + 
-                " (credit: " + localUser.getVirtualCredit() + 
-                ", updatedAt: " + new java.util.Date(localUser.getUpdatedAt()) + 
-                ", lastSyncAt: " + new java.util.Date(localUser.getLastSyncAt()) + ")");
-            
-            // Check if local user has changes that need to be pushed
-            if (localUser.getUpdatedAt() > localUser.getLastSyncAt()) {
-                Log.d(TAG, "Pushing local user changes to Firestore for: " + userId);
-                CountDownLatch pushLatch = new CountDownLatch(1);
-                final Exception[] pushError = {null};
-                
-                Map<String, Object> userData = new HashMap<>();
-                userData.put("virtualCredit", localUser.getVirtualCredit());
-                userData.put("cashBalance", localUser.getCashBalance());
-                userData.put("name", localUser.getName());
-                userData.put("email", localUser.getEmail());
-                userData.put("phone", localUser.getPhone());
-                userData.put("role", localUser.getRole());
-                userData.put("disabled", localUser.isDisabled());
-                // CRITICAL: Convert creditUpdatedAt to Firestore Timestamp
-                userData.put("creditUpdatedAt", new com.google.firebase.Timestamp(new java.util.Date(localUser.getCreditUpdatedAt())));
-                userData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(localUser.getUpdatedAt())));
-                
-                firestore.collection("users").document(userId)
-                        .set(userData, com.google.firebase.firestore.SetOptions.merge())
-                        .addOnSuccessListener(aVoid -> {
-                            Log.d(TAG, "Successfully pushed user data to Firestore: " + userId + 
-                                " (credit: " + localUser.getVirtualCredit() + ")");
-                            pushLatch.countDown();
-                        })
-                        .addOnFailureListener(e -> {
-                            Log.e(TAG, "Failed to push user data to Firestore: " + userId, e);
-                            pushError[0] = e;
-                            pushLatch.countDown();
-                        });
-                
-                pushLatch.await();
-                if (pushError[0] != null) {
-                    throw pushError[0];
-                }
-            } else {
-                Log.d(TAG, "No local changes to push for user: " + userId);
-            }
+        if (localUser == null) {
+            Log.w(TAG, "No local user for sync: " + userId);
+            return;
         }
-        
-        // Step 2: Pull latest data from Firestore
-        CountDownLatch latch = new CountDownLatch(1);
-        final Exception[] error = {null};
-        
+
+        Log.d(TAG, "Local user: credit=" + localUser.getVirtualCredit()
+                + ", updatedAt=" + new java.util.Date(localUser.getUpdatedAt())
+                + ", creditUpdatedAt=" + new java.util.Date(localUser.getCreditUpdatedAt())
+                + ", lastSyncAt=" + new java.util.Date(localUser.getLastSyncAt()));
+
+        // Step 1: Read Firestore first (conflict resolution)
+        CountDownLatch fetchLatch = new CountDownLatch(1);
+        final DocumentSnapshot[] snapshotHolder = {null};
+        final Exception[] fetchError = {null};
+
         firestore.collection("users").document(userId)
                 .get()
                 .addOnSuccessListener(documentSnapshot -> {
-                    try {
-                        if (documentSnapshot.exists()) {
-                            UserEntity localUserEntity = database.userDao().getUserById(userId);
-                            
-                            if (localUserEntity != null) {
-                                // Handle updatedAt as Firestore Timestamp or Long
-                                Long firestoreUpdatedAt = null;
-                                try {
-                                    Object updatedAtObj = documentSnapshot.get("updatedAt");
-                                    if (updatedAtObj instanceof com.google.firebase.Timestamp) {
-                                        firestoreUpdatedAt = ((com.google.firebase.Timestamp) updatedAtObj).toDate().getTime();
-                                    } else if (updatedAtObj instanceof Long) {
-                                        firestoreUpdatedAt = (Long) updatedAtObj;
-                                    } else if (updatedAtObj instanceof Number) {
-                                        firestoreUpdatedAt = ((Number) updatedAtObj).longValue();
-                                    }
-                                } catch (Exception e) {
-                                    Log.w(TAG, "Could not parse updatedAt timestamp", e);
-                                }
-                                
-                                if (firestoreUpdatedAt == null) {
-                                    firestoreUpdatedAt = System.currentTimeMillis();
-                                }
-                                
-                                Log.d(TAG, "Comparing timestamps - Local: " + 
-                                    new java.util.Date(localUserEntity.getUpdatedAt()) + 
-                                    ", Firestore: " + new java.util.Date(firestoreUpdatedAt));
-                                
-                                // ALWAYS sync disabled status (critical for security)
-                                Boolean disabled = documentSnapshot.getBoolean("disabled");
-                                if (disabled != null) {
-                                    localUserEntity.setDisabled(disabled);
-                                    Log.d(TAG, "Synced disabled status from Firestore: " + disabled);
-                                }
-                                
-                                // Only update if Firestore version is newer
-                                if (firestoreUpdatedAt > localUserEntity.getUpdatedAt()) {
-                                    Log.d(TAG, "Firestore version is newer, updating local user");
-                                    
-                                    // Check credit-specific timestamp before updating credit
-                                    Double credit = documentSnapshot.getDouble("virtualCredit");
-                                    if (credit != null) {
-                                        // Check if Firestore credit is more recent than local credit
-                                        long firestoreCreditUpdatedAt = 0;
-                                        if (documentSnapshot.contains("creditUpdatedAt")) {
-                                            Object creditUpdatedAt = documentSnapshot.get("creditUpdatedAt");
-                                            if (creditUpdatedAt instanceof com.google.firebase.Timestamp) {
-                                                firestoreCreditUpdatedAt = ((com.google.firebase.Timestamp) creditUpdatedAt).toDate().getTime();
-                                            } else if (creditUpdatedAt instanceof Long) {
-                                                firestoreCreditUpdatedAt = (Long) creditUpdatedAt;
-                                            }
-                                        }
-                                        
-                                        // Only update credit if Firestore credit is more recent
-                                        if (firestoreCreditUpdatedAt > localUserEntity.getCreditUpdatedAt()) {
-                                            Log.d(TAG, "Updating credit: " + localUserEntity.getVirtualCredit() + " -> " + credit);
-                                            localUserEntity.setVirtualCredit(credit);
-                                            localUserEntity.setCreditUpdatedAt(firestoreCreditUpdatedAt);
-                                        } else {
-                                            Log.d(TAG, "Local credit is more recent, keeping local value: " + localUserEntity.getVirtualCredit());
-                                        }
-                                    }
-                                    
-                                    String name = documentSnapshot.getString("name");
-                                    if (name != null) {
-                                        localUserEntity.setName(name);
-                                    }
-                                    
-                                    String email = documentSnapshot.getString("email");
-                                    if (email != null) {
-                                        localUserEntity.setEmail(email);
-                                    }
-                                    
-                                    // Sync cash balance (no timestamp check needed)
-                                    Double cashBalance = documentSnapshot.getDouble("cashBalance");
-                                    if (cashBalance != null) {
-                                        localUserEntity.setCashBalance(cashBalance);
-                                    }
-                                    
-                                    localUserEntity.setUpdatedAt(firestoreUpdatedAt);
-                                    localUserEntity.setLastSyncAt(System.currentTimeMillis());
-                                    database.userDao().updateUser(localUserEntity);
-                                    
-                                    Log.d(TAG, "User data pulled from Firestore: " + userId +
-                                            " (credit: " + localUserEntity.getVirtualCredit() + ")");
-                                } else {
-                                    Log.d(TAG, "Local version is up-to-date or newer, skipping pull");
-                                    // Still update lastSyncAt and disabled status
-                                    localUserEntity.setLastSyncAt(System.currentTimeMillis());
-                                    database.userDao().updateUser(localUserEntity);
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error processing Firestore user data", e);
-                        error[0] = e;
-                    } finally {
-                        latch.countDown();
-                    }
+                    snapshotHolder[0] = documentSnapshot;
+                    fetchLatch.countDown();
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to pull user data from Firestore: " + userId, e);
-                    error[0] = e;
-                    latch.countDown();
+                    fetchError[0] = e;
+                    fetchLatch.countDown();
                 });
-        
-        latch.await();
-        if (error[0] != null) {
-            throw error[0];
+
+        fetchLatch.await();
+        if (fetchError[0] != null) {
+            throw fetchError[0];
         }
-        
+
+        DocumentSnapshot documentSnapshot = snapshotHolder[0];
+        if (documentSnapshot == null || !documentSnapshot.exists()) {
+            Log.w(TAG, "User document missing in Firestore: " + userId);
+            return;
+        }
+
+        long firestoreUpdatedAt = parseFirestoreTimestamp(documentSnapshot.get("updatedAt"),
+                System.currentTimeMillis());
+        long firestoreCreditUpdatedAt = parseFirestoreTimestamp(documentSnapshot.get("creditUpdatedAt"), 0L);
+        Double firestoreCredit = documentSnapshot.getDouble("virtualCredit");
+
+        // Step 2: Pull / merge Firestore into local
+        localUser = database.userDao().getUserById(userId);
+        mergeUserFromFirestore(localUser, documentSnapshot, firestoreUpdatedAt, firestoreCreditUpdatedAt);
+        localUser.setLastSyncAt(System.currentTimeMillis());
+        database.userDao().updateUser(localUser);
+
+        Log.d(TAG, "After pull: credit=" + localUser.getVirtualCredit()
+                + ", creditUpdatedAt=" + new java.util.Date(localUser.getCreditUpdatedAt()));
+
+        // Step 3: Push local changes only if local still wins after merge
+        localUser = database.userDao().getUserById(userId);
+        if (localUser != null && shouldPushLocalUserData(localUser, firestoreUpdatedAt, firestoreCreditUpdatedAt)) {
+            Log.d(TAG, "Pushing local user changes to Firestore for: " + userId);
+            CountDownLatch pushLatch = new CountDownLatch(1);
+            final Exception[] pushError = {null};
+
+            Map<String, Object> userData = buildUserPushPayload(localUser, firestoreUpdatedAt, firestoreCreditUpdatedAt);
+
+            firestore.collection("users").document(userId)
+                    .set(userData, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnSuccessListener(aVoid -> {
+                        Log.d(TAG, "Successfully pushed user data to Firestore: " + userId);
+                        pushLatch.countDown();
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Failed to push user data to Firestore: " + userId, e);
+                        pushError[0] = e;
+                        pushLatch.countDown();
+                    });
+
+            pushLatch.await();
+            if (pushError[0] != null) {
+                throw pushError[0];
+            }
+        } else {
+            Log.d(TAG, "No local user changes to push for: " + userId);
+        }
+
+        localUser = database.userDao().getUserById(userId);
+        if (localUser != null) {
+            localUser.setLastSyncAt(System.currentTimeMillis());
+            database.userDao().updateUser(localUser);
+        }
+
         Log.d(TAG, "=== USER DATA SYNC COMPLETED for: " + userId + " ===");
+    }
+
+    private long parseFirestoreTimestamp(Object value, long defaultValue) {
+        if (value instanceof com.google.firebase.Timestamp) {
+            return ((com.google.firebase.Timestamp) value).toDate().getTime();
+        }
+        if (value instanceof Long) {
+            return (Long) value;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        return defaultValue;
+    }
+
+    private boolean shouldApplyFirestoreVirtualCredit(
+            double firestoreCredit,
+            long firestoreCreditUpdatedAt,
+            long firestoreUpdatedAt,
+            UserEntity localUser) {
+        if (firestoreCredit == localUser.getVirtualCredit()) {
+            return false;
+        }
+        long localCreditUpdatedAt = localUser.getCreditUpdatedAt();
+        // Keep local only when the phone changed credit more recently than Firestore
+        if (localCreditUpdatedAt > firestoreCreditUpdatedAt
+                && localCreditUpdatedAt > firestoreUpdatedAt) {
+            return false;
+        }
+        return true;
+    }
+
+    private void mergeUserFromFirestore(
+            UserEntity localUser,
+            DocumentSnapshot documentSnapshot,
+            long firestoreUpdatedAt,
+            long firestoreCreditUpdatedAt) {
+        if (localUser == null) {
+            return;
+        }
+
+        Log.d(TAG, "Merging Firestore user - local updatedAt: "
+                + new java.util.Date(localUser.getUpdatedAt())
+                + ", Firestore updatedAt: " + new java.util.Date(firestoreUpdatedAt));
+
+        Boolean disabled = documentSnapshot.getBoolean("disabled");
+        if (disabled != null) {
+            localUser.setDisabled(disabled);
+        }
+
+        Double credit = documentSnapshot.getDouble("virtualCredit");
+        if (credit != null && shouldApplyFirestoreVirtualCredit(
+                credit, firestoreCreditUpdatedAt, firestoreUpdatedAt, localUser)) {
+            Log.d(TAG, "Applying Firestore virtualCredit: "
+                    + localUser.getVirtualCredit() + " -> " + credit);
+            localUser.setVirtualCredit(credit);
+            long appliedCreditAt = Math.max(firestoreCreditUpdatedAt, firestoreUpdatedAt);
+            localUser.setCreditUpdatedAt(appliedCreditAt);
+        }
+
+        if (firestoreUpdatedAt > localUser.getUpdatedAt()) {
+            String name = documentSnapshot.getString("name");
+            if (name != null) {
+                localUser.setName(name);
+            }
+
+            String email = documentSnapshot.getString("email");
+            if (email != null) {
+                localUser.setEmail(email);
+            }
+
+            Double cashBalance = documentSnapshot.getDouble("cashBalance");
+            if (cashBalance != null) {
+                localUser.setCashBalance(cashBalance);
+            }
+
+            localUser.setUpdatedAt(firestoreUpdatedAt);
+        } else {
+            // Still pull cash when Firestore is newer than last sync (e.g. admin correction)
+            Double cashBalance = documentSnapshot.getDouble("cashBalance");
+            if (cashBalance != null && firestoreUpdatedAt > localUser.getLastSyncAt()) {
+                localUser.setCashBalance(cashBalance);
+            }
+        }
+    }
+
+    private boolean shouldPushLocalUserData(
+            UserEntity localUser,
+            long firestoreUpdatedAt,
+            long firestoreCreditUpdatedAt) {
+        if (localUser.getUpdatedAt() <= localUser.getLastSyncAt()) {
+            return false;
+        }
+        if (localUser.getCreditUpdatedAt() > firestoreCreditUpdatedAt
+                && localUser.getCreditUpdatedAt() >= firestoreUpdatedAt) {
+            return true;
+        }
+        return localUser.getUpdatedAt() > firestoreUpdatedAt;
+    }
+
+    private Map<String, Object> buildUserPushPayload(
+            UserEntity localUser,
+            long firestoreUpdatedAt,
+            long firestoreCreditUpdatedAt) {
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("name", localUser.getName());
+        userData.put("email", localUser.getEmail());
+        userData.put("phone", localUser.getPhone());
+        userData.put("role", localUser.getRole());
+        userData.put("disabled", localUser.isDisabled());
+        userData.put("cashBalance", localUser.getCashBalance());
+        userData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(localUser.getUpdatedAt())));
+
+        boolean pushCredit = localUser.getCreditUpdatedAt() > firestoreCreditUpdatedAt
+                && localUser.getCreditUpdatedAt() >= firestoreUpdatedAt;
+        if (pushCredit) {
+            userData.put("virtualCredit", localUser.getVirtualCredit());
+            userData.put("creditUpdatedAt",
+                    new com.google.firebase.Timestamp(new java.util.Date(localUser.getCreditUpdatedAt())));
+            Log.d(TAG, "Including virtualCredit in push: " + localUser.getVirtualCredit());
+        } else {
+            Log.d(TAG, "Skipping virtualCredit push; Firestore admin credit is newer");
+        }
+        return userData;
     }
     
     /**
@@ -1263,7 +1360,9 @@ public class DataSyncService {
                 transactionData.put("transactionType", transaction.getTransactionType());
                 transactionData.put("amount", transaction.getAmount());
                 transactionData.put("status", transaction.getStatus());
+                transactionData.put("paymentStatus", transaction.getPaymentStatus() != null ? transaction.getPaymentStatus() : "paid");
                 transactionData.put("notes", transaction.getNotes());
+                transactionData.put("userNotes", transaction.getUserNotes());
                 transactionData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getCreatedAt())));
                 transactionData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getUpdatedAt())));
                 
@@ -1308,7 +1407,10 @@ public class DataSyncService {
                                 newTransaction.setTransactionType(doc.getString("transactionType"));
                                 newTransaction.setAmount(doc.getDouble("amount"));
                                 newTransaction.setStatus(doc.getString("status"));
+                                newTransaction.setPaymentStatus(doc.getString("paymentStatus") != null
+                                        ? doc.getString("paymentStatus") : "paid");
                                 newTransaction.setNotes(doc.getString("notes"));
+                                newTransaction.setUserNotes(doc.getString("userNotes"));
                                 // Handle timestamp conversion from Firestore
                                 Long createdAt = null;
                                 try {
@@ -1412,7 +1514,9 @@ public class DataSyncService {
                     transactionData.put("transactionType", transaction.getTransactionType());
                     transactionData.put("amount", transaction.getAmount());
                     transactionData.put("status", transaction.getStatus());
+                    transactionData.put("paymentStatus", transaction.getPaymentStatus() != null ? transaction.getPaymentStatus() : "paid");
                     transactionData.put("notes", transaction.getNotes());
+                    transactionData.put("userNotes", transaction.getUserNotes());
                     transactionData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getCreatedAt())));
                     transactionData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getUpdatedAt())));
                     
@@ -1464,7 +1568,9 @@ public class DataSyncService {
                     transactionData.put("transactionType", transaction.getTransactionType());
                     transactionData.put("amount", transaction.getAmount());
                     transactionData.put("status", transaction.getStatus());
+                    transactionData.put("paymentStatus", transaction.getPaymentStatus() != null ? transaction.getPaymentStatus() : "paid");
                     transactionData.put("notes", transaction.getNotes());
+                    transactionData.put("userNotes", transaction.getUserNotes());
                     transactionData.put("createdAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getCreatedAt())));
                     transactionData.put("updatedAt", new com.google.firebase.Timestamp(new java.util.Date(transaction.getUpdatedAt())));
                     
@@ -1520,7 +1626,10 @@ public class DataSyncService {
                                 newTransaction.setTransactionType(doc.getString("transactionType"));
                                 newTransaction.setAmount(doc.getDouble("amount") != null ? doc.getDouble("amount") : 0.0);
                                 newTransaction.setStatus(doc.getString("status"));
+                                newTransaction.setPaymentStatus(doc.getString("paymentStatus") != null
+                                        ? doc.getString("paymentStatus") : "paid");
                                 newTransaction.setNotes(doc.getString("notes"));
+                                newTransaction.setUserNotes(doc.getString("userNotes"));
                                 
                                 // Additional fields from Firestore schema
                                 newTransaction.setChannel(doc.getString("channel"));
@@ -1839,6 +1948,9 @@ public class DataSyncService {
                 rateData.put("operatorId", rate.getOperatorId());
                 rateData.put("operatorName", rate.getOperatorName());
                 rateData.put("commissionRate", rate.getCommissionRate());
+                rateData.put("depositRate", rate.getDepositRate());
+                rateData.put("withdrawalRate", rate.getWithdrawalRate());
+                rateData.put("transferRate", rate.getTransferRate());
                 rateData.put("taxRate", rate.getTaxRate());
                 rateData.put("commissionRateWithTax", rate.getCommissionRateWithTax());
                 rateData.put("transactionTypes", rate.getTransactionTypes());
@@ -1888,6 +2000,18 @@ public class DataSyncService {
                                 
                                 Double commissionRate = doc.getDouble("commissionRate");
                                 if (commissionRate != null) newRate.setCommissionRate(commissionRate);
+                                Double depositRate = doc.getDouble("depositRate");
+                                if (depositRate != null) newRate.setDepositRate(depositRate);
+                                Double withdrawalRate = doc.getDouble("withdrawalRate");
+                                if (withdrawalRate != null) newRate.setWithdrawalRate(withdrawalRate);
+                                Double transferRate = doc.getDouble("transferRate");
+                                if (transferRate != null) newRate.setTransferRate(transferRate);
+                                if (depositRate == null && withdrawalRate == null && transferRate == null
+                                        && commissionRate != null) {
+                                    newRate.setDepositRate(commissionRate);
+                                    newRate.setWithdrawalRate(commissionRate);
+                                    newRate.setTransferRate(commissionRate);
+                                }
                                 
                                 Double taxRate = doc.getDouble("taxRate");
                                 if (taxRate != null) newRate.setTaxRate(taxRate);

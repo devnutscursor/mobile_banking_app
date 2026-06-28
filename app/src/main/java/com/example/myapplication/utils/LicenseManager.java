@@ -123,13 +123,37 @@ public class LicenseManager {
     }
     
     private void proceedWithActivation(DocumentSnapshot doc, String userId, String licenseKey, LicenseCallback callback) {
-                    // Assign user to license using array-union to support multiple users
-                    // This allows multiple users to share the same license
-                    doc.getReference().update(
-                            "assignedToUserId", FieldValue.arrayUnion(userId),
-                            "isActive", true
-                    ).addOnSuccessListener(aVoid -> {
-                        // Re-fetch the document to get updated assignedToUserId array after arrayUnion
+        doc.getReference().getFirestore().runTransaction(transaction -> {
+            DocumentSnapshot fresh = transaction.get(doc.getReference());
+            Boolean active = fresh.getBoolean("isActive");
+            java.util.Date expiry = fresh.getDate("expiryDate");
+            if (active == null || !active) {
+                throw new com.google.firebase.firestore.FirebaseFirestoreException(
+                        "License inactive", com.google.firebase.firestore.FirebaseFirestoreException.Code.FAILED_PRECONDITION);
+            }
+            if (expiry != null && expiry.before(new java.util.Date())) {
+                throw new com.google.firebase.firestore.FirebaseFirestoreException(
+                        "License expired", com.google.firebase.firestore.FirebaseFirestoreException.Code.FAILED_PRECONDITION);
+            }
+
+            Object assignedToObj = fresh.get("assignedToUserId");
+            java.util.List<String> assignedUsers = parseAssignedUsers(assignedToObj);
+            boolean isAlreadyAssigned = assignedUsers.contains(userId);
+
+            Long maxAgentCount = fresh.getLong("maxAgentCount");
+            Integer maxAgentCountInt = maxAgentCount != null ? maxAgentCount.intValue() : null;
+            if (!isAlreadyAssigned && maxAgentCountInt != null && maxAgentCountInt > 0
+                    && assignedUsers.size() >= maxAgentCountInt) {
+                throw new com.google.firebase.firestore.FirebaseFirestoreException(
+                        "License maximum user count reached",
+                        com.google.firebase.firestore.FirebaseFirestoreException.Code.FAILED_PRECONDITION);
+            }
+
+            transaction.update(doc.getReference(),
+                    "assignedToUserId", FieldValue.arrayUnion(userId),
+                    "isActive", true);
+            return null;
+        }).addOnSuccessListener(aVoid -> {
                         doc.getReference().get().addOnSuccessListener(updatedDoc -> {
                             // Manually construct License object to handle array field properly
                             License license = new License();
@@ -165,7 +189,35 @@ public class LicenseManager {
                                     .addOnFailureListener(err -> { /* ignore non-critical */ });
                             callback.onValid(license);
                         }).addOnFailureListener(e -> callback.onError(e.getMessage()));
-                    }).addOnFailureListener(e -> callback.onError(e.getMessage()));
+                }).addOnFailureListener(e -> {
+                    String message = e.getMessage() != null ? e.getMessage() : "Activation failed";
+                    if (message.contains("maximum user count")) {
+                        callback.onInvalid(message);
+                    } else if (message.contains("inactive") || message.contains("expired")) {
+                        callback.onInvalid(message);
+                    } else {
+                        callback.onError(message);
+                    }
+                });
+    }
+
+    private java.util.List<String> parseAssignedUsers(Object assignedToObj) {
+        java.util.List<String> assignedUsers = new java.util.ArrayList<>();
+        if (assignedToObj instanceof java.util.List) {
+            @SuppressWarnings("unchecked")
+            java.util.List<Object> assignedList = (java.util.List<Object>) assignedToObj;
+            for (Object userObj : assignedList) {
+                if (userObj != null) {
+                    assignedUsers.add(userObj.toString());
+                }
+            }
+        } else if (assignedToObj instanceof String) {
+            String assignedToStr = (String) assignedToObj;
+            if (!assignedToStr.isEmpty()) {
+                assignedUsers.add(assignedToStr);
+            }
+        }
+        return assignedUsers;
     }
 
     // New: Only verify a license by key; DO NOT mutate Firestore. The license must already

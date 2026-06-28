@@ -155,243 +155,253 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:padding="8dp">
+                    android:baselineAligned="false"
+                    android:gravity="center_vertical"
+                    android:padding="6dp">
 
                     <!-- Agents -->
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="64dp"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginEnd="3dp"
+                        android:minHeight="82dp"
+                        android:layout_marginEnd="2dp"
                         android:orientation="vertical"
-                        android:padding="6dp">
+                        android:gravity="center_horizontal"
+                        android:paddingHorizontal="1dp"
+                        android:paddingVertical="4dp">
 
-                        <!-- First Row: Icon + Label -->
-                        <LinearLayout
-                            android:layout_width="wrap_content"
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@drawable/group_24"
+                            app:tint="@color/primary_purple" />
+
+                        <TextView
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_gravity="center_horizontal">
-                            <ImageView
-                                android:layout_width="14dp"
-                                android:layout_height="14dp"
-                                android:src="@drawable/group_24"
-                                app:tint="@color/primary_purple"
-                                android:layout_marginEnd="3dp" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/total_label"
-                                android:textSize="9sp"
-                                android:textColor="@color/primary_purple" />
-                        </LinearLayout>
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:text="@string/total_label"
+                            android:textAlignment="center"
+                            android:maxLines="2"
+                            android:textSize="7sp"
+                            android:textColor="@color/primary_purple"
+                            android:includeFontPadding="false" />
 
-                        <!-- Second Row: Value -->
                         <TextView
                             android:id="@+id/tvActiveAgentsCount"
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textSize="16sp"
+                            android:textSize="15sp"
                             android:textColor="@color/black"
-                            android:layout_marginTop="3dp"
-                            android:layout_gravity="center_horizontal" />
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:maxLines="1" />
 
-                        <!-- Third Row: Description -->
                         <TextView
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Agents"
-                            android:textSize="8sp"
+                            android:text="@string/agents"
+                            android:textSize="7sp"
                             android:textColor="@color/black"
                             android:layout_marginTop="1dp"
-                            android:layout_gravity="center_horizontal" />
+                            android:gravity="center"
+                            android:textAlignment="center"
+                            android:maxLines="1"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
-                    <!-- Vertical Divider -->
                     <View
                         android:layout_width="1dp"
                         android:layout_height="match_parent"
                         android:background="#E0E0E0"
-                        android:layout_marginHorizontal="3dp" />
+                        android:layout_marginHorizontal="2dp" />
 
-                    <!-- Today Transactions -->
+                    <!-- Weekly Transactions -->
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="64dp"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginHorizontal="3dp"
+                        android:minHeight="82dp"
+                        android:layout_marginHorizontal="2dp"
                         android:orientation="vertical"
-                        android:padding="6dp">
+                        android:gravity="center_horizontal"
+                        android:paddingHorizontal="1dp"
+                        android:paddingVertical="4dp">
 
-                        <!-- First Row: Icon + Label -->
-                        <LinearLayout
-                            android:layout_width="wrap_content"
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@drawable/swap_horiz_24"
+                            app:tint="@color/primary_purple" />
+
+                        <TextView
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_gravity="center_horizontal">
-                            <ImageView
-                                android:layout_width="14dp"
-                                android:layout_height="14dp"
-                                android:src="@drawable/swap_horiz_24"
-                                app:tint="@color/primary_purple"
-                                android:layout_marginEnd="3dp" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/weekly_label"
-                                android:textSize="9sp"
-                                android:textColor="@color/primary_purple" />
-                        </LinearLayout>
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:text="@string/weekly_label"
+                            android:textAlignment="center"
+                            android:maxLines="2"
+                            android:textSize="7sp"
+                            android:textColor="@color/primary_purple"
+                            android:includeFontPadding="false" />
 
-                        <!-- Second Row: Value -->
                         <TextView
                             android:id="@+id/tvTodayTransactionsCount"
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="47"
-                            android:textSize="16sp"
+                            android:textSize="15sp"
                             android:textColor="@color/black"
-                            android:layout_marginTop="3dp"
-                            android:layout_gravity="center_horizontal" />
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:maxLines="1" />
 
-                        <!-- Third Row: Description -->
                         <TextView
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="@string/transactions"
-                            android:textSize="8sp"
+                            android:textSize="7sp"
                             android:textColor="@color/black"
                             android:alpha="0.9"
                             android:layout_marginTop="1dp"
-                            android:layout_gravity="center_horizontal" />
+                            android:gravity="center"
+                            android:textAlignment="center"
+                            android:maxLines="1"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
-                    <!-- Vertical Divider -->
                     <View
                         android:layout_width="1dp"
                         android:layout_height="match_parent"
                         android:background="#E0E0E0"
-                        android:layout_marginHorizontal="3dp" />
+                        android:layout_marginHorizontal="2dp" />
 
                     <!-- Cash Balance -->
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="64dp"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginStart="3dp"
+                        android:minHeight="82dp"
+                        android:layout_marginHorizontal="2dp"
                         android:orientation="vertical"
-                        android:padding="6dp">
+                        android:gravity="center_horizontal"
+                        android:paddingHorizontal="1dp"
+                        android:paddingVertical="4dp">
 
-                        <!-- First Row: Icon + Label -->
-                        <LinearLayout
-                            android:layout_width="wrap_content"
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@drawable/currency_franc_24"
+                            app:tint="@color/primary_purple" />
+
+                        <TextView
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_gravity="center_horizontal">
-                            <ImageView
-                                android:layout_width="14dp"
-                                android:layout_height="14dp"
-                                android:src="@drawable/currency_franc_24"
-                                app:tint="@color/primary_purple"
-                                android:layout_marginEnd="3dp" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/total_label"
-                                android:textSize="9sp"
-                                android:textColor="@color/primary_purple" />
-                        </LinearLayout>
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:text="@string/total_label"
+                            android:textAlignment="center"
+                            android:maxLines="2"
+                            android:textSize="7sp"
+                            android:textColor="@color/primary_purple"
+                            android:includeFontPadding="false" />
 
-                        <!-- Second Row: Value -->
                         <TextView
                             android:id="@+id/tvCashBalance"
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textSize="16sp"
+                            android:textSize="15sp"
                             android:textColor="@color/black"
-                            android:layout_marginTop="3dp"
-                            android:layout_gravity="center_horizontal" />
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:maxLines="1"
+                            android:autoSizeTextType="uniform"
+                            android:autoSizeMinTextSize="9sp"
+                            android:autoSizeMaxTextSize="15sp"
+                            android:autoSizeStepGranularity="1sp" />
 
-                        <!-- Third Row: Description -->
                         <TextView
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="@string/cash_label"
-                            android:textSize="8sp"
+                            android:textSize="7sp"
                             android:textColor="@color/black"
                             android:alpha="0.9"
                             android:layout_marginTop="1dp"
-                            android:layout_gravity="center_horizontal" />
+                            android:gravity="center"
+                            android:textAlignment="center"
+                            android:maxLines="1"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
-                    <!-- Vertical Divider -->
                     <View
                         android:layout_width="1dp"
                         android:layout_height="match_parent"
                         android:background="#E0E0E0"
-                        android:layout_marginHorizontal="3dp" />
+                        android:layout_marginHorizontal="2dp" />
 
                     <!-- Total Credit -->
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="64dp"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
+                        android:minHeight="82dp"
                         android:orientation="vertical"
-                        android:padding="6dp">
+                        android:gravity="center_horizontal"
+                        android:paddingHorizontal="1dp"
+                        android:paddingVertical="4dp">
 
-                        <!-- First Row: Icon + Label -->
-                        <LinearLayout
-                            android:layout_width="wrap_content"
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@drawable/account_balance_wallet_24"
+                            app:tint="@color/primary_purple" />
+
+                        <TextView
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical"
-                            android:layout_gravity="center_horizontal">
-                            <ImageView
-                                android:layout_width="14dp"
-                                android:layout_height="14dp"
-                                android:src="@drawable/account_balance_wallet_24"
-                                app:tint="@color/primary_purple"
-                                android:layout_marginEnd="3dp" />
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/total_label"
-                                android:textSize="9sp"
-                                android:textColor="@color/primary_purple" />
-                        </LinearLayout>
+                            android:layout_marginTop="2dp"
+                            android:gravity="center"
+                            android:text="@string/total_label"
+                            android:textAlignment="center"
+                            android:maxLines="2"
+                            android:textSize="7sp"
+                            android:textColor="@color/primary_purple"
+                            android:includeFontPadding="false" />
 
-                        <!-- Second Row: Value -->
                         <TextView
                             android:id="@+id/tvVirtualBalance"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="0"
-                            android:textSize="14sp"
+                            android:textSize="13sp"
                             android:textColor="@color/black"
-                            android:layout_marginTop="3dp"
+                            android:layout_marginTop="2dp"
                             android:gravity="center"
                             android:maxLines="1"
-                            android:ellipsize="none"
+                            android:ellipsize="end"
                             android:autoSizeTextType="uniform"
                             android:autoSizeMinTextSize="8sp"
-                            android:autoSizeMaxTextSize="14sp"
+                            android:autoSizeMaxTextSize="13sp"
                             android:autoSizeStepGranularity="1sp" />
 
-                        <!-- Third Row: Description -->
                         <TextView
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Credit"
-                            android:textSize="8sp"
+                            android:text="@string/credit"
+                            android:textSize="7sp"
                             android:textColor="@color/black"
                             android:alpha="0.9"
                             android:layout_marginTop="1dp"
-                            android:layout_gravity="center_horizontal" />
+                            android:gravity="center"
+                            android:textAlignment="center"
+                            android:maxLines="1"
+                            android:ellipsize="end" />
                     </LinearLayout>
 
                 </LinearLayout>

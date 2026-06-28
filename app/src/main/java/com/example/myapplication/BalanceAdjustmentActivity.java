@@ -436,6 +436,8 @@ public class BalanceAdjustmentActivity extends AppCompatActivity {
                 // Sync to Firestore
                 syncAdjustmentToFirestore(adjustment);
                 syncBalancesToFirestore(user);
+                com.example.myapplication.utils.OperatorBalanceSyncHelper.pushPendingBalancesForUser(
+                        BalanceAdjustmentActivity.this, user.getUid());
                 
                 runOnUiThread(() -> {
                     Toast.makeText(this, getString(R.string.balance_adjusted_successfully), Toast.LENGTH_SHORT).show();

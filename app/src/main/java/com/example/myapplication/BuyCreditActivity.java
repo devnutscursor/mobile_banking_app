@@ -346,6 +346,8 @@ public class BuyCreditActivity extends AppCompatActivity {
                 
                 // Sync to Firestore
                 syncBalancesToFirestore(user);
+                com.example.myapplication.utils.OperatorBalanceSyncHelper.pushPendingBalancesForUser(
+                        BuyCreditActivity.this, user.getUid());
                 
                 runOnUiThread(() -> {
                     Toast.makeText(this, 
@@ -401,6 +403,10 @@ public class BuyCreditActivity extends AppCompatActivity {
                 
                 // Sync to Firestore
                 syncBalancesToFirestore(user);
+                if (!withoutOperator) {
+                    com.example.myapplication.utils.OperatorBalanceSyncHelper.pushPendingBalancesForUser(
+                            BuyCreditActivity.this, user.getUid());
+                }
                 
                 runOnUiThread(() -> {
                     Toast.makeText(this, 

@@ -6,11 +6,10 @@
     android:padding="24dp"
     android:background="@color/card_background">
 
-    <!-- Current PIN -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Current PIN"
+        android:text="@string/current_pin"
         android:textSize="14sp"
         android:textColor="@color/text_secondary"
         android:layout_marginBottom="8dp" />
@@ -20,7 +19,7 @@
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:background="@drawable/edittext_background"
-        android:hint="Enter current 6-digit PIN"
+        android:hint="@string/enter_current_pin_hint"
         android:inputType="numberPassword"
         android:maxLength="6"
         android:padding="16dp"
@@ -29,11 +28,10 @@
         android:textColorHint="@color/text_secondary"
         android:layout_marginBottom="16dp" />
 
-    <!-- New PIN -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="New PIN"
+        android:text="@string/new_pin"
         android:textSize="14sp"
         android:textColor="@color/text_secondary"
         android:layout_marginBottom="8dp" />
@@ -43,7 +41,7 @@
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:background="@drawable/edittext_background"
-        android:hint="Enter new 6-digit PIN"
+        android:hint="@string/enter_new_pin_hint"
         android:inputType="numberPassword"
         android:maxLength="6"
         android:padding="16dp"
@@ -52,11 +50,10 @@
         android:textColorHint="@color/text_secondary"
         android:layout_marginBottom="16dp" />
 
-    <!-- Confirm PIN -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Confirm New PIN"
+        android:text="@string/confirm_new_pin"
         android:textSize="14sp"
         android:textColor="@color/text_secondary"
         android:layout_marginBottom="8dp" />
@@ -66,7 +63,7 @@
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:background="@drawable/edittext_background"
-        android:hint="Confirm new 6-digit PIN"
+        android:hint="@string/confirm_new_pin_hint"
         android:inputType="numberPassword"
         android:maxLength="6"
         android:padding="16dp"
@@ -76,4 +73,3 @@
         android:layout_marginBottom="8dp" />
 
 </LinearLayout>
-

@@ -132,6 +132,18 @@
     <string name="license_expires_label">License Expires:</string>
     <string name="created_label">Created:</string>
     <string name="change_pin">Change PIN</string>
+    <string name="current_pin">Current PIN</string>
+    <string name="enter_current_pin_hint">Enter current 6-digit PIN</string>
+    <string name="new_pin">New PIN</string>
+    <string name="enter_new_pin_hint">Enter new 6-digit PIN</string>
+    <string name="confirm_new_pin">Confirm New PIN</string>
+    <string name="confirm_new_pin_hint">Confirm new 6-digit PIN</string>
+    <string name="pin_must_be_6_digits">PIN must be 6 digits</string>
+    <string name="new_pin_mismatch">New PIN and confirm PIN do not match</string>
+    <string name="current_pin_not_set">Current PIN not set. Please contact support.</string>
+    <string name="current_pin_incorrect">Current PIN is incorrect</string>
+    <string name="pin_changed_successfully">PIN changed successfully</string>
+    <string name="pin_change_failed">Failed to change PIN: %1$s</string>
     <string name="change">Change</string>
     <string name="agents_account">Agents Account</string>
     <string name="dealer_account">Dealer Account</string>
@@ -209,7 +221,22 @@
     </string-array>
     <string name="expiry_date">Expiry Date</string>
     <string name="phone_number">Phone Number</string>
-    <string name="search_by_phone_number">Search by phone number...</string>
+    <string name="search_by_phone_number">Search by name, phone, or ID...</string>
+    <string name="payment_status">Payment status</string>
+    <string name="payment_status_paid">Paid</string>
+    <string name="payment_status_unpaid">Unpaid</string>
+    <string name="payment_status_all">All payments</string>
+    <string name="notes">Notes</string>
+    <string name="no_notes">No notes</string>
+    <string name="receipt_action">Action</string>
+    <string name="receipt_notes">Notes</string>
+    <string name="receipt_payment_status">Payment</string>
+    <string name="deposit_rate">Deposit rate (%)</string>
+    <string name="withdrawal_rate">Withdrawal rate (%)</string>
+    <string name="fee">Fee</string>
+    <string name="date">Date</string>
+    <string name="phone">Phone</string>
+    <string name="print_success">Receipt sent to printer</string>
     <string name="address">Address</string>
     <string name="save_customer">Save Customer</string>
     <string name="update_customer">Update Customer</string>
@@ -354,6 +381,18 @@
         <item>successful</item>
         <item>canceled</item>
     </string-array>
+
+    <string-array name="payment_status_filter">
+        <item>@string/payment_status_all</item>
+        <item>@string/payment_status_paid</item>
+        <item>@string/payment_status_unpaid</item>
+    </string-array>
+
+    <string-array name="payment_status_options">
+        <item>@string/payment_status_paid</item>
+        <item>@string/payment_status_unpaid</item>
+    </string-array>
+
     <string name="cancel_transaction">Cancel Transaction</string>
     <string name="transaction_canceled">Transaction canceled successfully</string>
     <string name="cancel_transaction_confirmation">Are you sure you want to cancel this transaction? The balance will be reversed.</string>
@@ -483,6 +522,8 @@
     <string name="transaction_successful">Transaction Successful</string>
     <string name="ussd_code_generated">USSD Code Generated</string>
     <string name="ussd_code_opened">USSD code opened in dialer</string>
+    <string name="ussd_code_opened_marked_success">USSD code opened in dialer. Transaction marked as successful.</string>
+    <string name="ussd_code_opened_no_balance">USSD code opened in dialer. This will not affect your balance.</string>
     <string name="enter_valid_amount">Please enter a valid amount</string>
     <string name="processing_transaction">Processing transaction...</string>
     <string name="customer_name">Customer Name</string>

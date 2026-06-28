@@ -4,18 +4,20 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
 
+function getDashboardPath(role: string): string {
+  if (role === 'admin') return '/dashboard';
+  if (role === 'dealer') return '/dealer/dashboard';
+  if (role === 'agent') return '/agent/dashboard';
+  return '/login';
+}
+
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
-      if (user) {
-        router.push('/dashboard');
-      } else {
-        router.push('/login');
-      }
-    }
+    if (loading) return;
+    router.replace(user ? getDashboardPath(user.role) : '/login');
   }, [user, loading, router]);
 
   return (

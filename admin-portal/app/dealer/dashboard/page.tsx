@@ -14,7 +14,6 @@ import {
   DownloadOutlined,
 } from '@ant-design/icons';
 import { colors } from '@/lib/theme';
-import AntdProvider from '@/components/AntdProvider';
 import FilteredTransactionsTab from '@/components/FilteredTransactionsTab';
 import FilteredCustomersTab from '@/components/FilteredCustomersTab';
 import FilteredCommissionsTab from '@/components/FilteredCommissionsTab';
@@ -462,7 +461,6 @@ export default function DealerDashboardPage() {
   }
 
   return (
-    <AntdProvider>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* Page Title */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
@@ -594,7 +592,6 @@ export default function DealerDashboardPage() {
           </>
         )}
       </Space>
-    </AntdProvider>
   );
 }
 

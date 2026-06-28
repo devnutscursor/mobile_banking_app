@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, query, orderBy, limit, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, limit, where, Timestamp, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Transaction, User, Customer, Operator, OperatorAction } from '@/lib/types';
-import { Card, Select, Space, Table, Tag, Typography, Input, DatePicker, InputNumber, Row, Col, Button } from 'antd';
+import { Card, Select, Space, Table, Tag, Typography, Input, DatePicker, InputNumber, Row, Col, Button, App } from 'antd';
 import { CheckCircleTwoTone, CloseCircleTwoTone, ClockCircleTwoTone, SearchOutlined, FilterOutlined, DownloadOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
@@ -23,7 +23,10 @@ interface FilteredTransactionsTabProps {
 }
 
 export default function FilteredTransactionsTab({ allowedUserIds, showExport = true }: FilteredTransactionsTabProps) {
+  const { message } = App.useApp();
   const { user: currentUser } = useAuth();
+  const canEditPaymentStatus =
+    currentUser?.role === 'dealer' || currentUser?.role === 'agent';
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [users, setUsers] = useState<{ [key: string]: User }>({});
   const [customers, setCustomers] = useState<{ [key: string]: Customer }>({});
@@ -31,6 +34,7 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
   const [actions, setActions] = useState<{ [key: string]: OperatorAction }>({});
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
   const [limitCount, setLimitCount] = useState(1000); // Higher limit for export
   const [searchTerm, setSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState<string>('all');
@@ -174,9 +178,30 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
       if (minAmount !== null && txn.amount < minAmount) return false;
       if (maxAmount !== null && txn.amount > maxAmount) return false;
 
+      if (paymentStatusFilter !== 'all') {
+        const txnPaymentStatus = txn.paymentStatus || 'paid';
+        if (txnPaymentStatus !== paymentStatusFilter) return false;
+      }
+
       return true;
     });
-  }, [transactions, searchTerm, userFilter, operatorFilter, actionFilter, dateRange, minAmount, maxAmount, customers, users, currentUser]);
+  }, [transactions, searchTerm, userFilter, operatorFilter, actionFilter, dateRange, minAmount, maxAmount, paymentStatusFilter, customers, users, currentUser]);
+
+  const handlePaymentStatusChange = async (transactionId: string, paymentStatus: 'paid' | 'unpaid') => {
+    try {
+      await updateDoc(doc(db, 'transactions', transactionId), {
+        paymentStatus,
+        updatedAt: Timestamp.now(),
+      });
+      setTransactions(prev =>
+        prev.map(txn => (txn.id === transactionId ? { ...txn, paymentStatus } : txn))
+      );
+      message.success('Payment status updated');
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      message.error('Failed to update payment status');
+    }
+  };
 
   const handleExport = () => {
     const filename = `transactions_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}.xlsx`;
@@ -264,7 +289,43 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
         }
       },
     },
-  ], [users, customers, operators, actions, allowedUserIds]);
+    {
+      title: 'Payment',
+      dataIndex: 'paymentStatus',
+      key: 'paymentStatus',
+      render: (paymentStatus: 'paid' | 'unpaid' | undefined, record: Transaction) => {
+        const status = paymentStatus || 'paid';
+        if (canEditPaymentStatus && record.id) {
+          return (
+            <Select
+              value={status}
+              size="small"
+              style={{ width: 100 }}
+              onChange={(value: 'paid' | 'unpaid') => handlePaymentStatusChange(record.id!, value)}
+              options={[
+                { value: 'paid', label: 'Paid' },
+                { value: 'unpaid', label: 'Unpaid' },
+              ]}
+            />
+          );
+        }
+        return (
+          <Tag color={status === 'paid' ? 'success' : 'warning'}>
+            {status === 'paid' ? 'Paid' : 'Unpaid'}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Comment',
+      key: 'comment',
+      ellipsis: true,
+      render: (_: unknown, record: Transaction) => {
+        const comment = record.userNotes || record.notes;
+        return comment || <Typography.Text type="secondary">—</Typography.Text>;
+      },
+    },
+  ], [users, customers, operators, actions, allowedUserIds, canEditPaymentStatus]);
 
   return (
     <Card
@@ -310,6 +371,18 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
               <Select.Option value="failed">Failed</Select.Option>
               <Select.Option value="pending">Pending</Select.Option>
               <Select.Option value="processing">Processing</Select.Option>
+            </Select>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Payment"
+              value={paymentStatusFilter}
+              onChange={setPaymentStatusFilter}
+            >
+              <Select.Option value="all">All Payments</Select.Option>
+              <Select.Option value="paid">Paid</Select.Option>
+              <Select.Option value="unpaid">Unpaid</Select.Option>
             </Select>
           </Col>
           {uniqueUsers.length > 1 && (
