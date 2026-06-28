@@ -43,6 +43,13 @@ function isTurnstileRequired(): boolean {
   return true;
 }
 
+function getDashboardPath(role: string): string | null {
+  if (role === 'admin') return '/dashboard';
+  if (role === 'dealer') return '/dealer/dashboard';
+  if (role === 'agent') return '/agent/dashboard';
+  return null;
+}
+
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -83,23 +90,15 @@ export default function LoginPage() {
     };
   }, []);
 
-  // Redirect if already signed in (or after login)
+  // Redirect if already signed in (e.g. page refresh while session active)
   useEffect(() => {
-    if (loading || !user) return;
+    if (!user) return;
 
-    const target =
-      user.role === 'admin'
-        ? '/dashboard'
-        : user.role === 'dealer'
-          ? '/dealer/dashboard'
-          : user.role === 'agent'
-            ? '/agent/dashboard'
-            : null;
-
+    const target = getDashboardPath(user.role);
     if (target) {
       router.replace(target);
     }
-  }, [user, loading, router]);
+  }, [user, router]);
 
   const verifyTurnstile = async (): Promise<boolean> => {
     if (!turnstileRequired) {
@@ -146,12 +145,17 @@ export default function LoginPage() {
         return;
       }
 
-      await signIn(values.email, values.password);
+      const loggedInUser = await signIn(values.email, values.password);
       messageApi.success('Login successful! Redirecting...');
-      // Redirect handled by useEffect when user state updates
+
+      const target = getDashboardPath(loggedInUser.role);
+      if (target) {
+        router.replace(target);
+      }
     } catch (err) {
       const error = err as Error;
       messageApi.error(error.message || 'Failed to sign in. Please check your credentials.');
+    } finally {
       setLoading(false);
     }
   };
