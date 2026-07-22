@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, updateDoc, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, App, Skeleton } from 'antd';
 import dayjs from 'dayjs';
-import { PlusOutlined, EditOutlined, KeyOutlined, CheckCircleTwoTone, CloseCircleTwoTone, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, KeyOutlined, CheckCircleTwoTone, CloseCircleTwoTone, ReloadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { db } from '@/lib/firebase';
 import { License, User } from '@/lib/types';
 import { format, addYears, addMonths } from 'date-fns';
 import { colors } from '@/lib/theme';
+import { exportLicensesToExcel } from '@/lib/exportUtils';
 
 interface LicensesTabProps {
   onUpdate: () => void;
@@ -331,6 +332,15 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
     },
   ], [users]);
 
+  const handleExport = () => {
+    const usersMap: { [key: string]: User } = {};
+    users.forEach((u) => {
+      usersMap[u.uid] = u;
+    });
+    exportLicensesToExcel(licenses, usersMap, `licenses_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    message.success('Licenses exported');
+  };
+
   if (loading) {
     return (
       <Card
@@ -347,10 +357,15 @@ export default function LicensesTab({ onUpdate }: LicensesTabProps) {
       styles={{ body: { padding: 16 } }}
       title={<Typography.Title level={3} style={{ margin: 0, color: colors.beige[500] }}>Licenses Management</Typography.Title>}
       extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { 
-          setEditingLicense(null);
-          setIsModalOpen(true);
-        }}>Add License</Button>
+        <Space>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>
+            Export Excel
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { 
+            setEditingLicense(null);
+            setIsModalOpen(true);
+          }}>Add License</Button>
+        </Space>
       }
     >
       <Table rowKey="licenseKey" dataSource={licenses} columns={columns} pagination={{ pageSize: 10 }} scroll={{ x: 1000 }} />

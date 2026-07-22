@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, updateDoc, doc, setDoc, Timestamp, query, where } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail } from 'firebase/auth';
-import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag, Typography, App, Skeleton } from 'antd';
+import { Button, Card, Form, Input, Modal, Select, Space, Switch, Table, Tag, Typography, App, Skeleton } from 'antd';
 import { PlusOutlined, EditOutlined, DollarOutlined, UserOutlined, PhoneOutlined, MailOutlined, ApartmentOutlined, CheckCircleTwoTone, CloseCircleTwoTone, KeyOutlined, LockOutlined } from '@ant-design/icons';
 import { db, getSecondaryAuth, signOutSecondary } from '@/lib/firebase';
 import { User, License } from '@/lib/types';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
-import { attachBalanceTotals, loadOperatorBalanceSumsByUserId } from '@/lib/operatorBalanceUtils';
+import { attachBalanceTotals, loadOperatorBalanceSumsByUserId, saveOperatorBalancesForUser } from '@/lib/operatorBalanceUtils';
 import { CREDIT_BALANCE_HELP, creditColumnTitle } from '@/lib/creditColumnTitles';
 import { hashPin } from '@/lib/pinHasher';
+import OperatorBalancesEditor from '@/components/OperatorBalancesEditor';
 
 interface AgentsTabProps {
   onUpdate: () => void;
@@ -31,6 +32,9 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
   const [selectedUserForReset, setSelectedUserForReset] = useState<User | null>(null);
   const [passwordResetForm] = Form.useForm();
   const [pinResetForm] = Form.useForm();
+  const [pendingOperatorBalances, setPendingOperatorBalances] = useState<
+    { operatorId: string; balance: number }[]
+  >([]);
 
   useEffect(() => {
     loadData();
@@ -194,19 +198,18 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
       
       if (editingAgent) {
         const agentRef = doc(db, 'users', editingAgent.uid);
-        const previousVirtualCredit = Number((editingAgent as any).virtualCredit) || 0;
-        const nextVirtualCredit = Number(values.virtualCredit) || 0;
-        const creditChanged = previousVirtualCredit !== nextVirtualCredit;
         const now = Timestamp.now();
         await updateDoc(agentRef, {
           name: values.name,
           phone: values.phone ? normalizePhone(values.phone) : null,
           dealerId: values.dealerId || null,
-          virtualCredit: nextVirtualCredit,
+          virtualCredit: 0,
           disabled: values.disabled ?? false,
           updatedAt: now,
-          ...(creditChanged ? { creditUpdatedAt: now } : {}),
         });
+        if (pendingOperatorBalances.length > 0) {
+          await saveOperatorBalancesForUser(editingAgent.uid, pendingOperatorBalances);
+        }
         setTimeout(() => message.success('Agent updated'), 0);
       } else {
         const secAuth = getSecondaryAuth() || getAuth();
@@ -238,7 +241,7 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
           dealerId: values.dealerId || null,
           active: false, // New users start as not active
           disabled: values.disabled ?? false,
-          virtualCredit: values.virtualCredit,
+          virtualCredit: 0,
           totalCreditUsed: 0,
           totalCreditEarned: 0,
           createdAt: Timestamp.now(),
@@ -269,7 +272,6 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
         name: agent.name,
         phone: agent.phone || '',
         dealerId: agent.dealerId || undefined,
-        virtualCredit: Number((agent as any).virtualCredit) || 0,
         disabled: (agent as any).disabled || false,
       });
     }, 0);
@@ -345,13 +347,13 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
             name: editingAgent.name,
             phone: editingAgent.phone || '',
             dealerId: editingAgent.dealerId || undefined,
-            virtualCredit: Number((editingAgent as any).virtualCredit) || 0,
             disabled: (editingAgent as any).disabled || false,
           });
         }, 0);
       } else {
         form.resetFields();
-          form.setFieldsValue({ virtualCredit: 0, disabled: false, dealerId: null });
+        form.setFieldsValue({ disabled: false, dealerId: null });
+        setPendingOperatorBalances([]);
       }
     }
   }, [isModalOpen, editingAgent, form]);
@@ -401,24 +403,17 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
       },
     },
     {
-      title: creditColumnTitle('virtual'),
-      dataIndex: 'virtualCredit',
-      key: 'virtualCredit',
-      align: 'right' as const,
-      render: (v: number) => (
-        <Space>
-          <DollarOutlined />
-          <Typography.Text style={{ color: colors.beige[500] }}>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
-        </Space>
-      ),
-    },
-    {
       title: creditColumnTitle('operator'),
       dataIndex: 'operatorBalance',
       key: 'operatorBalance',
       align: 'right' as const,
       render: (v: number) => (
-        <Typography.Text>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
+        <Space>
+          <DollarOutlined />
+          <Typography.Text style={{ color: colors.beige[500] }}>
+            {formatCurrencyWithSymbol(v || 0)}
+          </Typography.Text>
+        </Space>
       ),
     },
     {
@@ -548,12 +543,10 @@ export default function AgentsTab({ onUpdate }: AgentsTabProps) {
               options={dealers.map(d => ({ label: `${d.name} (${d.email})`, value: d.uid }))} 
             />
           </Form.Item>
-          <Form.Item name="virtualCredit" label="Virtual Credit" rules={[{ type: 'number', min: 0 }]}> 
-            <InputNumber 
-              addonBefore="$" 
-              style={{ width: '100%' }}
-              formatter={(value) => value !== null && value !== undefined ? value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
-              parser={(value) => value ? value.replace(/,/g, '') : ''}
+          <Form.Item label="Operator Balances">
+            <OperatorBalancesEditor
+              userId={editingAgent?.uid ?? null}
+              onChange={setPendingOperatorBalances}
             />
           </Form.Item>
           <Form.Item name="disabled" label="Disable User"> 

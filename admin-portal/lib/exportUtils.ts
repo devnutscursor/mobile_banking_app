@@ -25,9 +25,15 @@ export function exportTransactionsToExcel(
       : new Date(txn.createdAt as any);
     
     return {
+      'Transaction ID': txn.id || '',
       'Date': format(createdAt, 'yyyy-MM-dd HH:mm:ss'),
-      'Customer Name': customer?.fullName || 'N/A',
-      'Customer Phone': customer?.phoneNumber || 'N/A',
+      'Customer Name': customer?.fullName || txn.customerName || 'N/A',
+      'Customer Phone': customer?.phoneNumber || txn.customerPhone || 'N/A',
+      'Account Number': (() => {
+        const notes = txn.notes || '';
+        const m = notes.match(/Account Number:\s*([^\n|]+)/i);
+        return (m && m[1] ? m[1].trim() : '') || txn.customerPhone || '';
+      })(),
       'Operator': operator?.name || 'N/A',
       'Action': action?.name || 'N/A',
       'Amount': txn.amount.toFixed(2),
@@ -37,7 +43,8 @@ export function exportTransactionsToExcel(
       'Email': user?.email || 'N/A',
       'Role': user?.role || 'N/A',
       'USSD Code': txn.ussdCode || '',
-      'Notes': txn.userNotes || txn.notes || '',
+      'Comment': txn.userNotes || '',
+      'Notes': txn.notes || '',
     };
   });
 
@@ -413,7 +420,8 @@ export function exportUsersToExcel(
       'Dealer ID': user.dealerId || '',
       'Active': user.active ? 'Yes' : 'No',
       'Disabled': user.disabled ? 'Yes' : 'No',
-      'Virtual Credit': user.virtualCredit?.toFixed(2) || '0.00',
+      'Operator Balance': (user.operatorBalance ?? 0).toFixed(2),
+      'Total Credit': (user.totalCredit ?? user.operatorBalance ?? 0).toFixed(2),
       'Total Credit Used': user.totalCreditUsed?.toFixed(2) || '0.00',
       'Total Credit Earned': user.totalCreditEarned?.toFixed(2) || '0.00',
       'Created At': format(createdAt, 'yyyy-MM-dd HH:mm:ss'),

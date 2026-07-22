@@ -11,10 +11,11 @@ export interface User {
   disabled?: boolean;
   createdAt: Timestamp | Date;
   updatedAt: Timestamp | Date;
+  /** @deprecated Unused pool — kept for legacy docs; always treat as 0. */
   virtualCredit?: number;
   /** Sum of operator_balances for this user (computed in admin UI). */
   operatorBalance?: number;
-  /** virtualCredit + operatorBalance (computed in admin UI). */
+  /** Same as operatorBalance (no virtual pool). */
   totalCredit?: number;
   totalCreditUsed?: number;
   totalCreditEarned?: number;
@@ -46,6 +47,10 @@ export interface Transaction {
   ussdCode?: string;
   notes?: string;
   userNotes?: string;
+  customerName?: string;
+  customerPhone?: string;
+  /** Firebase Storage URL for optional customer signature (not on receipt). */
+  signatureUrl?: string;
 }
 
 export interface Customer {

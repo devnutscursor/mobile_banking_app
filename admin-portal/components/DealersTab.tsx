@@ -3,16 +3,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, updateDoc, doc, setDoc, Timestamp, query, where } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail } from 'firebase/auth';
-import { Button, Card, Col, Form, Input, InputNumber, Modal, Row, Space, Switch, Table, Tag, Typography, App, Skeleton } from 'antd';
+import { Button, Card, Col, Form, Input, Modal, Row, Space, Switch, Table, Tag, Typography, App, Skeleton } from 'antd';
 import { PlusOutlined, EditOutlined, DollarOutlined, UserOutlined, PhoneOutlined, MailOutlined, CheckCircleTwoTone, CloseCircleTwoTone, KeyOutlined, LockOutlined } from '@ant-design/icons';
 import { db, getSecondaryAuth, signOutSecondary } from '@/lib/firebase';
 import { User } from '@/lib/types';
 import { format } from 'date-fns';
 import { colors } from '@/lib/theme';
 import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
-import { attachBalanceTotals, loadOperatorBalanceSumsByUserId } from '@/lib/operatorBalanceUtils';
+import { attachBalanceTotals, loadOperatorBalanceSumsByUserId, saveOperatorBalancesForUser } from '@/lib/operatorBalanceUtils';
 import { CREDIT_BALANCE_HELP, creditColumnTitle } from '@/lib/creditColumnTitles';
 import { hashPin } from '@/lib/pinHasher';
+import OperatorBalancesEditor from '@/components/OperatorBalancesEditor';
 
 interface DealersTabProps {
   onUpdate: () => void;
@@ -30,6 +31,9 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
   const [selectedUserForReset, setSelectedUserForReset] = useState<User | null>(null);
   const [passwordResetForm] = Form.useForm();
   const [pinResetForm] = Form.useForm();
+  const [pendingOperatorBalances, setPendingOperatorBalances] = useState<
+    { operatorId: string; balance: number }[]
+  >([]);
 
   useEffect(() => {
     loadDealers();
@@ -110,18 +114,17 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
       
       if (editingDealer) {
         const dealerRef = doc(db, 'users', editingDealer.uid);
-        const previousVirtualCredit = Number((editingDealer as any).virtualCredit) || 0;
-        const nextVirtualCredit = Number(values.virtualCredit) || 0;
-        const creditChanged = previousVirtualCredit !== nextVirtualCredit;
         const now = Timestamp.now();
         await updateDoc(dealerRef, {
           name: values.name,
           phone: values.phone ? normalizePhone(values.phone) : null,
-          virtualCredit: nextVirtualCredit,
+          virtualCredit: 0,
           disabled: values.disabled ?? false,
           updatedAt: now,
-          ...(creditChanged ? { creditUpdatedAt: now } : {}),
         });
+        if (pendingOperatorBalances.length > 0) {
+          await saveOperatorBalancesForUser(editingDealer.uid, pendingOperatorBalances);
+        }
         setTimeout(() => message.success('Dealer updated'), 0);
       } else {
         const secAuth = getSecondaryAuth() || getAuth();
@@ -153,7 +156,7 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
           dealerId: null,
           active: false, // New users start as not active
           disabled: values.disabled ?? false,
-          virtualCredit: values.virtualCredit,
+          virtualCredit: 0,
           totalCreditUsed: 0,
           totalCreditEarned: 0,
           createdAt: Timestamp.now(),
@@ -184,7 +187,6 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
       form.setFieldsValue({
         name: dealer.name,
         phone: dealer.phone || '',
-        virtualCredit: Number((dealer as any).virtualCredit) || 0,
         disabled: (dealer as any).disabled || false,
       });
     }, 0);
@@ -259,13 +261,13 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
           form.setFieldsValue({
             name: editingDealer.name,
             phone: editingDealer.phone || '',
-            virtualCredit: Number((editingDealer as any).virtualCredit) || 0,
             disabled: (editingDealer as any).disabled || false,
           });
         }, 0);
       } else {
         form.resetFields();
-        form.setFieldsValue({ virtualCredit: 0, disabled: false });
+        form.setFieldsValue({ disabled: false });
+        setPendingOperatorBalances([]);
       }
     }
   }, [isModalOpen, editingDealer, form]);
@@ -295,24 +297,17 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
       ),
     },
     {
-      title: creditColumnTitle('virtual'),
-      dataIndex: 'virtualCredit',
-      key: 'virtualCredit',
-      align: 'right' as const,
-      render: (v: number) => (
-        <Space>
-          <DollarOutlined />
-          <Typography.Text style={{ color: colors.beige[500] }}>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
-        </Space>
-      ),
-    },
-    {
       title: creditColumnTitle('operator'),
       dataIndex: 'operatorBalance',
       key: 'operatorBalance',
       align: 'right' as const,
       render: (v: number) => (
-        <Typography.Text>{formatCurrencyWithSymbol(v || 0)}</Typography.Text>
+        <Space>
+          <DollarOutlined />
+          <Typography.Text style={{ color: colors.beige[500] }}>
+            {formatCurrencyWithSymbol(v || 0)}
+          </Typography.Text>
+        </Space>
       ),
     },
     {
@@ -448,12 +443,10 @@ export default function DealersTab({ onUpdate }: DealersTabProps) {
               />
             </Form.Item>
           )}
-          <Form.Item name="virtualCredit" label="Virtual Credit" rules={[{ type: 'number', min: 0 }]}> 
-            <InputNumber 
-              addonBefore="$" 
-              style={{ width: '100%' }}
-              formatter={(value) => value !== null && value !== undefined ? value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
-              parser={(value) => value ? value.replace(/,/g, '') : ''}
+          <Form.Item label="Operator Balances">
+            <OperatorBalancesEditor
+              userId={editingDealer?.uid ?? null}
+              onChange={setPendingOperatorBalances}
             />
           </Form.Item>
           <Form.Item name="disabled" label="Disable User"> 

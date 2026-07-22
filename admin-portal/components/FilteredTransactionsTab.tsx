@@ -12,6 +12,8 @@ import dayjs from 'dayjs';
 import { exportTransactionsToExcel } from '@/lib/exportUtils';
 import { useAuth } from '@/lib/authContext';
 import { formatCurrencyWithSymbol } from '@/lib/formatUtils';
+import { SignatureThumbnail, TransactionDetailModal } from '@/components/SignaturePreview';
+import { extractAccountNumber, getTransactionComment } from '@/lib/transactionDisplayUtils';
 
 const { RangePicker } = DatePicker;
 
@@ -43,6 +45,7 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
   const [minAmount, setMinAmount] = useState<number | null>(null);
   const [maxAmount, setMaxAmount] = useState<number | null>(null);
+  const [detailTx, setDetailTx] = useState<Transaction | null>(null);
 
   useEffect(() => {
     loadData();
@@ -223,6 +226,18 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
 
   const columns = useMemo(() => [
     {
+      title: 'Txn #',
+      dataIndex: 'id',
+      key: 'id',
+      width: 140,
+      ellipsis: true,
+      render: (id: string) => (
+        <Typography.Text copyable={{ text: id }} style={{ fontSize: 12 }}>
+          {(id || '').toUpperCase()}
+        </Typography.Text>
+      ),
+    },
+    {
       title: 'Date',
       dataIndex: 'createdAt',
       key: 'date',
@@ -243,14 +258,18 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
       title: 'Customer',
       dataIndex: 'customerId',
       key: 'customer',
-      render: (id: string) => {
+      render: (id: string, record: Transaction) => {
         const customer = customers[id];
-        return customer ? (
+        return (
           <Space direction="vertical" size={0}>
-            <Typography.Text strong style={{ color: colors.beige[500] }}>{customer.fullName}</Typography.Text>
-            <Typography.Text type="secondary">{customer.phoneNumber}</Typography.Text>
+            <Typography.Text strong style={{ color: colors.beige[500] }}>
+              {customer?.fullName || record.customerName || 'Unknown'}
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              {customer?.phoneNumber || record.customerPhone || 'N/A'}
+            </Typography.Text>
           </Space>
-        ) : 'Unknown';
+        );
       },
     },
     {
@@ -321,9 +340,26 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
       key: 'comment',
       ellipsis: true,
       render: (_: unknown, record: Transaction) => {
-        const comment = record.userNotes || record.notes;
+        const comment = getTransactionComment(record.userNotes, record.notes);
         return comment || <Typography.Text type="secondary">—</Typography.Text>;
       },
+    },
+    {
+      title: 'Account #',
+      key: 'accountNumber',
+      ellipsis: true,
+      render: (_: unknown, record: Transaction) => {
+        const account = extractAccountNumber(record.notes, record.customerPhone);
+        return account || <Typography.Text type="secondary">—</Typography.Text>;
+      },
+    },
+    {
+      title: 'Signature',
+      key: 'signature',
+      width: 90,
+      render: (_: unknown, record: Transaction) => (
+        <SignatureThumbnail url={record.signatureUrl} />
+      ),
     },
   ], [users, customers, operators, actions, allowedUserIds, canEditPaymentStatus]);
 
@@ -424,6 +460,24 @@ export default function FilteredTransactionsTab({ allowedUserIds, showExport = t
           showTotal: (total) => `Total ${total} transactions`,
         }}
         scroll={{ x: 'max-content' }}
+        onRow={(record) => ({
+          onClick: () => setDetailTx(record),
+          style: { cursor: 'pointer' },
+        })}
+      />
+
+      <TransactionDetailModal
+        open={!!detailTx}
+        transaction={detailTx}
+        onClose={() => setDetailTx(null)}
+        userName={detailTx ? users[detailTx.userId]?.name : undefined}
+        customerName={
+          detailTx
+            ? customers[detailTx.customerId]?.fullName || detailTx.customerId
+            : undefined
+        }
+        operatorName={detailTx ? operators[detailTx.operatorId]?.name : undefined}
+        actionName={detailTx ? actions[detailTx.actionId]?.name : undefined}
       />
     </Card>
   );

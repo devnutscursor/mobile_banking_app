@@ -22,6 +22,6 @@ export function formatCurrency(amount: number | null | undefined, decimals: numb
  * @returns Formatted string with $ prefix (e.g., "$1,000.00", "$10,000.50")
  */
 export function formatCurrencyWithSymbol(amount: number | null | undefined, decimals: number = 2): string {
-  return `$${formatCurrency(amount, decimals)}`;
+  return `${formatCurrency(amount, decimals)} F`;
 }
 
