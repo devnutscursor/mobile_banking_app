@@ -141,6 +141,14 @@ export default function CustomersTab() {
       return true;
     });
 
+  const handleExport = () => {
+    exportCustomersToExcel(
+      filteredCustomers,
+      users,
+      `customers_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+    );
+  };
+
   if (loading) {
     return (
       <Card
@@ -157,6 +165,11 @@ export default function CustomersTab() {
       <Card
         styles={{ body: { padding: 16 } }}
         title={<Typography.Title level={3} style={{ margin: 0, color: colors.beige[500] }}>Customers</Typography.Title>}
+        extra={
+          <Button type="primary" icon={<DownloadOutlined />} onClick={handleExport}>
+            Export Excel
+          </Button>
+        }
       >
         {/* Filters */}
         <Space direction="vertical" size="middle" style={{ width: '100%', marginBottom: 16 }}>

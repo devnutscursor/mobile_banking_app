@@ -4,22 +4,19 @@ import { Space, Tooltip } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 
 const LABELS = {
-  virtual: 'Virtual Credit',
   operator: 'Operator Balance',
   total: 'Total Credit',
 } as const;
 
 const HELP = {
-  virtual:
-    'Unallocated credit from admin. Allocate to operators on the phone app via Balance Adjustment.',
   operator:
-    'Per-network credit used for sales. Changes with transactions and operator balance adjustments.',
+    'Per-network credit used for sales. Set by admin per operator, or changed on the phone via Purchase Credit / transactions.',
   total:
-    'Virtual Credit + Operator Balance (matches the mobile dashboard). Sales reduce operator balance only, not virtual credit.',
+    'Sum of all operator balances for this user. Sales reduce operator balance only.',
 } as const;
 
 export const CREDIT_BALANCE_HELP =
-  'Virtual Credit is the unallocated pool. Operator Balance is per-network credit used for sales. Total matches the mobile app dashboard.';
+  'Operator Balance is per-network credit used for sales. Admin assigns it per operator. Cash Balance is managed on the phone.';
 
 export function creditColumnTitle(key: keyof typeof LABELS) {
   return (
